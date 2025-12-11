@@ -1,0 +1,35 @@
+.env
+
+# Node.js
+node_modules/
+dist/
+
+# base de datos
+mongo-backup/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# IDEs y editores
+.vscode/
+.idea/
+.DS_Store
+
+# Cobertura de tests
+coverage/
+
+# ESLint
+.eslintcache
+
+# TypeScript
+*.tsbuildinfo
+
+# Archivos estáticos remotos (montaje SSHFS)
+src/static-remote
+mount-remote-static.sh
+unmount-remote-static.sh
+sync-remote-static.sh

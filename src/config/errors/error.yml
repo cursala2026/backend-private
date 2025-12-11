@@ -1,0 +1,80 @@
+general:
+  date:
+    invalid:
+      key: general.date.invalid
+      message: La fecha es inválida.
+      message_eng: Date is not valid.
+      status: 400
+  time:
+    invalid:
+      key: general.time.invalid
+      message: La hora es inválida.
+      message_eng: Time is not valid.
+      status: 400
+  item:
+    already_exist:
+      key: general.item.already_exist
+      message: El ítem ya existe.
+      message_eng: This item already exists.
+      status: 400
+    not_exist:
+      key: general.item.not_exist
+      message: El ítem no existe.
+      message_eng: This item does not exist.
+      status: 404
+login:
+  accounts:
+    unauthorized:
+      key: login.accounts.unauthorized
+      message: Las credenciales ingresadas no son válidas.
+      message_eng: Invalid credentials.
+      status: 400
+  users:
+    not_found:
+      key: login.users.not_found
+      message: Su usuario aún no ha sido dado de alta en el sistema.
+      message_eng: Your user has not been registered in the system yet.
+      status: 404
+    forbidden:
+      key: login.users.forbidden
+      message: El rol de su usuario no le permite realizar esta acción.
+      message_eng: Your user's role does not allow you to perform this action.
+      status: 400
+    inactive:
+      key: login.users.inactive
+      message: Su usuario se encuentra inactivo.
+      message_eng: Your user is inactive.
+      status: 400
+    unregistered:
+      key: login.users.unregistered
+      message: Su correo no se encuentra registrado en el sistema.
+      message_eng: Your email is not registered in our systems.
+      status: 400
+    no_token:
+      key: app.login.no_token
+      message: No se envió un token de autorización.
+      message_eng: No authorization token was provided.
+      status: 401
+register:
+  users:
+    already_exists:
+      key: register.users.already_exists
+      message: El usuario con el email ingresado ya existe.
+      message_eng: User with email recived is already exists.
+      status: 400
+password_reset:
+  token_expired:
+    key: password_reset.token_expired
+    message: El token de restablecimiento de contraseña ha expirado.
+    message_eng: The password reset token has expired.
+    status: 401
+  token_invalid:
+    key: password_reset.token_invalid
+    message: El token de restablecimiento de contraseña es inválido o no coincide.
+    message_eng: The password reset token is invalid or does not match.
+    status: 400
+  password_too_short:
+    key: password_reset.password_too_short
+    message: La contraseña debe tener al menos 8 dígitos.
+    message_eng: The password must be at least 8 digits long.
+    status: 400
