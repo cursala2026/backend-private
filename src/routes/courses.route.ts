@@ -9,7 +9,8 @@ const router = Router();
 router.get('/:imageFileName/image', courseController.getCourseImage);
 
 // 🟡 AUTENTICADO: Listar y ver cursos
-router.get('/', authorize, requireAdmin, courseController.findAll);
+router.get('/published', authorize, courseController.findPublishedCourses); // Cursos publicados para estudiantes
+router.get('/', authorize, requireAdmin, courseController.findAll); // Todos los cursos (solo admin)
 router.get('/:courseId', authorize, courseController.findOneById);
 
 // 🟠 ALTO: Administración de cursos requiere admin

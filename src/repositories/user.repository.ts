@@ -49,11 +49,23 @@ class UserRepository {
    * @returns A promise that resolves when the save operation is complete.
    */
   async save(user: IUser): Promise<IUser> {
+    // Hashear la contraseña antes de guardar el usuario
+    if (user.password) {
+      const saltRounds = 10;
+      user.password = await bcrypt.hash(user.password, saltRounds);
+    }
+    
     const res = await this.model.create(user as Partial<IUser>);
     return res as unknown as IUser;
   }
 
   async createUser(user: Partial<IUser>) {
+    // Hashear la contraseña antes de crear el usuario
+    if (user.password) {
+      const saltRounds = 10;
+      user.password = await bcrypt.hash(user.password, saltRounds);
+    }
+    
     const res = await this.model.create(user as Partial<IUser>);
     return res as unknown as IUser;
   }

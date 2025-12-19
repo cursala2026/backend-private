@@ -63,6 +63,46 @@ class BunnyService {
   }
 
   /**
+   * Sube un archivo a Bunny Storage usando streaming (para archivos grandes)
+   * @param stream - Stream del archivo
+   * @param fileName - Nombre del archivo con extensión
+   * @param folder - Carpeta dentro del storage zone (ej: 'class-videos')
+   * @param fileSize - Tamaño del archivo en bytes (opcional, para logging)
+   * @returns URL del CDN del archivo subido
+   */
+  async uploadFileStream(stream: NodeJS.ReadableStream, fileName: string, folder: string = 'class-videos', fileSize?: number): Promise<string> {
+    try {
+      // Sanitizar el nombre del archivo
+      const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `/${folder}/${safeFileName}`;
+      const uploadUrl = `${this.baseUrl}${filePath}`;
+
+      const sizeInfo = fileSize ? ` (${(fileSize / (1024 * 1024)).toFixed(2)} MB)` : '';
+      logger.info(`🚀 Uploading stream to Bunny: ${uploadUrl}${sizeInfo}`);
+
+      const response = await axios.put(uploadUrl, stream, {
+        headers: {
+          'AccessKey': this.storageApiKey,
+          'Content-Type': 'application/octet-stream',
+        },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+
+      if (response.status === 201 || response.status === 200) {
+        const cdnUrl = `${this.cdnHostname}${filePath}`;
+        logger.info(`✅ File stream uploaded successfully to Bunny: ${cdnUrl}`);
+        return cdnUrl;
+      }
+
+      throw new Error(`Bunny upload failed with status: ${response.status}`);
+    } catch (error) {
+      logger.error(`❌ Error uploading stream to Bunny: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Elimina un archivo de Bunny Storage
    * @param fileUrl - URL del CDN del archivo a eliminar
    * @returns true si se eliminó correctamente

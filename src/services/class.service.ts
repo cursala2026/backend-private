@@ -10,9 +10,14 @@ import {
 } from '../utils';
 import { IClassData } from '@/models';
 import ClassRepository from '@/repositories/class.repository';
+import BunnyService from './bunny.service';
 
 export default class ClassService {
-  constructor(private readonly classRepository: ClassRepository) {}
+  private readonly bunnyService: BunnyService;
+
+  constructor(private readonly classRepository: ClassRepository) {
+    this.bunnyService = new BunnyService();
+  }
 
   /**
    * Encuentra una clase por su ID.
@@ -89,15 +94,27 @@ export default class ClassService {
 
     // Elimina archivos asociados si existen
     if (classData.imageUrl) {
-      const imagePath = path.join(__dirname, '../static/images', classData.imageUrl);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      // Si la imagen está en Bunny, eliminarla de allí
+      if (this.bunnyService.isBunnyCdnUrl(classData.imageUrl)) {
+        await this.bunnyService.deleteFile(classData.imageUrl);
+      } else {
+        // Si es local, eliminarla del filesystem
+        const imagePath = path.join(__dirname, '../static/images', classData.imageUrl);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
       }
     }
     if (classData.videoUrl) {
-      const videoPath = path.join(__dirname, '../static/videos', classData.videoUrl);
-      if (fs.existsSync(videoPath)) {
-        fs.unlinkSync(videoPath);
+      // Si el video está en Bunny, eliminarlo de allí
+      if (this.bunnyService.isBunnyCdnUrl(classData.videoUrl)) {
+        await this.bunnyService.deleteFile(classData.videoUrl);
+      } else {
+        // Si es local, eliminarlo del filesystem
+        const videoPath = path.join(__dirname, '../static/videos', classData.videoUrl);
+        if (fs.existsSync(videoPath)) {
+          fs.unlinkSync(videoPath);
+        }
       }
     }
     // Elimina archivos de material de apoyo si existen
@@ -175,11 +192,17 @@ export default class ClassService {
 
   /**
    * Obtiene la imagen de una clase.
-   * @param imageFileName - Nombre del archivo de la imagen.
+   * @param imageFileName - Nombre del archivo de la imagen o URL de Bunny CDN.
    * @returns El contenido de la imagen como Buffer o null si no existe.
    */
   async getClassImage(imageFileName: string): Promise<Buffer | null> {
     try {
+      // Si es una URL de Bunny CDN, descargarla desde allí
+      if (this.bunnyService.isBunnyCdnUrl(imageFileName)) {
+        return await this.bunnyService.downloadFile(imageFileName);
+      }
+
+      // Si es un archivo local, leerlo del filesystem
       const filePath = path.join(__dirname, '../static/images', imageFileName);
       if (!fs.existsSync(filePath)) {
         return null;
