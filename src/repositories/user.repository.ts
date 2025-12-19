@@ -2,6 +2,7 @@ import { IUser, UserSchema, IAssignedCourse, IAssignedCourseEdit } from '../mode
 import { IUserExtended } from '@/types/user.types';
 import { Connection, Model, Types, UserStatus } from '@/models';
 import { logger } from '../utils';
+import bcrypt from 'bcryptjs';
 
 class UserRepository {
   private readonly model: Model<IUser>;
@@ -653,22 +654,46 @@ class UserRepository {
       throw new Error('El userId proporcionado no es válido.');
     }
 
-    // Filtrar campos undefined y null
+    // Filtrar campos undefined, null y strings vacíos
     const cleanedData: any = {};
     Object.keys(userData).forEach(key => {
       const value = (userData as any)[key];
+      // Solo incluir valores que no sean undefined, null, o strings vacíos
       if (value !== undefined && value !== null && value !== '') {
         cleanedData[key] = value;
       }
     });
 
-    // Convertir fechas si vienen como strings
-    if (cleanedData.birthDate && typeof cleanedData.birthDate === 'string') {
-      cleanedData.birthDate = new Date(cleanedData.birthDate);
+    // Hashear la contraseña si se está actualizando
+    if (cleanedData.password) {
+      const saltRounds = 10;
+      cleanedData.password = await bcrypt.hash(cleanedData.password, saltRounds);
     }
 
-    const updatedUser = await this.model.findByIdAndUpdate(userId, { $set: cleanedData }, { new: true }).exec();
-    return updatedUser as unknown as IUser | null;
+    // Convertir fechas si vienen como strings y son válidas
+    if (cleanedData.birthDate) {
+      if (typeof cleanedData.birthDate === 'string') {
+        const parsedDate = new Date(cleanedData.birthDate);
+        // Verificar que la fecha es válida
+        if (isNaN(parsedDate.getTime())) {
+          delete cleanedData.birthDate; // Eliminar fecha inválida
+        } else {
+          cleanedData.birthDate = parsedDate;
+        }
+      }
+    }
+
+    try {
+      const updatedUser = await this.model.findByIdAndUpdate(
+        userId, 
+        { $set: cleanedData }, 
+        { new: true, runValidators: true }
+      ).exec();
+      return updatedUser as unknown as IUser | null;
+    } catch (error) {
+      console.error('Error updating user in repository:', error);
+      throw error;
+    }
   }
 
   async getUsersByAssignedCourses(courseId: string): Promise<
@@ -797,6 +822,23 @@ class UserRepository {
    */
   async countUsers(): Promise<number> {
     return this.model.countDocuments();
+  }
+
+  /**
+   * Obtiene los últimos usuarios registrados
+   * @param limit - Número de usuarios a retornar (por defecto 5)
+   * @returns Array de usuarios recientes sin información sensible
+   */
+  async getRecentUsers(limit: number = 5): Promise<Partial<IUser>[]> {
+    const users = await this.model
+      .find()
+      .select('_id username email firstName lastName createdAt roles')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+
+    return users as Partial<IUser>[];
   }
 }
 

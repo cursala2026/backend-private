@@ -7,11 +7,18 @@ import {
   isPathInAllowedDirectories,
 } from '@/utils/fileSecurity.util';
 import logger from '@/utils/logger';
+import BunnyService from './bunny.service';
 
 export default class FileService {
+  private bunnyService: BunnyService;
+
+  constructor() {
+    this.bunnyService = new BunnyService();
+  }
+
   /**
    * Obtiene la imagen de un archivo.
-   * @param imageFileName - Nombre del archivo de la imagen.
+   * @param imageFileName - Nombre del archivo de la imagen o URL completa de Bunny CDN.
    * @param requestIP - IP del cliente (para logging de seguridad)
    * @returns El contenido de la imagen como Buffer o null si no existe.
    */
@@ -19,6 +26,19 @@ export default class FileService {
     try {
       logger.info(`📂 getFileImage called with: "${imageFileName}"`);
 
+      // Si es una URL de Bunny CDN, descargar directamente desde allí
+      if (this.bunnyService.isBunnyCdnUrl(imageFileName)) {
+        logger.info(`🐰 Detected Bunny CDN URL, downloading from CDN...`);
+        const buffer = await this.bunnyService.downloadFile(imageFileName);
+        if (buffer) {
+          logger.info(`✅ Image downloaded from Bunny CDN: ${buffer.length} bytes`);
+          return buffer;
+        }
+        logger.warn(`❌ Failed to download from Bunny CDN, falling back to local...`);
+        // Si falla, continuar con el sistema local como fallback
+      }
+
+      // Sistema legacy: búsqueda en filesystem local
       // Validar y sanitizar el nombre del archivo
       const sanitizationResult = sanitizeImageFileName(imageFileName, requestIP);
 
@@ -65,13 +85,13 @@ export default class FileService {
         try {
           const localDir = path.resolve(__dirname, '../static/images');
           const remoteDir = path.resolve(__dirname, '../static-remote/images');
-          
+
           logger.info(`📁 Local images directory (${fs.existsSync(localDir) ? fs.readdirSync(localDir).length : 0} files):`);
           if (fs.existsSync(localDir)) {
             const localFiles = fs.readdirSync(localDir);
             localFiles.slice(0, 5).forEach(f => logger.info(`  - ${f}`));
           }
-          
+
           logger.info(`📁 Remote images directory (${fs.existsSync(remoteDir) ? fs.readdirSync(remoteDir).length : 0} files):`);
           if (fs.existsSync(remoteDir)) {
             const remoteFiles = fs.readdirSync(remoteDir);

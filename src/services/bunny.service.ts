@@ -94,9 +94,45 @@ class BunnyService {
   }
 
   /**
+   * Descarga un archivo desde Bunny CDN
+   * @param fileUrl - URL del CDN del archivo
+   * @returns Buffer del archivo
+   */
+  async downloadFile(fileUrl: string): Promise<Buffer | null> {
+    try {
+      logger.info(`📥 Downloading from Bunny CDN: ${fileUrl}`);
+
+      const response = await axios.get(fileUrl, {
+        responseType: 'arraybuffer',
+        timeout: 10000,
+      });
+
+      if (response.status === 200 && response.data) {
+        const buffer = Buffer.from(response.data);
+        logger.info(`✅ File downloaded from Bunny CDN: ${buffer.length} bytes`);
+        return buffer;
+      }
+
+      return null;
+    } catch (error) {
+      logger.error(`❌ Error downloading from Bunny CDN: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Verifica si una URL es de Bunny CDN
+   * @param url - URL o nombre de archivo a verificar
+   * @returns true si es una URL de Bunny CDN
+   */
+  isBunnyCdnUrl(url: string): boolean {
+    return url.includes('bunnycdn') || url.includes('b-cdn.net') || url.startsWith('http');
+  }
+
+  /**
    * Genera un nombre único para el archivo
    * @param originalName - Nombre original del archivo
-   * @param prefix - Prefijo para el nombre (ej: 'profile', 'signature')
+   * @param prefix - Prefijo para el nombre (ej: 'profile', 'signature', 'course')
    * @returns Nombre único del archivo
    */
   generateUniqueFileName(originalName: string, prefix: string = 'file'): string {
