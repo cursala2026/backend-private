@@ -1,5 +1,6 @@
 import { NextFunction, Response, Request } from 'express';
 import prepareResponse from '../utils/api-response';
+import { logger } from '../utils';
 import UserService from '@/services/user.service';
 import { UserStatus } from '@/models';
 import { IUser } from '@/models/user.model';
@@ -25,6 +26,24 @@ export default class UserController {
     try {
       const users = await this.userService.getAllUsers();
       return res.json(prepareResponse(200, 'Users fetched successfully', users));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  getUsersPaginated = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { page, limit, sort, dir, search } = req.query;
+      
+      const result = await this.userService.getUsersPaginated({
+        page: Number(page) || 1,
+        limit: Number(limit) || 10,
+        sort: (sort as string) || 'createdAt',
+        dir: dir === 'ASC' ? 1 : -1,
+        search: search as string,
+      });
+      
+      return res.json(prepareResponse(200, 'Users fetched successfully', result));
     } catch (error) {
       return next(error);
     }
@@ -62,6 +81,28 @@ export default class UserController {
 
       const resp = await this.userService.changueStatus(userId, status);
       return res.json(prepareResponse(200, 'Status changed successfully', resp));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  toggleUserStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+
+      const resp = await this.userService.toggleUserStatus(userId);
+      return res.json(prepareResponse(200, 'Status toggled successfully', resp));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  createUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userData = req.body;
+
+      const resp = await this.userService.createUser(userData);
+      return res.json(prepareResponse(201, 'User created successfully', resp));
     } catch (error) {
       return next(error);
     }
@@ -239,9 +280,19 @@ export default class UserController {
       const { userId } = req.params;
       const userData = req.body;
 
+      logger.info(`🔄 Updating user ${userId} with data:`, userData);
+
       const resp = await this.userService.updateUser(userId, userData);
+      
+      if (!resp) {
+        logger.warn(`⚠️ User ${userId} not found`);
+        return res.status(404).json(prepareResponse(404, 'User not found'));
+      }
+
+      logger.info(`✅ User ${userId} updated successfully`);
       return res.json(prepareResponse(200, 'User updated successfully', resp));
     } catch (error) {
+      logger.error(`❌ Error updating user: ${(error as Error).message}`, { stack: (error as Error).stack });
       return next(error);
     }
   };

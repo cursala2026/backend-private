@@ -55,4 +55,10 @@ export default {
 
   // Security configuration
   ADMIN_ROLE_ID: process.env.ADMIN_ROLE_ID || '768b59e49b3298289bdbd0fd',
+
+  // Bunny CDN configuration
+  BUNNY_STORAGE_API_KEY: process.env.BUNNY_STORAGE_API_KEY,
+  BUNNY_STORAGE_ZONE_NAME: process.env.BUNNY_STORAGE_ZONE_NAME,
+  BUNNY_STORAGE_REGION: process.env.BUNNY_STORAGE_REGION,
+  BUNNY_STORAGE_CDN_HOSTNAME: process.env.BUNNY_STORAGE_CDN_HOSTNAME,
 };

@@ -5,10 +5,12 @@ import { categoryController } from '@/controllers';
 
 const router = Router();
 
+// 🟢 PÚBLICO: Imágenes de categorías (sin autenticación para permitir carga en navegador)
+router.get('/category/:imageFileName/image', categoryController.getCategoryImage);
+
 // 🟡 AUTENTICADO: Ver categorías y cursos
 router.get('/categories', authorize, categoryController.findAll);
 router.get('/category/:categoryId', authorize, categoryController.findOneById);
-router.get('/category/:imageFileName/image', authorize, categoryController.getCategoryImage);
 router.get('/categories/:categoryId/courses', authorize, categoryController.getCoursesByCategoryAggregate);
 router.get(
   '/categories/:categoryId/coursesnotassigned',

@@ -148,6 +148,53 @@ class UserRepository {
     return res as unknown as IUser[];
   }
 
+  async getUsersPaginated(params: {
+    page: number;
+    limit: number;
+    sort: string;
+    dir: number;
+    search?: string;
+  }) {
+    const { page, limit, sort, dir, search } = params;
+    const skip = (page - 1) * limit;
+
+    // Build search filter
+    const searchFilter = search
+      ? {
+          $or: [
+            { email: { $regex: search, $options: 'i' } },
+            { firstName: { $regex: search, $options: 'i' } },
+            { lastName: { $regex: search, $options: 'i' } },
+          ],
+        }
+      : {};
+
+    // Get total count
+    const total = await this.model.countDocuments(searchFilter).exec();
+
+    // Get paginated results
+    const sortObj: Record<string, 1 | -1> = { [sort]: dir as 1 | -1 };
+    
+    const users = await this.model
+      .find(searchFilter)
+      .select('-password -resetPasswordToken')
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec();
+
+    return {
+      data: users as unknown as IUser[],
+      pagination: {
+        page,
+        page_size: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   /**
    * Removes a role from a user's roles.
    * @param userId - The user's unique identifier.
@@ -192,6 +239,27 @@ class UserRepository {
     }
 
     const updatedUser = await this.model.findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $set: { status } }, { new: true }).exec();
+    return updatedUser as unknown as IUser | null;
+  }
+
+  async toggleUserStatus(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new Error('El userId proporcionado no es válido.');
+    }
+
+    const user = await this.model.findById(userId).exec();
+    if (!user) {
+      throw new Error('Usuario no encontrado.');
+    }
+
+    const userData = user as unknown as IUser;
+    const newStatus = userData.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE;
+    const updatedUser = await this.model.findOneAndUpdate(
+      { _id: new Types.ObjectId(userId) }, 
+      { $set: { status: newStatus } }, 
+      { new: true }
+    ).exec();
+    
     return updatedUser as unknown as IUser | null;
   }
 
@@ -585,7 +653,21 @@ class UserRepository {
       throw new Error('El userId proporcionado no es válido.');
     }
 
-    const updatedUser = await this.model.findByIdAndUpdate(userId, { $set: userData }, { new: true }).exec();
+    // Filtrar campos undefined y null
+    const cleanedData: any = {};
+    Object.keys(userData).forEach(key => {
+      const value = (userData as any)[key];
+      if (value !== undefined && value !== null && value !== '') {
+        cleanedData[key] = value;
+      }
+    });
+
+    // Convertir fechas si vienen como strings
+    if (cleanedData.birthDate && typeof cleanedData.birthDate === 'string') {
+      cleanedData.birthDate = new Date(cleanedData.birthDate);
+    }
+
+    const updatedUser = await this.model.findByIdAndUpdate(userId, { $set: cleanedData }, { new: true }).exec();
     return updatedUser as unknown as IUser | null;
   }
 

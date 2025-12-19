@@ -6,6 +6,20 @@ import { uploadFiles } from '@/controllers/class.controller';
 const router = Router();
 
 /**
+ * @route GET /class/:imageFileName/image
+ * @description Obtiene la imagen de una clase.
+ * @access Public (sin autenticación para permitir carga en navegador)
+ */
+router.get('/class/:imageFileName/image', classController.getClassImage);
+
+/**
+ * @route GET /class/:videoFileName/video
+ * @description Obtiene el video de una clase.
+ * @access Private (requiere autorización)
+ */
+router.get('/class/:videoFileName/video', authorize, classController.getClassVideo);
+
+/**
  * @route GET /class/:classId
  * @description Obtiene una clase por su ID.
  * @access Private (requiere autorización)
@@ -103,20 +117,6 @@ router.patch('/class/:classId/up', authorize, classController.moveUpOrder);
  * @access Private (requiere autorización)
  */
 router.patch('/class/:classId/down', authorize, classController.moveDownOrder);
-
-/**
- * @route GET /class/:imageFileName/image
- * @description Obtiene la imagen de una clase.
- * @access Private (requiere autorización)
- */
-router.get('/class/:imageFileName/image', authorize, classController.getClassImage);
-
-/**
- * @route GET /class/:videoFileName/video
- * @description Obtiene el video de una clase.
- * @access Private (requiere autorización)
- */
-router.get('/class/:videoFileName/video', authorize, classController.getClassVideo);
 
 /**
  * @route PATCH /class/:classId

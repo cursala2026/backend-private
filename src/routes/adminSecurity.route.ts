@@ -214,6 +214,22 @@ router.get('/stats', authMiddleware, getSecurityStats);
  */
 router.get('/system-stats-public', getSystemStatsPublic);
 
+/**
+ * @swagger
+ * /admin-security/system-stats:
+ *   get:
+ *     summary: Obtiene estadísticas generales del sistema (requiere autenticación)
+ *     tags: [Admin Security]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Estadísticas del sistema obtenidas
+ *       403:
+ *         description: No autorizado
+ */
+router.get('/system-stats', authMiddleware, getSystemStats);
+
 // Endpoint público que devuelve el ID del rol administrador (resuelto por código)
 router.get('/admin-role', getAdminRole);
 

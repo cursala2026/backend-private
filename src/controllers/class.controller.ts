@@ -275,7 +275,24 @@ export default class ClassController {
       if (!fileBuffer) {
         return res.status(404).json(prepareResponse(404, 'Image not found'));
       }
-      res.setHeader('Content-Type', 'image/jpeg');
+
+      // Determinar el tipo de contenido basado en la extensión del archivo
+      let contentType = 'image/jpeg';
+      if (imageFileName.endsWith('.png')) {
+        contentType = 'image/png';
+      } else if (imageFileName.endsWith('.webp')) {
+        contentType = 'image/webp';
+      } else if (imageFileName.endsWith('.jpg') || imageFileName.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      }
+
+      // Headers CORS para permitir la carga de imágenes
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache por 1 día
+
       res.send(fileBuffer);
     } catch (error) {
       return next(error);

@@ -6,11 +6,16 @@ import axios from 'axios';
 import http from 'http';
 import { logger, prepareResponse } from '../utils';
 import FileService from '@/services/file.service';
+import BunnyService from '@/services/bunny.service';
 import config from '@/config';
 import { getClientIP } from '@/utils/fileSecurity.util';
 
 export default class FileController {
-  constructor(private readonly fileService: FileService) {}
+  private readonly bunnyService: BunnyService;
+
+  constructor(private readonly fileService: FileService) {
+    this.bunnyService = new BunnyService();
+  }
 
   getFileImage = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -34,11 +39,14 @@ export default class FileController {
         contentType = 'image/webp';
       }
 
-      // Security headers
+      // Security and CORS headers
       res.setHeader('Content-Type', contentType);
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'none'; script-src 'none'");
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
       res.send(fileBuffer);
     } catch (error) {
@@ -330,6 +338,9 @@ export default class FileController {
             const placeholderBuffer = fs.readFileSync(placeholderPath);
             res.setHeader('Content-Type', 'image/png');
             res.setHeader('Cache-Control', 'public, max-age=3600');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
             return res.send(placeholderBuffer);
           }
         } catch (placeholderError) {
@@ -353,11 +364,14 @@ export default class FileController {
         contentType = 'image/webp';
       }
 
-      // Security headers
+      // Security and CORS headers
       res.setHeader('Content-Type', contentType);
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'none'; script-src 'none'");
       res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutos para desarrollo
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
       res.send(fileBuffer);
       logger.info(`📤 Image sent to client: "${fileName}"`);
@@ -405,6 +419,9 @@ export default class FileController {
             const placeholderBuffer = fs.readFileSync(placeholderPath);
             res.setHeader('Content-Type', 'image/png');
             res.setHeader('Cache-Control', 'public, max-age=3600');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
             return res.send(placeholderBuffer);
           }
         } catch (placeholderError) {
@@ -430,6 +447,9 @@ export default class FileController {
 
       res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 horas
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.send(fileBuffer);
 
       logger.debug(`📤 Profile image sent to client: "${fileName}" from ${isRemote ? 'remote' : 'local'}`);
@@ -582,6 +602,32 @@ export default class FileController {
         stack: (error as Error).stack,
       });
       return next(error);
+    }
+  };
+
+  /**
+   * Sube una imagen de perfil a Bunny CDN
+   */
+  uploadProfileImage = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json(prepareResponse(400, 'No se proporcionó ninguna imagen'));
+      }
+
+      logger.info(`📤 Uploading profile image: ${req.file.originalname} (${req.file.size} bytes)`);
+
+      // Generar nombre único para el archivo
+      const fileName = this.bunnyService.generateUniqueFileName(req.file.originalname, 'profile');
+
+      // Subir a Bunny CDN
+      const cdnUrl = await this.bunnyService.uploadFile(req.file.buffer, fileName, 'profile-images');
+
+      logger.info(`✅ Profile image uploaded successfully: ${cdnUrl}`);
+
+      return res.status(200).json(prepareResponse(200, 'Imagen subida exitosamente', { url: cdnUrl }));
+    } catch (error) {
+      logger.error(`❌ Error uploading profile image: ${(error as Error).message}`);
+      return res.status(500).json(prepareResponse(500, 'Error al subir la imagen'));
     }
   };
 }

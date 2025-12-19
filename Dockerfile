@@ -32,16 +32,11 @@ RUN npm ci --omit=dev --legacy-peer-deps
 # Copy built assets only
 COPY --from=builder /app/dist ./dist
 
-# Copy static assets (images, certificates, etc.)
+# Copy static assets (plantillas, etc.)
 COPY --from=builder /app/src/static ./src/static
 
-# Create upload directories and logs with proper permissions before switching user
-RUN mkdir -p /app/dist/src/static/images \
-    /app/dist/src/static/files-public \
-    /app/dist/src/static/profile-images \
-    /app/dist/src/static/signatures \
-    /app/dist/src/static/materials \
-    /app/logs
+# Solo crear directorio de logs (imágenes/videos ahora en Bunny.net)
+RUN mkdir -p /app/logs && chmod -R 755 /app/logs
 
 # Add a non-root user for security
 # RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \

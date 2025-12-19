@@ -14,7 +14,9 @@
     "lint": "eslint src --cache --ext .ts --max-warnings 100",
     "lint:fix": "eslint src --cache --fix --ext .ts",
     "pre-commit": "lint-staged",
-    "debug": "nodemon -e ts,tsx --exec node -r ts-node/register -r tsconfig-paths/register --inspect src/index.ts"
+    "debug": "nodemon -e ts,tsx --exec node -r ts-node/register -r tsconfig-paths/register --inspect src/index.ts",
+    "migrate:roles": "ts-node -r tsconfig-paths/register src/scripts/migrate-user-roles.ts",
+    "fix:roles": "ts-node -r tsconfig-paths/register src/scripts/fix-all-roles.ts"
   },
   "repository": {},
   "author": "",
