@@ -39,7 +39,7 @@ export default class UserController {
   getUsersPaginated = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { page, limit, sort, dir, search } = req.query;
-      
+
       const result = await this.userService.getUsersPaginated({
         page: Number(page) || 1,
         limit: Number(limit) || 10,
@@ -47,7 +47,18 @@ export default class UserController {
         dir: dir === 'ASC' ? 1 : -1,
         search: search as string,
       });
-      
+
+      // DEBUG: Log del usuario específico
+      const targetUser = result?.data?.find((u: any) => u.email === 'rubilar85@hotmail.com');
+      if (targetUser) {
+        logger.info('🔍 DEBUG getUsersPaginated - rubilar85@hotmail.com:', {
+          _id: targetUser._id,
+          email: targetUser.email,
+          roles: targetUser.roles,
+          rolesType: Array.isArray(targetUser.roles) ? 'Array' : typeof targetUser.roles
+        });
+      }
+
       return res.json(prepareResponse(200, 'Users fetched successfully', result));
     } catch (error) {
       return next(error);

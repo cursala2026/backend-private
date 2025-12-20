@@ -104,12 +104,19 @@ export default class Server implements NodeServer {
         .map((s) => s.trim())
         .filter(Boolean);
 
+      // En desarrollo, permitir localhost automáticamente
+      if (config.NODE_ENV === 'development') {
+        allowed.push('http://localhost:4200', 'http://localhost:3000', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000');
+      }
+
       corsOptions = {
         origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
           // Allow non-browser or server-to-server requests (no Origin header)
           if (!origin) return callback(null, true);
           if (allowed.includes(origin)) return callback(null, true);
-          return callback(new Error('Not allowed by CORS'));
+          // En lugar de lanzar un error, simplemente rechazar la solicitud
+          // Esto evita que se convierta en uncaughtException
+          callback(null, false);
         },
         credentials: true,
         optionsSuccessStatus: 200,
