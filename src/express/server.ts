@@ -1,7 +1,5 @@
 import express, { Express, Router } from 'express';
 import http from 'http';
-import path from 'path';
-import fs from 'fs';
 import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -148,24 +146,6 @@ export default class Server implements NodeServer {
 
     // Rate limiting middleware global
     this.app.use(globalLimiter);
-
-    // ⭐ Servir archivos estáticos en desarrollo (en producción lo hace nginx)
-    if (config.NODE_ENV === 'development') {
-      const staticPath = path.join(__dirname, '../static');
-      logger.info(`🗂️  Serving static files from: ${staticPath}`);
-      this.app.use('/static', express.static(staticPath));
-
-      // Servir archivos estáticos remotos si están montados con SSHFS
-      const remoteStaticPath = path.join(__dirname, '../static-remote');
-      if (fs.existsSync(remoteStaticPath)) {
-        logger.info(`🌐 Serving remote static files from: ${remoteStaticPath}`);
-        this.app.use('/static-remote', express.static(remoteStaticPath));
-      } else {
-        logger.warn(
-          `⚠️  Remote static files not mounted. Run ./mount-remote-static.sh to access production images.`
-        );
-      }
-    }
 
     // Definir rutas
     this.app.use(config.BASE_URL, ...this.routes);
