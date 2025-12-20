@@ -1,6 +1,23 @@
 import { Router } from 'express';
 import { authorize } from '@/middlewares/auth.middleware';
 import { fileController } from '@/controllers';
+import multer from 'multer';
+
+// Configurar multer para usar memoria (no guardar en disco)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+  fileFilter: (req, file, cb) => {
+    // Solo permitir imágenes
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen'));
+    }
+  },
+});
 
 const router = Router();
 
@@ -41,5 +58,12 @@ router.post('/direct', authorize, fileController.proxyDirectRequest);
  * @query path - Ruta de la API (ej: /updateUser/userId)
  */
 router.put('/direct', authorize, fileController.proxyDirectRequest);
+
+/**
+ * @route POST /upload/profile-image
+ * @description Sube una imagen de perfil a Bunny CDN
+ * @access Private (requiere autorización)
+ */
+router.post('/upload/profile-image', authorize, upload.single('image'), fileController.uploadProfileImage);
 
 export default router;

@@ -5,9 +5,13 @@ import { courseController } from '@/controllers';
 
 const router = Router();
 
-// 🟡 AUTENTICADO: Ver detalles de curso
+// 🟢 PÚBLICO: Imágenes de cursos (sin autenticación para permitir carga en navegador)
+router.get('/:imageFileName/image', courseController.getCourseImage);
+
+// 🟡 AUTENTICADO: Listar y ver cursos
+router.get('/published', authorize, courseController.findPublishedCourses); // Cursos publicados para estudiantes
+router.get('/', authorize, requireAdmin, courseController.findAll); // Todos los cursos (solo admin)
 router.get('/:courseId', authorize, courseController.findOneById);
-router.get('/:imageFileName/image', authorize, courseController.getCourseImage);
 
 // 🟠 ALTO: Administración de cursos requiere admin
 router.post('/course', authorize, requireAdmin, courseController.create);

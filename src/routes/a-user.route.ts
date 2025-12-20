@@ -15,6 +15,7 @@ if (process.env.NODE_ENV === 'development') {
 // 🟠 ALTO: Consultas administrativas de usuarios
 router.get('/getUserById/:userId', authorize, requireAdmin, userController.getUserById);
 router.get('/getAllUsers', authorize, requireAdmin, userController.getAllUsers);
+router.get('/', authorize, requireAdmin, userController.getUsersPaginated);
 router.get('/getUsersByAssignedCourses/:courseId', authorize, requireAdmin, userController.getUsersByAssignedCourses);
 // 🟡 MEDIO: Gestión de cursos asignados (requiere admin para asignaciones de otros usuarios)
 router.get('/getAssignedCourses/:userId', authorize, userController.getAssignedCourses);
@@ -34,6 +35,7 @@ router.get('/course-access-info/:courseId', authorize, userController.getCourseA
 // router.post('/addRoleToUser', authorize, requireAdmin, userController.addRoleToUser);
 // router.post('/removeRoleFromUser', authorize, requireAdmin, userController.removeRoleFromUser);
 // 🟠 ALTO: Operaciones administrativas que requieren rol admin
+router.post('/create', authorize, requireAdmin, userController.createUser);
 router.post('/addCountryToUser', authorize, requireAdmin, userController.addCountriesToUser);
 router.post('/assignCourseToUser', authorize, requireAdmin, userController.assignCourseToUser);
 router.post('/removeCourseFromUser', authorize, requireAdmin, userController.removeCourseFromUser);
@@ -46,6 +48,7 @@ router.post('/changueStatus', authorize, requireAdmin, userController.changueSta
 router.patch('/updateUser/:userId', authorize, requireAdmin, userController.updateUser);
 router.patch('/updateUserData/:userId', authorize, requireAdmin, userController.updateUserData);
 router.patch('/updateLastConnection/:userId', authorize, userController.updateLastConnection);
+router.patch('/:userId/toggle-status', authorize, requireAdmin, userController.toggleUserStatus);
 
 // DELETE routes
 // 🔴 CRÍTICO: Eliminar usuario requiere verificación de email

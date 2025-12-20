@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { logger, prepareResponse } from '../utils';
 import CourseService from '@/services/course.service';
 import { ICourse } from '@/models';
-import { courseUploadFiles, courseUploadService } from '@/services/course-upload.service';
+import { courseUploadFiles } from '@/services/course-upload.service';
 
 // Re-exportar para compatibilidad con rutas
 export { courseUploadFiles as uploadFiles } from '@/services/course-upload.service';
@@ -72,43 +72,59 @@ export default class CourseController {
             isPublished,
           } = req.body;
 
-          // Procesamos los archivos subidos
-          const files = req.files as Record<string, Express.Multer.File[]>;
-          const imageUrl = files.imageFile[0].filename;
-
-          let programUrl: string | undefined;
-          if (files.programFile && files.programFile.length > 0) {
-            programUrl = files.programFile[0].filename;
-          }
-
-          // Construir el objeto de datos del curso, convirtiendo los tipos si es necesario
+          // Construir el objeto de datos del curso
           const courseData = {
             name,
             description,
             longDescription,
             status,
             order: order ? Number(order) : 0,
-            imageUrl,
             days: typeof days === 'string' ? days.split(',').map((day) => day.trim()) : days,
             time,
             startDate: startDate ? new Date(startDate) : undefined,
             registrationOpenDate: registrationOpenDate ? new Date(registrationOpenDate) : undefined,
             modality,
             price: price ? Number(price) : undefined,
-            programUrl,
-            maxInstallments: maxInstallments ? Number(maxInstallments) : 0,
+            maxInstallments: maxInstallments ? Number(maxInstallments) : 1,
             interestFree: interestFree === 'true' || interestFree === true,
             isPublished: (() => {
-              if (isPublished === undefined) return true; // Por defecto true para nuevos cursos
+              if (isPublished === undefined) return true;
               if (typeof isPublished === 'string') return isPublished.toLowerCase() === 'true';
               return Boolean(isPublished);
             })(),
           };
 
-          const course = await this.courseService.create(courseData);
+          // Obtener archivos
+          const files = req.files as Record<string, Express.Multer.File[]>;
+          const imageFile = files.imageFile?.[0];
+          const programFile = files.programFile?.[0];
+
+          // Crear curso con archivos usando el servicio
+          const course = await this.courseService.createCourseWithFiles(courseData, imageFile, programFile);
+          
           return res.json(prepareResponse(201, 'Course created successfully', course));
         } catch (error) {
-          return res.status(500).json({ message: 'Unexpected error', error: (error as Error).message });
+          // Manejar errores de MongoDB específicos
+          if (error && typeof error === 'object' && 'code' in error) {
+            if (error.code === 11000) {
+              return res.status(400).json({ 
+                message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' 
+              });
+            }
+          }
+
+          // Error de validación de Mongoose
+          if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
+            return res.status(400).json({ 
+              message: 'Error de validación: ' + (error as Error).message 
+            });
+          }
+
+          // Error genérico
+          return res.status(500).json({ 
+            message: 'Error inesperado al crear el curso', 
+            error: (error as Error).message 
+          });
         }
       });
     } catch (error) {
@@ -194,41 +210,51 @@ export default class CourseController {
           if (duration !== undefined) updateData.duration = Number(duration);
 
           const files = req.files as Record<string, Express.Multer.File[]>;
-          let hasUpdates = Object.keys(updateData).length > 0 || unsetFields.length > 0;
-
-          // Procesar archivo de imagen si se proporciona uno nuevo
-          if (files?.imageFile?.[0]) {
-            updateData.imageUrl = files.imageFile[0].filename;
-            hasUpdates = true;
-
-            // Eliminar imagen anterior usando el servicio
-            if (existingCourse.imageUrl) {
-              courseUploadService.deleteImageFile(existingCourse.imageUrl);
-            }
-          }
-
-          // Procesar archivo de programa si se proporciona uno nuevo
-          if (files?.programFile?.[0]) {
-            updateData.programUrl = files.programFile[0].filename;
-            hasUpdates = true;
-
-            // Eliminar programa anterior usando el servicio
-            if (existingCourse.programUrl) {
-              courseUploadService.deleteProgramFile(existingCourse.programUrl);
-            }
-          }
+          const imageFile = files?.imageFile?.[0];
+          const programFile = files?.programFile?.[0];
+          
+          const hasUpdates = Object.keys(updateData).length > 0 || unsetFields.length > 0 || imageFile || programFile;
 
           // Validar que se reciba al menos un campo para actualizar
           if (!hasUpdates) {
             return res.status(400).json({ message: 'At least one field must be provided for update' });
           }
 
-          // Realizar la actualización independientemente de si los archivos fueron eliminados correctamente
-          const updatedCourse = await this.courseService.update(id, updateData, unsetFields);
+          // Actualizar curso con archivos usando el servicio
+          const updatedCourse = await this.courseService.updateCourseWithFiles(
+            id, 
+            updateData, 
+            unsetFields,
+            imageFile,
+            programFile
+          );
+          
           return res.json(prepareResponse(200, 'Course updated successfully', updatedCourse));
         } catch (error) {
           logger.error(`Update course error: ${(error as Error).message}`);
-          return res.status(500).json({ message: 'Unexpected error', error: (error as Error).message });
+          
+          // Manejar errores de MongoDB específicos
+          if (error && typeof error === 'object' && 'code' in error) {
+            // Error de duplicado (código 11000 en MongoDB)
+            if (error.code === 11000) {
+              return res.status(400).json({ 
+                message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' 
+              });
+            }
+          }
+
+          // Error de validación de Mongoose
+          if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
+            return res.status(400).json({ 
+              message: 'Error de validación: ' + (error as Error).message 
+            });
+          }
+
+          // Error genérico
+          return res.status(500).json({ 
+            message: 'Error inesperado al actualizar el curso', 
+            error: (error as Error).message 
+          });
         }
       });
     } catch (error) {
@@ -239,8 +265,11 @@ export default class CourseController {
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { courseId } = req.params;
-      const course = await this.courseService.delete(courseId);
-      return res.json(prepareResponse(200, 'Course deleted successfully', course));
+      
+      // Eliminar curso con todos sus archivos usando el servicio
+      const deletedCourse = await this.courseService.deleteCourseWithFiles(courseId);
+      
+      return res.json(prepareResponse(200, 'Course deleted successfully', deletedCourse));
     } catch (error) {
       return next(error);
     }
@@ -302,7 +331,24 @@ export default class CourseController {
       if (!fileBuffer) {
         return res.status(404).json({ message: 'Image not found' });
       }
-      res.setHeader('Content-Type', 'image/jpeg');
+
+      // Determinar el tipo de contenido basado en la extensión del archivo
+      let contentType = 'image/jpeg';
+      if (imageFileName.endsWith('.png')) {
+        contentType = 'image/png';
+      } else if (imageFileName.endsWith('.webp')) {
+        contentType = 'image/webp';
+      } else if (imageFileName.endsWith('.jpg') || imageFileName.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      }
+
+      // Headers CORS para permitir la carga de imágenes
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache por 1 día
+
       res.send(fileBuffer);
     } catch (error) {
       return next(error);

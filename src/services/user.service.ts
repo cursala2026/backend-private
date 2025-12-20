@@ -38,6 +38,20 @@ export default class UserService {
     return this.userRepository.getAllUsers();
   }
 
+  async getUsersPaginated(params: {
+    page: number;
+    limit: number;
+    sort: string;
+    dir: number;
+    search?: string;
+  }) {
+    return this.userRepository.getUsersPaginated(params);
+  }
+
+  async createUser(userData: Partial<IUser>) {
+    return this.userRepository.createUser(userData);
+  }
+
   async removeRoleFromUser(userId: string, roleId: string) {
     return this.userRepository.removeRoleFromUser(userId, roleId);
   }
@@ -90,6 +104,10 @@ export default class UserService {
 
   async changueStatus(userId: string, status: UserStatus) {
     return this.userRepository.changueStatus(userId, status);
+  }
+
+  async toggleUserStatus(userId: string) {
+    return this.userRepository.toggleUserStatus(userId);
   }
 
   async assignCourseToUser(userId: string, courseId: string, startDate: Date, endDate: Date) {

@@ -47,6 +47,21 @@ export default class Server implements NodeServer {
     this.server.listen(this.port, () => {
       logger.info(`⚡ Listening on ${this.port}`);
     });
+
+    this.server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.error(`❌ Port ${this.port} is already in use.`);
+        logger.error(`💡 To fix this, you can:`);
+        logger.error(`   1. Stop the process using port ${this.port}`);
+        logger.error(`   2. On Windows: netstat -ano | findstr :${this.port} to find the PID`);
+        logger.error(`   3. On Windows: taskkill /PID <PID> /F to kill the process`);
+        logger.error(`   4. Or change the PORT in your .env file`);
+        this.stop(1);
+      } else {
+        logger.error(`Server error: ${error.message}`);
+        this.stop(1);
+      }
+    });
   }
 
   stop(exitCode = 0): void {

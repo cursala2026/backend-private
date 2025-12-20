@@ -11,8 +11,90 @@ class CourseRepository {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error('El ID del curso proporcionado no es válido.');
     }
-    const res = await this.model.findById(id).exec();
-    return res as unknown as ICourse | null;
+    
+    const res = await this.model.aggregate([
+      {
+        $match: {
+          _id: new Types.ObjectId(id),
+        },
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: '_id',
+          foreignField: 'courseId',
+          as: 'classes',
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'mainTeacher',
+          foreignField: '_id',
+          as: 'mainTeacherInfo',
+          pipeline: [
+            {
+              $project: {
+                teacherName: { $concat: ['$firstName', ' ', '$lastName'] },
+                teacherId: '$_id',
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                professionalDescription: { $ifNull: ['$professionalDescription', null] },
+                profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+              },
+            },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          let: { courseId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $isArray: '$assignedCoursesEdit' },
+                    { $in: ['$$courseId', '$assignedCoursesEdit.courseId'] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                teacherName: { $concat: ['$firstName', ' ', '$lastName'] },
+                teacherId: '$_id',
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                professionalDescription: { $ifNull: ['$professionalDescription', null] },
+                profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+              },
+            },
+          ],
+          as: 'teacherInfo',
+        },
+      },
+      {
+        $addFields: {
+          classCount: { $size: '$classes' },
+          mainTeacherInfo: { $arrayElemAt: ['$mainTeacherInfo', 0] },
+        },
+      },
+      {
+        $project: {
+          classes: 0,
+        },
+      },
+    ]).exec();
+    
+    if (!res || res.length === 0) {
+      return null;
+    }
+    
+    return res[0] as unknown as ICourse;
   }
 
   async findById(id: string): Promise<ICourse | null> {

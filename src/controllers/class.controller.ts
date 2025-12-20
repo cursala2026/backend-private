@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { logger, prepareResponse } from '../utils';
 import ClassService from '@/services/class.service';
 import { IClassData } from '@/models';
@@ -9,12 +10,17 @@ import {
   uploadDirSupportMaterials,
 } from '@/services/upload.config';
 import { fileUploadService } from '@/services/file-upload.service';
+import BunnyService from '@/services/bunny.service';
 
 // Re-exportar para mantener compatibilidad con rutas existentes
 export { uploadFiles, uploadChunkMulter } from '@/services/file-upload.service';
 
 export default class ClassController {
-  constructor(private readonly classService: ClassService) { }
+  private readonly bunnyService: BunnyService;
+
+  constructor(private readonly classService: ClassService) {
+    this.bunnyService = new BunnyService();
+  }
 
   // Delegar operaciones de chunks a FileUploadService
   uploadChunk = (req: Request, res: Response, next: NextFunction) =>
@@ -79,10 +85,65 @@ export default class ClassController {
       // Resolver archivos usando el servicio
       const resolvedFiles = fileUploadService.resolveClassFiles(files, imageFileId, videoFileId, supportMaterialIds);
 
-      const { imageUrl, videoUrl, supportMaterials, errors, uploadIdsToClean } = resolvedFiles;
+      let { imageUrl, videoUrl, supportMaterials, errors, uploadIdsToClean } = resolvedFiles;
 
       if (errors.length > 0) {
         return res.status(400).json({ message: errors[0] });
+      }
+
+      // Subir imagen a Bunny Storage si existe
+      if (imageUrl) {
+        try {
+          const localImagePath = path.join(uploadDirImages, imageUrl);
+          const imageBuffer = fs.readFileSync(localImagePath);
+          const uniqueFileName = this.bunnyService.generateUniqueFileName(imageUrl, 'class');
+
+          logger.info(`🐰 Subiendo imagen a Bunny: ${uniqueFileName}`);
+          const bunnyUrl = await this.bunnyService.uploadFile(imageBuffer, uniqueFileName, 'class-images');
+
+          // Eliminar archivo local después de subir a Bunny
+          fs.unlinkSync(localImagePath);
+
+          // Reemplazar imageUrl con la URL de Bunny
+          imageUrl = bunnyUrl;
+          logger.info(`✅ Imagen subida a Bunny exitosamente: ${bunnyUrl}`);
+        } catch (error) {
+          logger.error(`❌ Error subiendo imagen a Bunny: ${(error as Error).message}`);
+          return res.status(500).json({ message: 'Error subiendo imagen a Bunny Storage' });
+        }
+      }
+
+      // Subir video a Bunny Storage si existe
+      if (videoUrl) {
+        try {
+          const localVideoPath = path.join(uploadDirVideos, videoUrl);
+          const videoStats = fs.statSync(localVideoPath);
+          const videoSizeMB = videoStats.size / (1024 * 1024);
+          const uniqueFileName = this.bunnyService.generateUniqueFileName(videoUrl, 'class-video');
+
+          logger.info(`🐰 Subiendo video a Bunny (${videoSizeMB.toFixed(2)} MB): ${uniqueFileName}`);
+
+          // Para videos mayores a 100MB, usar streaming para evitar cargar todo en memoria
+          let bunnyUrl: string;
+          if (videoStats.size > 100 * 1024 * 1024) {
+            logger.info('📹 Usando streaming para video grande');
+            const videoStream = fs.createReadStream(localVideoPath);
+            bunnyUrl = await this.bunnyService.uploadFileStream(videoStream, uniqueFileName, 'class-videos', videoStats.size);
+          } else {
+            const videoBuffer = fs.readFileSync(localVideoPath);
+            bunnyUrl = await this.bunnyService.uploadFile(videoBuffer, uniqueFileName, 'class-videos');
+          }
+
+          // Eliminar archivo local después de subir a Bunny
+          fs.unlinkSync(localVideoPath);
+
+          // Reemplazar videoUrl con la URL de Bunny
+          videoUrl = bunnyUrl;
+          logger.info(`✅ Video subido a Bunny exitosamente: ${bunnyUrl}`);
+        } catch (error) {
+          logger.error(`❌ Error subiendo video a Bunny: ${(error as Error).message}`);
+          return res.status(500).json({ message: 'Error subiendo video a Bunny Storage' });
+        }
       }
 
       // Construir datos de clase
@@ -151,7 +212,7 @@ export default class ClassController {
       }
 
       // Resolver archivos usando el servicio
-      const { imageUrl, videoUrl, supportMaterials, filesToDelete, uploadIdsToClean } =
+      let { imageUrl, videoUrl, supportMaterials, filesToDelete, uploadIdsToClean } =
         fileUploadService.resolveClassFilesForUpdate(
           files,
           imageFileId,
@@ -164,6 +225,75 @@ export default class ClassController {
           deleteCurrentVideo === 'true',
           materialsToDelete
         );
+
+      // Subir nueva imagen a Bunny Storage si existe y es diferente a la anterior
+      if (imageUrl && imageUrl !== existingClass.imageUrl) {
+        try {
+          // Si existe una imagen anterior en Bunny, eliminarla
+          if (existingClass.imageUrl && this.bunnyService.isBunnyCdnUrl(existingClass.imageUrl)) {
+            logger.info(`🗑️ Eliminando imagen anterior de Bunny: ${existingClass.imageUrl}`);
+            await this.bunnyService.deleteFile(existingClass.imageUrl);
+          }
+
+          // Subir nueva imagen a Bunny
+          const localImagePath = path.join(uploadDirImages, imageUrl);
+          const imageBuffer = fs.readFileSync(localImagePath);
+          const uniqueFileName = this.bunnyService.generateUniqueFileName(imageUrl, 'class');
+
+          logger.info(`🐰 Subiendo nueva imagen a Bunny: ${uniqueFileName}`);
+          const bunnyUrl = await this.bunnyService.uploadFile(imageBuffer, uniqueFileName, 'class-images');
+
+          // Eliminar archivo local después de subir a Bunny
+          fs.unlinkSync(localImagePath);
+
+          // Reemplazar imageUrl con la URL de Bunny
+          imageUrl = bunnyUrl;
+          logger.info(`✅ Imagen actualizada en Bunny exitosamente: ${bunnyUrl}`);
+        } catch (error) {
+          logger.error(`❌ Error actualizando imagen en Bunny: ${(error as Error).message}`);
+          return res.status(500).json({ message: 'Error actualizando imagen en Bunny Storage' });
+        }
+      }
+
+      // Subir nuevo video a Bunny Storage si existe y es diferente al anterior
+      if (videoUrl && videoUrl !== existingClass.videoUrl) {
+        try {
+          // Si existe un video anterior en Bunny, eliminarlo
+          if (existingClass.videoUrl && this.bunnyService.isBunnyCdnUrl(existingClass.videoUrl)) {
+            logger.info(`🗑️ Eliminando video anterior de Bunny: ${existingClass.videoUrl}`);
+            await this.bunnyService.deleteFile(existingClass.videoUrl);
+          }
+
+          // Subir nuevo video a Bunny
+          const localVideoPath = path.join(uploadDirVideos, videoUrl);
+          const videoStats = fs.statSync(localVideoPath);
+          const videoSizeMB = videoStats.size / (1024 * 1024);
+          const uniqueFileName = this.bunnyService.generateUniqueFileName(videoUrl, 'class-video');
+
+          logger.info(`🐰 Subiendo nuevo video a Bunny (${videoSizeMB.toFixed(2)} MB): ${uniqueFileName}`);
+
+          // Para videos mayores a 100MB, usar streaming para evitar cargar todo en memoria
+          let bunnyUrl: string;
+          if (videoStats.size > 100 * 1024 * 1024) {
+            logger.info('📹 Usando streaming para video grande');
+            const videoStream = fs.createReadStream(localVideoPath);
+            bunnyUrl = await this.bunnyService.uploadFileStream(videoStream, uniqueFileName, 'class-videos', videoStats.size);
+          } else {
+            const videoBuffer = fs.readFileSync(localVideoPath);
+            bunnyUrl = await this.bunnyService.uploadFile(videoBuffer, uniqueFileName, 'class-videos');
+          }
+
+          // Eliminar archivo local después de subir a Bunny
+          fs.unlinkSync(localVideoPath);
+
+          // Reemplazar videoUrl con la URL de Bunny
+          videoUrl = bunnyUrl;
+          logger.info(`✅ Video actualizado en Bunny exitosamente: ${bunnyUrl}`);
+        } catch (error) {
+          logger.error(`❌ Error actualizando video en Bunny: ${(error as Error).message}`);
+          return res.status(500).json({ message: 'Error actualizando video en Bunny Storage' });
+        }
+      }
 
       // Construir datos de actualización
       const updateData: Partial<IClassData> = {};
@@ -275,7 +405,24 @@ export default class ClassController {
       if (!fileBuffer) {
         return res.status(404).json(prepareResponse(404, 'Image not found'));
       }
-      res.setHeader('Content-Type', 'image/jpeg');
+
+      // Determinar el tipo de contenido basado en la extensión del archivo
+      let contentType = 'image/jpeg';
+      if (imageFileName.endsWith('.png')) {
+        contentType = 'image/png';
+      } else if (imageFileName.endsWith('.webp')) {
+        contentType = 'image/webp';
+      } else if (imageFileName.endsWith('.jpg') || imageFileName.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      }
+
+      // Headers CORS para permitir la carga de imágenes
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache por 1 día
+
       res.send(fileBuffer);
     } catch (error) {
       return next(error);
@@ -289,6 +436,13 @@ export default class ClassController {
 
       logger.info(`Solicitando video de clase: ${videoFileName}`);
 
+      // Si videoFileName es una URL completa de Bunny CDN, redirigir directamente
+      if (this.bunnyService.isBunnyCdnUrl(videoFileName)) {
+        logger.info(`Redirigiendo a video en Bunny CDN: ${videoFileName}`);
+        return res.redirect(videoFileName);
+      }
+
+      // Si es un archivo local, usar el sistema de streaming existente
       const videoData = fileUploadService.getVideoStream(videoFileName, range);
 
       if (!videoData) {
@@ -443,14 +597,28 @@ export default class ClassController {
       switch (mediaType) {
         case 'image':
           if (existingClass.imageUrl) {
-            filesToDelete.push({ directory: uploadDirImages, fileName: existingClass.imageUrl });
+            // Si la imagen está en Bunny, eliminarla de allí
+            if (this.bunnyService.isBunnyCdnUrl(existingClass.imageUrl)) {
+              logger.info(`🗑️ Eliminando imagen de Bunny: ${existingClass.imageUrl}`);
+              await this.bunnyService.deleteFile(existingClass.imageUrl);
+            } else {
+              // Si es local, marcarla para eliminación del filesystem
+              filesToDelete.push({ directory: uploadDirImages, fileName: existingClass.imageUrl });
+            }
             unsetQuery.imageUrl = '';
           }
           break;
 
         case 'video':
           if (existingClass.videoUrl) {
-            filesToDelete.push({ directory: uploadDirVideos, fileName: existingClass.videoUrl });
+            // Si el video está en Bunny, eliminarlo de allí
+            if (this.bunnyService.isBunnyCdnUrl(existingClass.videoUrl)) {
+              logger.info(`🗑️ Eliminando video de Bunny: ${existingClass.videoUrl}`);
+              await this.bunnyService.deleteFile(existingClass.videoUrl);
+            } else {
+              // Si es local, marcarlo para eliminación del filesystem
+              filesToDelete.push({ directory: uploadDirVideos, fileName: existingClass.videoUrl });
+            }
             unsetQuery.videoUrl = '';
           }
           break;

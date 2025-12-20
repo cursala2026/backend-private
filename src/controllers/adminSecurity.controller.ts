@@ -426,19 +426,21 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
     // Importar modelos necesarios
     const { PromotionalCode } = await import('@/models/mongo/promotionalCode.model');
 
-    // Obtener estadísticas
+    // Obtener estadísticas y últimos usuarios registrados
     const [
       totalUsers,
       totalCourses,
       totalCategories,
       totalPromotionalCodes,
       activePromotionalCodes,
+      recentUsers,
     ] = await Promise.all([
       userRepository.countUsers(),
       courseRepository.countCourses(),
       categoryRepository.countCategories(),
       PromotionalCode.countDocuments({ status: { $ne: 'DELETED' } }),
       PromotionalCode.countDocuments({ status: 'ACTIVE' }),
+      userRepository.getRecentUsers(3),
     ]);
 
     return res.status(200).json({
@@ -449,6 +451,7 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
         totalCategories,
         totalPromotionalCodes,
         activePromotionalCodes,
+        recentUsers,
       },
       timestamp: new Date(),
     });

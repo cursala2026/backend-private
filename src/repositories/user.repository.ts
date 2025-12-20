@@ -2,6 +2,7 @@ import { IUser, UserSchema, IAssignedCourse, IAssignedCourseEdit } from '../mode
 import { IUserExtended } from '@/types/user.types';
 import { Connection, Model, Types, UserStatus } from '@/models';
 import { logger } from '../utils';
+import bcrypt from 'bcryptjs';
 
 class UserRepository {
   private readonly model: Model<IUser>;
@@ -48,11 +49,23 @@ class UserRepository {
    * @returns A promise that resolves when the save operation is complete.
    */
   async save(user: IUser): Promise<IUser> {
+    // Hashear la contraseña antes de guardar el usuario
+    if (user.password) {
+      const saltRounds = 10;
+      user.password = await bcrypt.hash(user.password, saltRounds);
+    }
+    
     const res = await this.model.create(user as Partial<IUser>);
     return res as unknown as IUser;
   }
 
   async createUser(user: Partial<IUser>) {
+    // Hashear la contraseña antes de crear el usuario
+    if (user.password) {
+      const saltRounds = 10;
+      user.password = await bcrypt.hash(user.password, saltRounds);
+    }
+    
     const res = await this.model.create(user as Partial<IUser>);
     return res as unknown as IUser;
   }
@@ -148,6 +161,53 @@ class UserRepository {
     return res as unknown as IUser[];
   }
 
+  async getUsersPaginated(params: {
+    page: number;
+    limit: number;
+    sort: string;
+    dir: number;
+    search?: string;
+  }) {
+    const { page, limit, sort, dir, search } = params;
+    const skip = (page - 1) * limit;
+
+    // Build search filter
+    const searchFilter = search
+      ? {
+          $or: [
+            { email: { $regex: search, $options: 'i' } },
+            { firstName: { $regex: search, $options: 'i' } },
+            { lastName: { $regex: search, $options: 'i' } },
+          ],
+        }
+      : {};
+
+    // Get total count
+    const total = await this.model.countDocuments(searchFilter).exec();
+
+    // Get paginated results
+    const sortObj: Record<string, 1 | -1> = { [sort]: dir as 1 | -1 };
+    
+    const users = await this.model
+      .find(searchFilter)
+      .select('-password -resetPasswordToken')
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec();
+
+    return {
+      data: users as unknown as IUser[],
+      pagination: {
+        page,
+        page_size: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   /**
    * Removes a role from a user's roles.
    * @param userId - The user's unique identifier.
@@ -192,6 +252,27 @@ class UserRepository {
     }
 
     const updatedUser = await this.model.findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $set: { status } }, { new: true }).exec();
+    return updatedUser as unknown as IUser | null;
+  }
+
+  async toggleUserStatus(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new Error('El userId proporcionado no es válido.');
+    }
+
+    const user = await this.model.findById(userId).exec();
+    if (!user) {
+      throw new Error('Usuario no encontrado.');
+    }
+
+    const userData = user as unknown as IUser;
+    const newStatus = userData.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE;
+    const updatedUser = await this.model.findOneAndUpdate(
+      { _id: new Types.ObjectId(userId) }, 
+      { $set: { status: newStatus } }, 
+      { new: true }
+    ).exec();
+    
     return updatedUser as unknown as IUser | null;
   }
 
@@ -585,8 +666,46 @@ class UserRepository {
       throw new Error('El userId proporcionado no es válido.');
     }
 
-    const updatedUser = await this.model.findByIdAndUpdate(userId, { $set: userData }, { new: true }).exec();
-    return updatedUser as unknown as IUser | null;
+    // Filtrar campos undefined, null y strings vacíos
+    const cleanedData: any = {};
+    Object.keys(userData).forEach(key => {
+      const value = (userData as any)[key];
+      // Solo incluir valores que no sean undefined, null, o strings vacíos
+      if (value !== undefined && value !== null && value !== '') {
+        cleanedData[key] = value;
+      }
+    });
+
+    // Hashear la contraseña si se está actualizando
+    if (cleanedData.password) {
+      const saltRounds = 10;
+      cleanedData.password = await bcrypt.hash(cleanedData.password, saltRounds);
+    }
+
+    // Convertir fechas si vienen como strings y son válidas
+    if (cleanedData.birthDate) {
+      if (typeof cleanedData.birthDate === 'string') {
+        const parsedDate = new Date(cleanedData.birthDate);
+        // Verificar que la fecha es válida
+        if (isNaN(parsedDate.getTime())) {
+          delete cleanedData.birthDate; // Eliminar fecha inválida
+        } else {
+          cleanedData.birthDate = parsedDate;
+        }
+      }
+    }
+
+    try {
+      const updatedUser = await this.model.findByIdAndUpdate(
+        userId, 
+        { $set: cleanedData }, 
+        { new: true, runValidators: true }
+      ).exec();
+      return updatedUser as unknown as IUser | null;
+    } catch (error) {
+      console.error('Error updating user in repository:', error);
+      throw error;
+    }
   }
 
   async getUsersByAssignedCourses(courseId: string): Promise<
@@ -715,6 +834,23 @@ class UserRepository {
    */
   async countUsers(): Promise<number> {
     return this.model.countDocuments();
+  }
+
+  /**
+   * Obtiene los últimos usuarios registrados
+   * @param limit - Número de usuarios a retornar (por defecto 5)
+   * @returns Array de usuarios recientes sin información sensible
+   */
+  async getRecentUsers(limit: number = 5): Promise<Partial<IUser>[]> {
+    const users = await this.model
+      .find()
+      .select('_id username email firstName lastName createdAt roles')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+
+    return users as Partial<IUser>[];
   }
 }
 

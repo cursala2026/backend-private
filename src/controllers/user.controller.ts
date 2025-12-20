@@ -1,6 +1,8 @@
 import { NextFunction, Response, Request } from 'express';
 import prepareResponse from '../utils/api-response';
+import { logger } from '../utils';
 import UserService from '@/services/user.service';
+import BunnyService from '@/services/bunny.service';
 import { UserStatus } from '@/models';
 import { IUser } from '@/models/user.model';
 import { uploadFiles, uploadDirSignatures } from '@/utils/fileUpload.util';
@@ -8,7 +10,11 @@ import fs from 'fs';
 import path from 'path';
 
 export default class UserController {
-  constructor(private readonly userService: UserService) { }
+  private bunnyService: BunnyService;
+  
+  constructor(private readonly userService: UserService) {
+    this.bunnyService = new BunnyService();
+  }
 
   addCountriesToUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -25,6 +31,24 @@ export default class UserController {
     try {
       const users = await this.userService.getAllUsers();
       return res.json(prepareResponse(200, 'Users fetched successfully', users));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  getUsersPaginated = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { page, limit, sort, dir, search } = req.query;
+      
+      const result = await this.userService.getUsersPaginated({
+        page: Number(page) || 1,
+        limit: Number(limit) || 10,
+        sort: (sort as string) || 'createdAt',
+        dir: dir === 'ASC' ? 1 : -1,
+        search: search as string,
+      });
+      
+      return res.json(prepareResponse(200, 'Users fetched successfully', result));
     } catch (error) {
       return next(error);
     }
@@ -62,6 +86,28 @@ export default class UserController {
 
       const resp = await this.userService.changueStatus(userId, status);
       return res.json(prepareResponse(200, 'Status changed successfully', resp));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  toggleUserStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params;
+
+      const resp = await this.userService.toggleUserStatus(userId);
+      return res.json(prepareResponse(200, 'Status toggled successfully', resp));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  createUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userData = req.body;
+
+      const resp = await this.userService.createUser(userData);
+      return res.json(prepareResponse(201, 'User created successfully', resp));
     } catch (error) {
       return next(error);
     }
@@ -150,8 +196,40 @@ export default class UserController {
     try {
       const { userId } = req.params;
 
+      // Obtener usuario antes de eliminarlo para borrar sus archivos de Bunny
+      const user = await this.userService.getUserById(userId);
+      if (!user) {
+        return res.status(404).json(prepareResponse(404, 'Usuario no encontrado'));
+      }
+
+      // Eliminar usuario de la base de datos
       const resp = await this.userService.deleteUser(userId);
-      return res.json(prepareResponse(200, 'User deleted successfully', resp));
+      
+      // Solo si se eliminó correctamente de BD, eliminar archivos de Bunny
+      if (resp) {
+        // Eliminar foto de perfil si existe
+        if (user.profilePhotoUrl && user.profilePhotoUrl.includes('b-cdn.net')) {
+          try {
+            await this.bunnyService.deleteFile(user.profilePhotoUrl);
+            logger.info(`✅ Foto de perfil eliminada de Bunny: ${user.profilePhotoUrl}`);
+          } catch (error) {
+            logger.error(`❌ Error al eliminar foto de perfil de Bunny: ${(error as Error).message}`);
+            // No falla la eliminación del usuario si falla borrar de Bunny
+          }
+        }
+
+        // Eliminar firma profesional si existe
+        if (user.professionalSignatureUrl && user.professionalSignatureUrl.includes('b-cdn.net')) {
+          try {
+            await this.bunnyService.deleteFile(user.professionalSignatureUrl);
+            logger.info(`✅ Firma profesional eliminada de Bunny: ${user.professionalSignatureUrl}`);
+          } catch (error) {
+            logger.error(`❌ Error al eliminar firma de Bunny: ${(error as Error).message}`);
+          }
+        }
+      }
+
+      return res.json(prepareResponse(200, 'Usuario eliminado exitosamente', resp));
     } catch (error) {
       return next(error);
     }
@@ -239,9 +317,19 @@ export default class UserController {
       const { userId } = req.params;
       const userData = req.body;
 
+      logger.info(`🔄 Updating user ${userId} with data:`, userData);
+
       const resp = await this.userService.updateUser(userId, userData);
+      
+      if (!resp) {
+        logger.warn(`⚠️ User ${userId} not found`);
+        return res.status(404).json(prepareResponse(404, 'User not found'));
+      }
+
+      logger.info(`✅ User ${userId} updated successfully`);
       return res.json(prepareResponse(200, 'User updated successfully', resp));
     } catch (error) {
+      logger.error(`❌ Error updating user: ${(error as Error).message}`, { stack: (error as Error).stack });
       return next(error);
     }
   };
@@ -271,7 +359,6 @@ export default class UserController {
 
         try {
           const { userId } = req.params;
-          const { professionalDescription } = req.body;
           const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
 
           // Validar que el usuario exista
@@ -280,118 +367,143 @@ export default class UserController {
             return res.status(404).json(prepareResponse(404, 'Usuario no encontrado', null));
           }
 
-          // Validar descripción profesional
-          if (!professionalDescription || professionalDescription.trim().length < 100) {
-            return res
-              .status(400)
-              .json(prepareResponse(400, 'La descripción profesional debe tener al menos 100 caracteres', null));
-          }
+          // Preparar datos para actualizar
+          const updateData: Partial<IUser> = {};
+          
+          // Agregar campos del body si existen
+          if (req.body.firstName) updateData.firstName = req.body.firstName;
+          if (req.body.lastName) updateData.lastName = req.body.lastName;
+          if (req.body.email) updateData.email = req.body.email;
+          if (req.body.phone) updateData.phone = req.body.phone;
+          if (req.body.dni) updateData.dni = req.body.dni;
+          if (req.body.birthDate) updateData.birthDate = new Date(req.body.birthDate);
+          if (req.body.professionalDescription) updateData.professionalDescription = req.body.professionalDescription;
+          if (req.body.roles) updateData.roles = JSON.parse(req.body.roles);
 
-          // Procesar archivo de foto de perfil si se proporciona
+          // Procesar foto de perfil si se proporciona
           let profilePhotoUrl: string | undefined;
           if (files?.photo && files.photo[0]) {
             const photoFile = files.photo[0] as Express.Multer.File;
+            
             // Validar tipo de archivo
             const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
             if (!allowedTypes.includes(photoFile.mimetype)) {
-              return res
-                .status(415)
-                .json(
-                  prepareResponse(415, 'Tipo de archivo no soportado para foto. Solo se permiten PNG, JPG, JPEG', null)
-                );
+              // Eliminar archivo temporal
+              if (fs.existsSync(photoFile.path)) {
+                fs.unlinkSync(photoFile.path);
+              }
+              return res.status(415).json(
+                prepareResponse(415, 'Tipo de archivo no soportado para foto. Solo se permiten PNG, JPG, JPEG', null)
+              );
             }
 
             // Validar tamaño (5MB máximo)
-            const maxSize = 5 * 1024 * 1024; // 5MB
+            const maxSize = 5 * 1024 * 1024;
             if (photoFile.size > maxSize) {
+              // Eliminar archivo temporal
+              if (fs.existsSync(photoFile.path)) {
+                fs.unlinkSync(photoFile.path);
+              }
               return res.status(413).json(prepareResponse(413, 'Foto demasiado grande. Máximo 5MB', null));
             }
-
-            // Generar URL de la imagen
-            profilePhotoUrl = `${photoFile.filename}`;
           }
 
-          // Procesar archivo de firma si se proporciona
+          // Procesar firma si se proporciona
           let professionalSignatureUrl: string | undefined;
           if (files?.signatureFile && files.signatureFile[0]) {
             const signatureFile = files.signatureFile[0] as Express.Multer.File;
-            console.log('DEBUG: Procesando archivo de firma:', {
-              filename: signatureFile.filename,
-              originalname: signatureFile.originalname,
-              mimetype: signatureFile.mimetype,
-              size: signatureFile.size
-            });
             
-            // Validar tipo de archivo (solo PNG, JPG, JPEG)
             if (!['image/png', 'image/jpeg', 'image/jpg'].includes(signatureFile.mimetype)) {
-              return res
-                .status(415)
-                .json(prepareResponse(415, 'Tipo de archivo no soportado para firma. Solo se permite PNG, JPG, JPEG', null));
+              // Eliminar archivos temporales
+              if (files.photo?.[0] && fs.existsSync(files.photo[0].path)) {
+                fs.unlinkSync(files.photo[0].path);
+              }
+              if (fs.existsSync(signatureFile.path)) {
+                fs.unlinkSync(signatureFile.path);
+              }
+              return res.status(415).json(
+                prepareResponse(415, 'Tipo de archivo no soportado para firma. Solo se permite PNG, JPG, JPEG', null)
+              );
             }
 
-            // Validar tamaño (5MB máximo)
-            const maxSize = 5 * 1024 * 1024; // 5MB
+            const maxSize = 5 * 1024 * 1024;
             if (signatureFile.size > maxSize) {
+              // Eliminar archivos temporales
+              if (files.photo?.[0] && fs.existsSync(files.photo[0].path)) {
+                fs.unlinkSync(files.photo[0].path);
+              }
+              if (fs.existsSync(signatureFile.path)) {
+                fs.unlinkSync(signatureFile.path);
+              }
               return res.status(413).json(prepareResponse(413, 'Firma demasiado grande. Máximo 5MB', null));
             }
-
-            // Generar URL de la firma
-            professionalSignatureUrl = `${signatureFile.filename}`;
-            console.log('DEBUG: URL de firma generada:', professionalSignatureUrl);
-            console.log('DEBUG: Archivo guardado en path:', signatureFile.path);
-            console.log('DEBUG: Verificando si archivo existe:', fs.existsSync(signatureFile.path));
-            console.log('DEBUG: Directorio de firmas:', uploadDirSignatures);
-          } else {
-            console.log('DEBUG: No se recibió archivo de firma');
           }
 
-          // Verificar si el usuario quiere eliminar la foto o firma
-          // Si no se proporciona archivo pero había uno antes, mantenerlo
-          // Si se quiere eliminar, el frontend debe enviar un campo especial
-          const clearPhoto = req.body.clearPhoto === 'true';
-          const clearSignature = req.body.clearSignature === 'true';
-
-          if (clearPhoto) {
-            profilePhotoUrl = '';
+          // 1. PRIMERO: Actualizar usuario en base de datos (sin URLs de archivos aún)
+          logger.info(`📝 Actualizando usuario en BD: ${userId}`);
+          const updatedUser = await this.userService.updateUser(userId, updateData);
+          
+          if (!updatedUser) {
+            // Limpiar archivos temporales si falla
+            if (files?.photo?.[0] && fs.existsSync(files.photo[0].path)) {
+              fs.unlinkSync(files.photo[0].path);
+            }
+            if (files?.signatureFile?.[0] && fs.existsSync(files.signatureFile[0].path)) {
+              fs.unlinkSync(files.signatureFile[0].path);
+            }
+            return res.status(404).json(prepareResponse(404, 'Usuario no encontrado', null));
           }
 
-          if (clearSignature) {
-            professionalSignatureUrl = '';
+          logger.info(`✅ Usuario actualizado en BD exitosamente`);
+
+          // 2. SEGUNDO: Solo si la BD se actualizó correctamente, subir archivos a Bunny CDN
+          try {
+            if (files?.photo && files.photo[0]) {
+              const photoFile = files.photo[0];
+              logger.info(`📤 Subiendo foto a Bunny CDN...`);
+              
+              const fileBuffer = fs.readFileSync(photoFile.path);
+              const fileName = `profile-${existingUser.roles[0]?.toLowerCase()}[${Date.now()}-${Math.floor(Math.random() * 1000000000)}].${photoFile.mimetype.split('/')[1]}`;
+              
+              profilePhotoUrl = await this.bunnyService.uploadFile(fileBuffer, fileName, 'profile-images');
+              logger.info(`✅ Foto subida a Bunny: ${profilePhotoUrl}`);
+              
+              // Eliminar archivo temporal
+              fs.unlinkSync(photoFile.path);
+              
+              // Actualizar URL en BD
+              await this.userService.updateUser(userId, { profilePhotoUrl });
+            }
+
+            if (files?.signatureFile && files.signatureFile[0]) {
+              const signatureFile = files.signatureFile[0];
+              logger.info(`📤 Subiendo firma a Bunny CDN...`);
+              
+              const fileBuffer = fs.readFileSync(signatureFile.path);
+              const fileName = `signature-${existingUser.roles[0]?.toLowerCase()}[${Date.now()}-${Math.floor(Math.random() * 1000000000)}].${signatureFile.mimetype.split('/')[1]}`;
+              
+              professionalSignatureUrl = await this.bunnyService.uploadFile(fileBuffer, fileName, 'signatures');
+              logger.info(`✅ Firma subida a Bunny: ${professionalSignatureUrl}`);
+              
+              // Eliminar archivo temporal
+              fs.unlinkSync(signatureFile.path);
+              
+              // Actualizar URL en BD
+              await this.userService.updateUser(userId, { professionalSignatureUrl });
+            }
+          } catch (uploadError) {
+            logger.error(`❌ Error subiendo archivos a Bunny CDN: ${(uploadError as Error).message}`);
+            // La BD ya está actualizada con los datos, pero sin las fotos
+            // Podríamos decidir si esto es un error crítico o no
           }
 
-          console.log('DEBUG: Valores finales antes de actualizar:', {
-            profilePhotoUrl,
-            professionalSignatureUrl,
-            clearPhoto,
-            clearSignature
-          });
+          // 3. Obtener usuario final con todas las actualizaciones
+          const finalUser = await this.userService.getUserById(userId);
 
-          // Actualizar datos del usuario
-          const updatedUser = await this.userService.updateUserData(
-            userId,
-            professionalDescription,
-            profilePhotoUrl,
-            professionalSignatureUrl
-          );
-
-          console.log('DEBUG: Usuario actualizado:', {
-            _id: updatedUser?._id,
-            profilePhotoUrl: updatedUser?.profilePhotoUrl,
-            professionalSignatureUrl: updatedUser?.professionalSignatureUrl
-          });
-
-          const responseData = {
-            userId: updatedUser?._id?.toString(),
-            professionalDescription: updatedUser?.professionalDescription,
-            photoUrl: updatedUser?.profilePhotoUrl,
-            signatureUrl: updatedUser?.professionalSignatureUrl,
-          };
-
-          console.log('DEBUG: Datos de respuesta:', responseData);
-
-          return res.json(prepareResponse(200, 'Datos del usuario actualizados correctamente', responseData));
+          return res.json(prepareResponse(200, 'Usuario actualizado correctamente', finalUser));
         } catch (serviceError) {
           const errorMessage = serviceError instanceof Error ? serviceError.message : 'Error interno del servidor';
+          logger.error(`❌ Error en updateUserData: ${errorMessage}`);
           return res.status(500).json(prepareResponse(500, errorMessage, null));
         }
       });

@@ -6,19 +6,33 @@ import { uploadFiles } from '@/controllers/class.controller';
 const router = Router();
 
 /**
- * @route GET /class/:classId
+ * @route GET /:imageFileName/image
+ * @description Obtiene la imagen de una clase.
+ * @access Public (sin autenticación para permitir carga en navegador)
+ */
+router.get('/:imageFileName/image', classController.getClassImage);
+
+/**
+ * @route GET /:videoFileName/video
+ * @description Obtiene el video de una clase.
+ * @access Private (requiere autorización)
+ */
+router.get('/:videoFileName/video', authorize, classController.getClassVideo);
+
+/**
+ * @route GET /:classId
  * @description Obtiene una clase por su ID.
  * @access Private (requiere autorización)
  */
-router.get('/class/:classId', authorize, classController.findOneById);
+router.get('/:classId', authorize, classController.findOneById);
 
 /**
- * @route POST /class
+ * @route POST /
  * @description Crea una nueva clase con una imagen obligatoria.
  * @access Private (requiere autorización)
  * @note Ahora maneja tanto archivos normales como archivos ensamblados por chunks
  */
-router.post('/class', authorize, uploadFiles, classController.create);
+router.post('/', authorize, uploadFiles, classController.create);
 
 // 🆕 ========== NUEVAS RUTAS PARA SISTEMA DE CHUNKS ==========
 
@@ -70,65 +84,51 @@ router.delete('/cleanup-chunks/:uploadId', authorize, classController.cleanupChu
 // ========== RUTAS EXISTENTES (SIN CAMBIOS) ==========
 
 /**
- * @route DELETE /class/:classId/delete
+ * @route DELETE /:classId/delete
  * @description Elimina una clase por su ID.
  * @access Private (requiere autorización)
  */
-router.delete('/class/:classId/delete', authorize, classController.delete);
+router.delete('/:classId/delete', authorize, classController.delete);
 
 /**
- * @route GET /classes/course/:courseId
+ * @route GET /course/:courseId/classes
  * @description Obtiene todas las clases asociadas a un curso específico.
  * @access Private (requiere autorización)
  */
-router.get('/classes/course/:courseId', authorize, classController.findAllByCourse);
+router.get('/course/:courseId/classes', authorize, classController.findAllByCourse);
 
 /**
- * @route PATCH /class/:classId/status
+ * @route PATCH /:classId/status
  * @description Cambia el estado de una clase (ACTIVE, INACTIVE, etc.).
  * @access Private (requiere autorización)
  */
-router.patch('/class/:classId/status', authorize, classController.changeStatus);
+router.patch('/:classId/status', authorize, classController.changeStatus);
 
 /**
- * @route PATCH /class/:classId/up
+ * @route PATCH /:classId/up
  * @description Mueve una clase hacia arriba en el orden dentro del mismo curso.
  * @access Private (requiere autorización)
  */
-router.patch('/class/:classId/up', authorize, classController.moveUpOrder);
+router.patch('/:classId/up', authorize, classController.moveUpOrder);
 
 /**
- * @route PATCH /class/:classId/down
+ * @route PATCH /:classId/down
  * @description Mueve una clase hacia abajo en el orden dentro del mismo curso.
  * @access Private (requiere autorización)
  */
-router.patch('/class/:classId/down', authorize, classController.moveDownOrder);
+router.patch('/:classId/down', authorize, classController.moveDownOrder);
 
 /**
- * @route GET /class/:imageFileName/image
- * @description Obtiene la imagen de una clase.
- * @access Private (requiere autorización)
- */
-router.get('/class/:imageFileName/image', authorize, classController.getClassImage);
-
-/**
- * @route GET /class/:videoFileName/video
- * @description Obtiene el video de una clase.
- * @access Private (requiere autorización)
- */
-router.get('/class/:videoFileName/video', authorize, classController.getClassVideo);
-
-/**
- * @route PATCH /class/:classId
+ * @route PATCH /:classId
  * @description Actualiza una clase existente, permitiendo cambiar la imagen.
  * @access Private (requiere autorización)
  */
-router.patch('/class/:classId', authorize, uploadFiles, classController.update);
+router.patch('/:classId', authorize, uploadFiles, classController.update);
 
 // ========== RUTAS DE CONFIGURACIÓN DE EXAMEN ==========
 
 /**
- * @route PATCH /class/:classId/exam-config
+ * @route PATCH /:classId/exam-config
  * @description Actualiza la configuración del examen para una clase específica.
  * @access Private (requiere autorización)
  * @body Para activar: { examLink: string, examVisible: true, examStartDate: string, examEndDate: string }
@@ -136,18 +136,18 @@ router.patch('/class/:classId', authorize, uploadFiles, classController.update);
  * @returns La clase actualizada con la nueva configuración del examen
  * @note Si examVisible=false, solo desactiva el examen. Si examVisible=true o no se especifica, requiere todos los datos.
  */
-router.patch('/class/:classId/exam-config', authorize, classController.updateExamConfig);
+router.patch('/:classId/exam-config', authorize, classController.updateExamConfig);
 
 /**
- * @route GET /class/:classId/exam-config
+ * @route GET /:classId/exam-config
  * @description Obtiene la configuración del examen de una clase específica.
  * @access Private (requiere autorización)
  * @returns La configuración del examen (examLink, examVisible, examStartDate, examEndDate)
  */
-router.get('/class/:classId/exam-config', authorize, classController.getExamConfig);
+router.get('/:classId/exam-config', authorize, classController.getExamConfig);
 
 /**
- * @route DELETE /class/:classId/media/:mediaType/:fileName
+ * @route DELETE /:classId/media/:mediaType/:fileName
  * @description Elimina archivos multimedia específicos de una clase (con nombre de archivo).
  * @access Private (requiere autorización)
  * @param {string} classId - ID de la clase
@@ -156,10 +156,10 @@ router.get('/class/:classId/exam-config', authorize, classController.getExamConf
  * @returns Confirmación de eliminación
  * @example DELETE /class/123/media/supportMaterial/archivo.pdf - Elimina un archivo de soporte específico
  */
-router.delete('/class/:classId/media/:mediaType/:fileName', authorize, classController.deleteClassMedia);
+router.delete('/:classId/media/:mediaType/:fileName', authorize, classController.deleteClassMedia);
 
 /**
- * @route DELETE /class/:classId/media/:mediaType
+ * @route DELETE /:classId/media/:mediaType
  * @description Elimina archivos multimedia específicos de una clase (sin nombre de archivo).
  * @access Private (requiere autorización)
  * @param {string} classId - ID de la clase
@@ -168,6 +168,6 @@ router.delete('/class/:classId/media/:mediaType/:fileName', authorize, classCont
  * @example DELETE /class/123/media/image - Elimina la imagen de la clase
  * @example DELETE /class/123/media/video - Elimina el video de la clase
  */
-router.delete('/class/:classId/media/:mediaType', authorize, classController.deleteClassMedia);
+router.delete('/:classId/media/:mediaType', authorize, classController.deleteClassMedia);
 
 export default router;
