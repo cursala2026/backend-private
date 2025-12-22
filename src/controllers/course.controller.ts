@@ -426,4 +426,14 @@ export default class CourseController {
       return next(error);
     }
   };
+
+  findByTeacherId = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { teacherId } = req.params;
+      const courses = await this.courseService.findByTeacherId(teacherId);
+      return res.json(prepareResponse(200, 'Teacher courses fetched successfully', courses));
+    } catch (error) {
+      return next(error);
+    }
+  };
 }

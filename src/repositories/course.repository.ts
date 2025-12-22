@@ -403,6 +403,111 @@ class CourseRepository {
   async countCourses(): Promise<number> {
     return this.model.countDocuments();
   }
+
+  /**
+   * Obtiene todos los cursos asignados a un profesor
+   * Incluye cursos donde el profesor es mainTeacher o está en assignedCoursesEdit
+   * @param teacherId ID del profesor
+   * @returns Array de cursos asignados al profesor
+   */
+  async findByTeacherId(teacherId: string): Promise<ICourse[]> {
+    if (!Types.ObjectId.isValid(teacherId)) {
+      throw new Error('El ID del profesor proporcionado no es válido.');
+    }
+
+    const teacherObjectId = new Types.ObjectId(teacherId);
+
+    // Buscar cursos donde el profesor es mainTeacher
+    const mainTeacherCourses = await this.model.aggregate([
+      {
+        $match: {
+          mainTeacher: teacherObjectId,
+        },
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: '_id',
+          foreignField: 'courseId',
+          as: 'classes',
+        },
+      },
+      {
+        $addFields: {
+          classCount: { $size: '$classes' },
+          isMainTeacher: true,
+        },
+      },
+      {
+        $project: {
+          classes: 0,
+        },
+      },
+      {
+        $sort: { order: 1 },
+      },
+    ]).exec();
+
+    // Buscar cursos donde el profesor está en assignedCoursesEdit
+    const assignedCourses = await this.model.aggregate([
+      {
+        $lookup: {
+          from: 'users',
+          let: { courseId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$_id', teacherObjectId] },
+                    { $isArray: '$assignedCoursesEdit' },
+                    { $in: ['$$courseId', '$assignedCoursesEdit.courseId'] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: 'teacherMatch',
+        },
+      },
+      {
+        $match: {
+          teacherMatch: { $ne: [] },
+        },
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: '_id',
+          foreignField: 'courseId',
+          as: 'classes',
+        },
+      },
+      {
+        $addFields: {
+          classCount: { $size: '$classes' },
+          isMainTeacher: false,
+        },
+      },
+      {
+        $project: {
+          classes: 0,
+          teacherMatch: 0,
+        },
+      },
+      {
+        $sort: { order: 1 },
+      },
+    ]).exec();
+
+    // Combinar ambos resultados y eliminar duplicados
+    const allCourses = [...mainTeacherCourses, ...assignedCourses];
+    const uniqueCourses = allCourses.filter((course, index, self) =>
+      index === self.findIndex((c) => String(c._id) === String(course._id))
+    );
+
+    return uniqueCourses as unknown as ICourse[];
+  }
 }
 
 export default CourseRepository;

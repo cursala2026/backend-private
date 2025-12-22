@@ -120,6 +120,22 @@ class ClassRepository {
   }
 
   /**
+   * Encuentra todas las clases de múltiples cursos.
+   * @param courseIds - Array de IDs de cursos.
+   * @returns Lista de clases ordenadas por curso y luego por order.
+   */
+  async findAllByCourses(courseIds: Types.ObjectId[]): Promise<ClassDoc[]> {
+    if (!courseIds || courseIds.length === 0) {
+      return [];
+    }
+    const classes = await this.model
+      .find({ courseId: { $in: courseIds } })
+      .sort({ courseId: 1, order: 1 })
+      .exec();
+    return classes as unknown as ClassDoc[];
+  }
+
+  /**
    * Cambia el estado de una clase.
    * @param classId - ID de la clase.
    * @param status - Nuevo estado (ACTIVE, INACTIVE, etc.).

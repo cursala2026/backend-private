@@ -208,6 +208,19 @@ class UserRepository {
     };
   }
 
+  async getTeachers(): Promise<IUser[]> {
+    // Filtrar usuarios que tengan el rol PROFESOR en su array de roles
+    // Usar $in para buscar en el array de roles
+    const teachers = await this.model
+      .find({ roles: { $in: ['PROFESOR'] } })
+      .select('-password -resetPasswordToken')
+      .sort({ firstName: 1, lastName: 1 })
+      .lean()
+      .exec();
+
+    return teachers as unknown as IUser[];
+  }
+
   /**
    * Removes a role from a user's roles.
    * @param userId - The user's unique identifier.
@@ -756,6 +769,83 @@ class UserRepository {
       lastName: u.lastName,
       startDate: u.startDate,
       endDate: u.endDate,
+    }));
+  }
+
+  /**
+   * Obtiene todos los alumnos asignados a los cursos de un profesor
+   * Este método recibe los IDs de los cursos del profesor (obtenidos desde CourseRepository)
+   * @param courseIds Array de IDs de cursos del profesor
+   * @returns Array de alumnos con información del curso al que están asignados
+   */
+  async getStudentsByTeacherCourses(courseIds: Types.ObjectId[]): Promise<
+    {
+      userId: string;
+      email: string;
+      username: string;
+      firstName: string;
+      lastName: string;
+      profilePhotoUrl?: string;
+      courseId: string;
+      courseName: string;
+      startDate: Date;
+      endDate: Date;
+    }[]
+  > {
+    if (!courseIds || courseIds.length === 0) {
+      return [];
+    }
+
+    // Obtener todos los alumnos asignados a estos cursos
+    const students = await this.model.aggregate([
+      {
+        $match: {
+          'assignedCourses.courseId': { $in: courseIds },
+          roles: 'ALUMNO'
+        }
+      },
+      { $unwind: '$assignedCourses' },
+      {
+        $match: {
+          'assignedCourses.courseId': { $in: courseIds }
+        }
+      },
+      {
+        $lookup: {
+          from: 'courses',
+          localField: 'assignedCourses.courseId',
+          foreignField: '_id',
+          as: 'courseInfo'
+        }
+      },
+      { $unwind: '$courseInfo' },
+      {
+        $project: {
+          userId: '$_id',
+          email: 1,
+          username: 1,
+          firstName: 1,
+          lastName: 1,
+          profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+          courseId: '$assignedCourses.courseId',
+          courseName: '$courseInfo.name',
+          startDate: '$assignedCourses.startDate',
+          endDate: '$assignedCourses.endDate'
+        }
+      }
+    ]).exec();
+
+    return students.map((s: any) => ({
+      userId: s.userId.toString(),
+      email: s.email,
+      username: s.username,
+      firstName: s.firstName,
+      lastName: s.lastName,
+      profilePhotoUrl: s.profilePhotoUrl,
+      courseId: s.courseId.toString(),
+      courseName: s.courseName,
+      startDate: s.startDate,
+      endDate: s.endDate
     }));
   }
 

@@ -10,6 +10,7 @@ router.get('/:imageFileName/image', courseController.getCourseImage);
 
 // 🟡 AUTENTICADO: Listar y ver cursos
 router.get('/published', authorize, courseController.findPublishedCourses); // Cursos publicados para estudiantes
+router.get('/teacher/:teacherId', authorize, courseController.findByTeacherId); // Cursos de un profesor
 router.get('/', authorize, requireAdmin, courseController.findAll); // Todos los cursos (solo admin)
 router.get('/:courseId', authorize, courseController.findOneById);
 

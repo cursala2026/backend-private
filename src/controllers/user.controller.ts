@@ -65,6 +65,15 @@ export default class UserController {
     }
   };
 
+  getTeachers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const teachers = await this.userService.getTeachers();
+      return res.json(prepareResponse(200, 'Teachers fetched successfully', teachers));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
   removeRoleFromUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { user, role } = req.body;
@@ -351,6 +360,17 @@ export default class UserController {
 
       const resp = await this.userService.getUsersByAssignedCourses(courseId);
       return res.json(prepareResponse(200, 'Users by assigned courses fetched successfully', resp));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  getStudentsByTeacherCourses = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { teacherId } = req.params;
+
+      const resp = await this.userService.getStudentsByTeacherCourses(teacherId);
+      return res.json(prepareResponse(200, 'Students by teacher courses fetched successfully', resp));
     } catch (error) {
       return next(error);
     }

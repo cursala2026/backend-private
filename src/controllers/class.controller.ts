@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { logger, prepareResponse } from '../utils';
 import ClassService from '@/services/class.service';
+import CourseService from '@/services/course.service';
 import { IClassData } from '@/models';
 import {
   uploadDirImages,
@@ -18,7 +19,10 @@ export { uploadFiles, uploadChunkMulter } from '@/services/file-upload.service';
 export default class ClassController {
   private readonly bunnyService: BunnyService;
 
-  constructor(private readonly classService: ClassService) {
+  constructor(
+    private readonly classService: ClassService,
+    private readonly courseService?: CourseService
+  ) {
     this.bunnyService = new BunnyService();
   }
 
@@ -353,6 +357,43 @@ export default class ClassController {
       const { courseId } = req.params;
       const classes = await this.classService.findAllByCourse(courseId);
       return res.json(prepareResponse(200, 'Classes fetched successfully', classes));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  findAllByTeacherCourses = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { teacherId } = req.params;
+      
+      if (!this.courseService) {
+        return res.status(500).json(prepareResponse(500, 'Course service not available', null));
+      }
+
+      // Obtener los cursos del profesor
+      const courses = await this.courseService.findByTeacherId(teacherId);
+      
+      if (!courses || courses.length === 0) {
+        return res.json(prepareResponse(200, 'Classes fetched successfully', []));
+      }
+
+      // Extraer los IDs de los cursos
+      const courseIds = courses.map(course => course._id.toString());
+
+      // Obtener las clases de esos cursos
+      const classes = await this.classService.findAllByCourses(courseIds);
+
+      // Agregar información del curso a cada clase
+      const classesWithCourse = classes.map(classItem => {
+        const course = courses.find(c => c._id.toString() === classItem.courseId.toString());
+        return {
+          ...classItem,
+          courseName: course?.name || 'Curso desconocido',
+          courseId: classItem.courseId.toString()
+        };
+      });
+
+      return res.json(prepareResponse(200, 'Classes fetched successfully', classesWithCourse));
     } catch (error) {
       return next(error);
     }

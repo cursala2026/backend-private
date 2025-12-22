@@ -48,6 +48,10 @@ export default class UserService {
     return this.userRepository.getUsersPaginated(params);
   }
 
+  async getTeachers() {
+    return this.userRepository.getTeachers();
+  }
+
   async createUser(userData: Partial<IUser>) {
     return this.userRepository.createUser(userData);
   }
@@ -457,5 +461,25 @@ export default class UserService {
       const resolvedAllowedDir = path.resolve(allowedDir);
       return resolvedPath.startsWith(resolvedAllowedDir + path.sep) || resolvedPath === resolvedAllowedDir;
     });
+  }
+
+  /**
+   * Obtiene todos los alumnos asignados a los cursos de un profesor
+   * @param teacherId ID del profesor
+   * @returns Array de alumnos con información del curso al que están asignados
+   */
+  async getStudentsByTeacherCourses(teacherId: string) {
+    // Primero obtener los cursos del profesor
+    const courses = await this.courseRepository.findByTeacherId(teacherId);
+    
+    if (!courses || courses.length === 0) {
+      return [];
+    }
+
+    // Extraer los IDs de los cursos
+    const courseIds = courses.map(course => new Types.ObjectId(course._id.toString()));
+
+    // Obtener los alumnos de esos cursos
+    return this.userRepository.getStudentsByTeacherCourses(courseIds);
   }
 }

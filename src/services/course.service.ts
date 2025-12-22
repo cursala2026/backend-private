@@ -195,4 +195,8 @@ export default class CourseService {
     // Assign the main teacher to the course
     return this.courseRepository.assignMainTeacher(courseId, new Types.ObjectId(mainTeacherId));
   }
+
+  async findByTeacherId(teacherId: string): Promise<ICourse[]> {
+    return this.courseRepository.findByTeacherId(teacherId);
+  }
 }

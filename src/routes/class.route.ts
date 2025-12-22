@@ -98,6 +98,13 @@ router.delete('/:classId/delete', authorize, classController.delete);
 router.get('/course/:courseId/classes', authorize, classController.findAllByCourse);
 
 /**
+ * @route GET /teacher/:teacherId/classes
+ * @description Obtiene todas las clases de los cursos de un profesor.
+ * @access Private (requiere autorización)
+ */
+router.get('/teacher/:teacherId/classes', authorize, classController.findAllByTeacherCourses);
+
+/**
  * @route PATCH /:classId/status
  * @description Cambia el estado de una clase (ACTIVE, INACTIVE, etc.).
  * @access Private (requiere autorización)

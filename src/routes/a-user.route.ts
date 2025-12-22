@@ -15,8 +15,10 @@ if (process.env.NODE_ENV === 'development') {
 // 🟠 ALTO: Consultas administrativas de usuarios
 router.get('/getUserById/:userId', authorize, requireAdmin, userController.getUserById);
 router.get('/getAllUsers', authorize, requireAdmin, userController.getAllUsers);
+router.get('/getTeachers', authorize, requireAdmin, userController.getTeachers);
 router.get('/', authorize, requireAdmin, userController.getUsersPaginated);
 router.get('/getUsersByAssignedCourses/:courseId', authorize, requireAdmin, userController.getUsersByAssignedCourses);
+router.get('/getStudentsByTeacherCourses/:teacherId', authorize, userController.getStudentsByTeacherCourses);
 // 🟡 MEDIO: Gestión de cursos asignados (requiere admin para asignaciones de otros usuarios)
 router.get('/getAssignedCourses/:userId', authorize, userController.getAssignedCourses);
 router.get('/getUnassignedCourses/:userId', authorize, userController.getUnassignedCourses);

@@ -163,6 +163,47 @@ export default class ClassService {
   }
 
   /**
+   * Encuentra todas las clases de múltiples cursos.
+   * @param courseIds - Array de IDs de cursos.
+   * @returns Lista de clases con información del curso.
+   */
+  async findAllByCourses(courseIds: string[]): Promise<any[]> {
+    const { Types } = await import('@/models');
+    const objectIds = courseIds
+      .filter(id => Types.ObjectId.isValid(id))
+      .map(id => new Types.ObjectId(id));
+
+    if (objectIds.length === 0) {
+      return [];
+    }
+
+    const classes = await this.classRepository.findAllByCourses(objectIds);
+
+    // Formatear fechas de examen en cada clase y agregar información del curso
+    const result = classes.map((classData) => {
+      const baseClassData = JSON.parse(JSON.stringify(classData));
+
+      if (classData.examConfig) {
+        return {
+          ...baseClassData,
+          examConfig: {
+            examLink: classData.examConfig.examLink,
+            examVisible: classData.examConfig.examVisible,
+            examStartDate: classData.examConfig.examStartDate
+              ? formatForFrontend(classData.examConfig.examStartDate)
+              : null,
+            examEndDate: classData.examConfig.examEndDate ? formatForFrontend(classData.examConfig.examEndDate) : null,
+          },
+        };
+      }
+
+      return baseClassData;
+    });
+
+    return result;
+  }
+
+  /**
    * Cambia el estado de una clase.
    * @param classId - ID de la clase.
    * @param status - Nuevo estado (ACTIVE, INACTIVE, etc.).
