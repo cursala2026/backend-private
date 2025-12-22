@@ -10,6 +10,8 @@ import {
 } from '../utils';
 import { IClassData } from '@/models';
 import ClassRepository from '@/repositories/class.repository';
+import { courseProgressRepository } from '@/repositories/courseProgress.repository';
+import { courseRepository } from '@/repositories';
 import BunnyService from './bunny.service';
 
 export default class ClassService {
@@ -89,42 +91,41 @@ export default class ClassService {
     const classData = await this.classRepository.findOneById(id);
     if (!classData) return null;
 
+    const courseId = classData.courseId?.toString();
+
     // Elimina la clase del repositorio
     const deletedClass = await this.classRepository.delete(id);
 
-    // Elimina archivos asociados si existen
-    if (classData.imageUrl) {
-      // Si la imagen está en Bunny, eliminarla de allí
-      if (this.bunnyService.isBunnyCdnUrl(classData.imageUrl)) {
-        await this.bunnyService.deleteFile(classData.imageUrl);
-      } else {
-        // Si es local, eliminarla del filesystem
-        const imagePath = path.join(__dirname, '../static/images', classData.imageUrl);
-        if (fs.existsSync(imagePath)) {
-          fs.unlinkSync(imagePath);
+    // Limpiar el progreso de esta clase de todos los usuarios
+    if (courseId) {
+      try {
+        await courseProgressRepository.removeClassFromAllProgress(courseId, id);
+        
+        // Recalcular el progreso general con el nuevo total de clases
+        const course = await courseRepository.findOneById(courseId);
+        if (course && course.classes) {
+          const totalClasses = course.classes.length;
+          await courseProgressRepository.recalculateOverallProgress(courseId, totalClasses);
         }
+      } catch (error) {
+        console.error('Error al limpiar progreso de clase eliminada:', error);
       }
     }
-    if (classData.videoUrl) {
-      // Si el video está en Bunny, eliminarlo de allí
-      if (this.bunnyService.isBunnyCdnUrl(classData.videoUrl)) {
-        await this.bunnyService.deleteFile(classData.videoUrl);
-      } else {
-        // Si es local, eliminarlo del filesystem
-        const videoPath = path.join(__dirname, '../static/videos', classData.videoUrl);
-        if (fs.existsSync(videoPath)) {
-          fs.unlinkSync(videoPath);
-        }
-      }
+
+    // Elimina archivos asociados de Bunny CDN si existen
+    if (classData.imageUrl && this.bunnyService.isBunnyCdnUrl(classData.imageUrl)) {
+      await this.bunnyService.deleteFile(classData.imageUrl);
     }
-    // Elimina archivos de material de apoyo si existen
+    if (classData.videoUrl && this.bunnyService.isBunnyCdnUrl(classData.videoUrl)) {
+      await this.bunnyService.deleteFile(classData.videoUrl);
+    }
+    // Elimina archivos de material de apoyo de Bunny CDN si existen
     if (classData.supportMaterials && Array.isArray(classData.supportMaterials)) {
-      classData.supportMaterials.forEach((materialFileName) => {
-        const materialPath = path.join(__dirname, '../static/supportMaterials', materialFileName);
-        if (fs.existsSync(materialPath)) {
-          fs.unlinkSync(materialPath);
+      for (const materialUrl of classData.supportMaterials) {
+        if (this.bunnyService.isBunnyCdnUrl(materialUrl)) {
+          await this.bunnyService.deleteFile(materialUrl);
         }
-      });
+      }
     }
 
     return deletedClass;

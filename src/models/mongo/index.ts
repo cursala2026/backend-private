@@ -18,3 +18,4 @@ export * from './faq.model';
 export * from './fileMaterial.model';
 export * from './adminVerificationCode.model';
 export * from './certificate.model';
+export * from './courseProgress.model';

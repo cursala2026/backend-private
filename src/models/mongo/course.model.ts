@@ -17,6 +17,7 @@ export interface ICourse {
   order: number;
   imageUrl?: string;
   classes: IClass[];
+  students?: ObjectId[]; // Array de estudiantes inscritos
   meta?: {
     totalClasses: number;
     popularity: number;
@@ -58,6 +59,11 @@ export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
     imageUrl: { type: String, match: /\.(jpg|jpeg|png|webp)$/i },
     classes: {
       type: [ClassSchema],
+      default: [],
+    },
+    students: {
+      type: [Schema.Types.ObjectId],
+      ref: 'User',
       default: [],
     },
     meta: {

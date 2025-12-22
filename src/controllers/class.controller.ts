@@ -12,6 +12,8 @@ import {
 } from '@/services/upload.config';
 import { fileUploadService } from '@/services/file-upload.service';
 import BunnyService from '@/services/bunny.service';
+import { courseProgressRepository } from '@/repositories/courseProgress.repository';
+import { courseRepository } from '@/repositories';
 
 // Re-exportar para mantener compatibilidad con rutas existentes
 export { uploadFiles, uploadChunkMulter } from '@/services/file-upload.service';
@@ -148,6 +150,32 @@ export default class ClassController {
           logger.error(`❌ Error subiendo video a Bunny: ${(error as Error).message}`);
           return res.status(500).json({ message: 'Error subiendo video a Bunny Storage' });
         }
+      }
+
+      // Subir archivos de apoyo a Bunny Storage si existen
+      if (supportMaterials.length > 0) {
+        const bunnyUrls: string[] = [];
+        for (const materialFile of supportMaterials) {
+          try {
+            const localFilePath = path.join(uploadDirSupportMaterials, materialFile);
+            const fileBuffer = fs.readFileSync(localFilePath);
+            const uniqueFileName = this.bunnyService.generateUniqueFileName(materialFile, 'support');
+
+            logger.info(`🐰 Subiendo archivo de apoyo a Bunny: ${uniqueFileName}`);
+            const bunnyUrl = await this.bunnyService.uploadFile(fileBuffer, uniqueFileName, 'support-materials');
+
+            // Eliminar archivo local después de subir a Bunny
+            fs.unlinkSync(localFilePath);
+
+            bunnyUrls.push(bunnyUrl);
+            logger.info(`✅ Archivo de apoyo subido a Bunny exitosamente: ${bunnyUrl}`);
+          } catch (error) {
+            logger.error(`❌ Error subiendo archivo de apoyo a Bunny: ${(error as Error).message}`);
+            // Continuar con los demás archivos
+          }
+        }
+        // Reemplazar supportMaterials con las URLs de Bunny
+        supportMaterials = bunnyUrls;
       }
 
       // Construir datos de clase
@@ -299,6 +327,55 @@ export default class ClassController {
         }
       }
 
+      // Procesar archivos de apoyo nuevos
+      const newSupportMaterialFiles = supportMaterials.filter(
+        (material) => !material.startsWith('http://') && !material.startsWith('https://')
+      );
+      const existingBunnyUrls = supportMaterials.filter(
+        (material) => material.startsWith('http://') || material.startsWith('https://')
+      );
+
+      // Subir nuevos archivos de apoyo a Bunny
+      if (newSupportMaterialFiles.length > 0) {
+        const bunnyUrls: string[] = [...existingBunnyUrls];
+        for (const materialFile of newSupportMaterialFiles) {
+          try {
+            const localFilePath = path.join(uploadDirSupportMaterials, materialFile);
+            if (fs.existsSync(localFilePath)) {
+              const fileBuffer = fs.readFileSync(localFilePath);
+              const uniqueFileName = this.bunnyService.generateUniqueFileName(materialFile, 'support');
+
+              logger.info(`🐰 Subiendo archivo de apoyo a Bunny: ${uniqueFileName}`);
+              const bunnyUrl = await this.bunnyService.uploadFile(fileBuffer, uniqueFileName, 'support-materials');
+
+              // Eliminar archivo local después de subir a Bunny
+              fs.unlinkSync(localFilePath);
+
+              bunnyUrls.push(bunnyUrl);
+              logger.info(`✅ Archivo de apoyo subido a Bunny exitosamente: ${bunnyUrl}`);
+            }
+          } catch (error) {
+            logger.error(`❌ Error subiendo archivo de apoyo a Bunny: ${(error as Error).message}`);
+            // Continuar con los demás archivos
+          }
+        }
+        supportMaterials = bunnyUrls;
+      }
+
+      // Eliminar archivos de apoyo que fueron marcados para eliminar de Bunny
+      if (materialsToDelete.length > 0) {
+        for (const materialToDelete of materialsToDelete) {
+          if (this.bunnyService.isBunnyCdnUrl(materialToDelete)) {
+            try {
+              logger.info(`🗑️ Eliminando archivo de apoyo de Bunny: ${materialToDelete}`);
+              await this.bunnyService.deleteFile(materialToDelete);
+            } catch (error) {
+              logger.error(`❌ Error eliminando archivo de apoyo de Bunny: ${(error as Error).message}`);
+            }
+          }
+        }
+      }
+
       // Construir datos de actualización
       const updateData: Partial<IClassData> = {};
 
@@ -310,9 +387,13 @@ export default class ClassController {
       if (imageUrl !== existingClass.imageUrl) {
         updateData.imageUrl = imageUrl;
       }
-      if (videoUrl !== existingClass.videoUrl) {
+      
+      // Si el video cambió, actualizar y resetear progreso de esta clase
+      const videoChanged = videoUrl !== existingClass.videoUrl;
+      if (videoChanged) {
         updateData.videoUrl = videoUrl;
       }
+      
       if (supportMaterials.join(',') !== (existingClass.supportMaterials || []).join(',')) {
         updateData.supportMaterials = supportMaterials;
       }
@@ -321,6 +402,7 @@ export default class ClassController {
         name: updateData.name,
         imageUrl: updateData.imageUrl,
         videoUrl: updateData.videoUrl,
+        videoChanged,
         supportMaterialsCount: updateData.supportMaterials?.length,
       });
 
@@ -328,6 +410,23 @@ export default class ClassController {
       fileUploadService.deleteFiles(filesToDelete);
 
       const updatedClass = await this.classService.update(classId, updateData);
+
+      // Si el video cambió, resetear el progreso de esta clase para todos los usuarios
+      if (videoChanged && existingClass.courseId) {
+        try {
+          const courseId = existingClass.courseId.toString();
+          await courseProgressRepository.resetClassProgress(courseId, classId);
+          
+          // Recalcular el progreso general del curso
+          const course = await courseRepository.findOneById(courseId);
+          if (course && course.classes) {
+            await courseProgressRepository.recalculateOverallProgress(courseId, course.classes.length);
+          }
+          logger.info(`Progreso de clase ${classId} reseteado por cambio de video`);
+        } catch (error) {
+          logger.error(`Error al resetear progreso de clase: ${(error as Error).message}`);
+        }
+      }
 
       // Limpiar mapeo
       fileUploadService.cleanupAssembledFilesMappings(uploadIdsToClean);
@@ -668,12 +767,25 @@ export default class ClassController {
           if (existingClass.supportMaterials && fileName) {
             logger.info('Procesando eliminación de archivo soporte');
 
-            const updatedSupportMaterials = existingClass.supportMaterials.filter(
-              (material: string) => path.basename(material) !== fileName
+            // Buscar el archivo completo (puede ser URL de Bunny o nombre local)
+            const materialToDelete = existingClass.supportMaterials.find(
+              (material: string) => path.basename(material) === fileName || material.endsWith(fileName)
             );
 
-            if (updatedSupportMaterials.length < existingClass.supportMaterials.length) {
-              filesToDelete.push({ directory: uploadDirSupportMaterials, fileName });
+            if (materialToDelete) {
+              // Si el archivo está en Bunny, eliminarlo de allí
+              if (this.bunnyService.isBunnyCdnUrl(materialToDelete)) {
+                logger.info(`🗑️ Eliminando archivo de apoyo de Bunny: ${materialToDelete}`);
+                await this.bunnyService.deleteFile(materialToDelete);
+              } else {
+                // Si es local, marcarlo para eliminación del filesystem
+                filesToDelete.push({ directory: uploadDirSupportMaterials, fileName: materialToDelete });
+              }
+
+              // Actualizar la lista de materiales
+              const updatedSupportMaterials = existingClass.supportMaterials.filter(
+                (material: string) => material !== materialToDelete
+              );
 
               if (updatedSupportMaterials.length === 0) {
                 unsetQuery.supportMaterials = '';

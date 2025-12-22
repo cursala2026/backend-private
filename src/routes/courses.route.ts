@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { authorize } from '@/middlewares/auth.middleware';
-import { requireAdmin } from '@/middlewares/adminSecurity.middleware';
+import { requireAdmin, requireAdminOrCourseOwner } from '@/middlewares/adminSecurity.middleware';
 import { courseController } from '@/controllers';
+import { courseRepository } from '@/repositories';
 
 const router = Router();
 
@@ -11,12 +12,21 @@ router.get('/:imageFileName/image', courseController.getCourseImage);
 // 🟡 AUTENTICADO: Listar y ver cursos
 router.get('/published', authorize, courseController.findPublishedCourses); // Cursos publicados para estudiantes
 router.get('/teacher/:teacherId', authorize, courseController.findByTeacherId); // Cursos de un profesor
-router.get('/', authorize, requireAdmin, courseController.findAll); // Todos los cursos (solo admin)
-router.get('/:courseId', authorize, courseController.findOneById);
 
-// 🟠 ALTO: Administración de cursos requiere admin
+// 🟡 AUTENTICADO: Rutas de estudiantes (DEBEN IR ANTES DE /:courseId)
+router.get('/me/courses', authorize, courseController.getStudentCourses); // Obtener cursos del estudiante
+
+// 🟡 AUTENTICADO: Listar todos (solo admin)
+router.get('/', authorize, requireAdmin, courseController.findAll); // Todos los cursos (solo admin)
+
+// 🟡 AUTENTICADO: Rutas específicas por courseId
+router.get('/:courseId', authorize, courseController.findOneById); // Ver detalles del curso
+router.post('/:courseId/enroll', authorize, courseController.enrollStudent); // Inscribirse en un curso gratis
+router.post('/:courseId/unenroll', authorize, courseController.unenrollStudent); // Desinscribirse de un curso
+
+// �🟠 ALTO: Administración de cursos requiere admin
 router.post('/course', authorize, requireAdmin, courseController.create);
-router.patch('/:id', authorize, requireAdmin, courseController.update);
+router.patch('/:id', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);
 router.delete('/:courseId/delete', authorize, requireAdmin, courseController.delete);
 router.patch('/:courseId/status', authorize, requireAdmin, courseController.changeStatus);
 router.patch('/:courseId/up', authorize, requireAdmin, courseController.moveUpOrder);

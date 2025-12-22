@@ -429,6 +429,8 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
     // Obtener estadísticas y últimos usuarios registrados
     const [
       totalUsers,
+      totalStudents,
+      totalTeachers,
       totalCourses,
       totalCategories,
       totalPromotionalCodes,
@@ -436,6 +438,8 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
       recentUsers,
     ] = await Promise.all([
       userRepository.countUsers(),
+      userRepository.countStudents(),
+      userRepository.countTeachers(),
       courseRepository.countCourses(),
       categoryRepository.countCategories(),
       PromotionalCode.countDocuments({ status: { $ne: 'DELETED' } }),
@@ -447,6 +451,8 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
       success: true,
       data: {
         totalUsers,
+        totalStudents,
+        totalTeachers,
         totalCourses,
         totalCategories,
         totalPromotionalCodes,

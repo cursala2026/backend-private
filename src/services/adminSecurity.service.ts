@@ -185,7 +185,6 @@ class AdminSecurityService {
       edit_user_data: 'Editar Datos de Usuario',
       edit_company_data: 'Editar Datos de Empresa',
       edit_roles: 'Editar Roles',
-      edit_permissions: 'Editar Permisos',
       delete_user: 'Eliminar Usuario',
       critical_settings: 'Configuraciones Críticas',
     };

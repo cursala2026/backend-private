@@ -3,6 +3,7 @@ import path from 'path';
 import { ICourse, Types } from '@/models';
 import CourseRepository from '@/repositories/course.repository';
 import UserRepository from '@/repositories/user.repository';
+import { courseProgressRepository } from '@/repositories/courseProgress.repository';
 import { courseUploadService } from './course-upload.service';
 
 export default class CourseService {
@@ -129,11 +130,24 @@ export default class CourseService {
       courseUploadService.deleteProgramFile(course.programUrl);
     }
 
+    // Eliminar todo el progreso de este curso
+    try {
+      await courseProgressRepository.deleteAllByCourseId(id);
+    } catch (error) {
+      console.error('Error al eliminar progreso del curso:', error);
+    }
+
     // Eliminar el curso de la base de datos
     return this.courseRepository.delete(id);
   }
 
   async delete(id: string): Promise<ICourse | null> {
+    // Eliminar todo el progreso de este curso
+    try {
+      await courseProgressRepository.deleteAllByCourseId(id);
+    } catch (error) {
+      console.error('Error al eliminar progreso del curso:', error);
+    }
     return this.courseRepository.delete(id);
   }
 
@@ -198,5 +212,54 @@ export default class CourseService {
 
   async findByTeacherId(teacherId: string): Promise<ICourse[]> {
     return this.courseRepository.findByTeacherId(teacherId);
+  }
+
+  async enrollStudent(courseId: string, studentId: string): Promise<ICourse> {
+    const course = await this.courseRepository.findOneById(courseId);
+    if (!course) {
+      throw new Error('Course not found');
+    }
+
+    // Verificar si el estudiante ya está inscrito
+    const students = course.students || [];
+    const isAlreadyEnrolled = students.some((student: any) => {
+      const studentIdStr = student.toString ? student.toString() : student;
+      return studentIdStr === studentId;
+    });
+
+    if (isAlreadyEnrolled) {
+      throw new Error('Student already enrolled in this course');
+    }
+
+    // Agregar el estudiante al array de estudiantes del curso
+    return this.courseRepository.enrollStudent(courseId, studentId);
+  }
+
+  async getStudentCourses(studentId: string): Promise<ICourse[]> {
+    return this.courseRepository.getStudentCourses(studentId);
+  }
+
+  async unenrollStudent(courseId: string, studentId: string): Promise<ICourse> {
+    const course = await this.courseRepository.findOneById(courseId);
+    if (!course) {
+      throw new Error('Course not found');
+    }
+
+    // Verificar si el estudiante está inscrito
+    const students = course.students || [];
+    const isEnrolled = students.some((student: any) => {
+      const studentIdStr = student.toString ? student.toString() : student;
+      return studentIdStr === studentId;
+    });
+
+    if (!isEnrolled) {
+      throw new Error('Student is not enrolled in this course');
+    }
+
+    // Eliminar el progreso del estudiante en este curso
+    await courseProgressRepository.deleteByUserAndCourse(studentId, courseId);
+
+    // Remover el estudiante del array de estudiantes del curso
+    return this.courseRepository.unenrollStudent(courseId, studentId);
   }
 }

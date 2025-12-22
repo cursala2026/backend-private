@@ -18,11 +18,7 @@ const mockUserRepository: any = {
   getUserById: jest.fn(),
   save: jest.fn(),
 };
-const mockFeatureRepository: any = {
-  findAllFeaturesByRolesId: jest.fn(),
-};
 const mockRoleRepository: any = {
-  findAllFeaturerByRoles: jest.fn(),
   getRoleByCode: jest.fn(),
 };
 let authService: AuthService;
@@ -39,8 +35,6 @@ beforeEach(() => {
   // Default mocks used by multiple tests
   mockUserRepository.save.mockResolvedValue(true);
   mockRoleRepository.getRoleByCode.mockResolvedValue({ _id: 'default-role-id' });
-  mockRoleRepository.findAllFeaturerByRoles.mockResolvedValue([]);
-  mockFeatureRepository.findAllFeaturesByRolesId.mockResolvedValue([]);
 });
 describe('AuthService - login and validateUser', () => {
   test('login returns token and userInfo for valid credentials', async () => {
@@ -180,8 +174,6 @@ describe('AuthService - getUserInfo', () => {
       lastName: 'Doe',
     };
     mockUserRepository.getUserById.mockResolvedValue(user);
-    mockRoleRepository.findAllFeaturerByRoles.mockResolvedValue([]);
-    mockFeatureRepository.findAllFeaturesByRolesId.mockResolvedValue([]);
     return authService.getUserInfo(user).then((info) => {
       expect(info).toHaveProperty('_id');
       expect(info).toHaveProperty('email');

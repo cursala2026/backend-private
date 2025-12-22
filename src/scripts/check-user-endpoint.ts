@@ -4,6 +4,7 @@ import UserRepository from '@/repositories/user.repository';
 
 /**
  * Script para verificar qué devuelve el repositorio de usuarios
+ * NOTA: Este script está deshabilitado temporalmente
  */
 
 const USER_ID = '68908afb1df054c4cae3b1ad';
@@ -16,7 +17,7 @@ async function checkUserEndpoint() {
 
     console.log('📖 Consultando repositorio de usuarios...\n');
 
-    const userRepo = new UserRepository();
+    const userRepo = new UserRepository(connection);
 
     // Obtener usuario por ID
     const user = await userRepo.getUserById(USER_ID);
@@ -34,17 +35,17 @@ async function checkUserEndpoint() {
       });
     }
 
-    // Obtener todos los usuarios
-    console.log('\n📖 Consultando todos los usuarios...');
-    const allUsers = await userRepo.getUsers({
-      page: 1,
-      page_size: 100
-    });
+    // Obtener todos los usuarios - Comentado porque getUsers no existe
+    // console.log('\n📖 Consultando todos los usuarios...');
+    // const allUsers = await userRepo.getUsers({
+    //   page: 1,
+    //   page_size: 100
+    // });
 
-    const targetUser = allUsers?.data?.find((u: any) => u.email === 'rubilar85@hotmail.com');
-    console.log('\n📋 Usuario encontrado en getUsers:');
-    console.log('Email:', targetUser?.email);
-    console.log('Roles:', JSON.stringify(targetUser?.roles));
+    // const targetUser = allUsers?.data?.find((u: any) => u.email === 'rubilar85@hotmail.com');
+    // console.log('\n📋 Usuario encontrado en getUsers:');
+    // console.log('Email:', targetUser?.email);
+    // console.log('Roles:', JSON.stringify(targetUser?.roles));
 
     await connection.close();
     console.log('\n🔌 Conexión cerrada');

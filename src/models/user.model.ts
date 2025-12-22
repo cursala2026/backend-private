@@ -12,11 +12,6 @@ interface IAssignedCourseEdit {
   courseId: Types.ObjectId;
 }
 
-interface IFeatures {
-  _id: Types.ObjectId;
-  name: string;
-}
-
 interface IUser {
   _id: Types.ObjectId;
   username: string;
@@ -31,7 +26,6 @@ interface IUser {
   createdAt: Date;
   updatedAt: Date;
   roles: string[];
-  features: IFeatures[];
   resetPasswordToken: string;
   assignedCourses?: IAssignedCourse[];
   assignedCoursesEdit?: IAssignedCourseEdit[];
@@ -88,7 +82,6 @@ export {
   User,
   IUser,
   UserModel,
-  IFeatures,
   IAssignedCourseEdit,
   UserSchema,
   AssignedCourseSchema,

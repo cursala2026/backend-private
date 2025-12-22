@@ -436,4 +436,95 @@ export default class CourseController {
       return next(error);
     }
   };
+
+  enrollStudent = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { courseId } = req.params;
+      const userId = (req.user as any)?._id; // Obtenido del middleware de autenticación
+
+      if (!userId) {
+        return res.status(401).json(prepareResponse(401, 'User not authenticated'));
+      }
+
+      if (!courseId) {
+        return res.status(400).json(prepareResponse(400, 'Course ID is required'));
+      }
+
+      // Verificar que el curso existe
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
+
+      // Verificar que el curso es gratis
+      if (course.price && course.price > 0) {
+        return res.status(400).json(prepareResponse(400, 'Cannot enroll in paid courses through this endpoint'));
+      }
+
+      // Inscribir al estudiante
+      const updatedCourse = await this.courseService.enrollStudent(courseId, userId.toString());
+
+      return res.json(prepareResponse(200, 'Student enrolled successfully', updatedCourse));
+    } catch (error) {
+      logger.error('Error enrolling student:', error);
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as Error).message;
+        if (message.includes('already enrolled')) {
+          return res.status(400).json(prepareResponse(400, 'Student already enrolled in this course'));
+        }
+      }
+      return next(error);
+    }
+  };
+
+  getStudentCourses = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req.user as any)?._id;
+
+      if (!userId) {
+        return res.status(401).json(prepareResponse(401, 'User not authenticated'));
+      }
+
+      const courses = await this.courseService.getStudentCourses(userId.toString());
+      return res.json(prepareResponse(200, 'Student courses fetched successfully', courses));
+    } catch (error) {
+      logger.error('Error fetching student courses:', error);
+      return next(error);
+    }
+  };
+
+  unenrollStudent = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { courseId } = req.params;
+      const userId = (req.user as any)?._id; // Obtenido del middleware de autenticación
+
+      if (!userId) {
+        return res.status(401).json(prepareResponse(401, 'User not authenticated'));
+      }
+
+      if (!courseId) {
+        return res.status(400).json(prepareResponse(400, 'Course ID is required'));
+      }
+
+      // Verificar que el curso existe
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
+
+      // Desuscribir al estudiante
+      const updatedCourse = await this.courseService.unenrollStudent(courseId, userId.toString());
+
+      return res.json(prepareResponse(200, 'Student unenrolled successfully', updatedCourse));
+    } catch (error) {
+      logger.error('Error unenrolling student:', error);
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as Error).message;
+        if (message.includes('not enrolled')) {
+          return res.status(400).json(prepareResponse(400, 'Student is not enrolled in this course'));
+        }
+      }
+      return next(error);
+    }
+  };
 }

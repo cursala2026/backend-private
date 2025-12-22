@@ -30,7 +30,6 @@ const router = Router();
  *             - edit_user_data
  *             - edit_company_data
  *             - edit_roles
- *             - edit_permissions
  *             - delete_user
  *             - critical_settings
  *           description: Tipo de acción que requiere verificación

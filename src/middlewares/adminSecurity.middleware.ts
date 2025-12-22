@@ -190,3 +190,58 @@ export function requireAdminVerification(requiredActionId?: string) {
 export default requireAdminVerification;
 
 export { hasAdminRole };
+
+/**
+ * Middleware que permite acceso a admins O al profesor propietario del curso.
+ * Busca el courseId en req.params (como 'id' o 'courseId').
+ * Si el usuario es admin, pasa. Si no, verifica que sea el mainTeacher del curso.
+ */
+export function requireAdminOrCourseOwner(courseRepository: any) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const { user } = req;
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'No autenticado' });
+    }
+
+    try {
+      // Si es admin, permitir acceso
+      if (await hasAdminRole(user)) {
+        return next();
+      }
+
+      // Intentar obtener la versión completa del usuario
+      const fullUser = await userRepository.getUserById(String((user as any)._id));
+      if (fullUser && (await hasAdminRole(fullUser as IUser))) {
+        req.user = fullUser as any;
+        return next();
+      }
+
+      // No es admin, verificar si es el profesor propietario del curso
+      const courseId = req.params.id || req.params.courseId;
+      if (!courseId) {
+        return res.status(400).json({ success: false, message: 'ID de curso no especificado' });
+      }
+
+      const course = await courseRepository.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json({ success: false, message: 'Curso no encontrado' });
+      }
+
+      const userId = String((user as any)._id);
+      const mainTeacherId = course.mainTeacher ? String(course.mainTeacher) : null;
+
+      if (mainTeacherId === userId) {
+        return next();
+      }
+
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acceso denegado. Solo el administrador o el profesor del curso pueden realizar esta acción.' 
+      });
+    } catch (err) {
+      logger.error('Error en requireAdminOrCourseOwner:', err);
+      return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+  };
+}

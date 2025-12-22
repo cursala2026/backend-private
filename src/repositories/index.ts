@@ -29,3 +29,6 @@ export const mercadoPagoRepository = new MercadoPagoRepository(generalConnection
 export const faqRepository = new FAQRepository(generalConnection);
 export const fileMaterialRepository = new FileMaterialRepository(generalConnection);
 export const certificateRepository = new CertificateRepository(generalConnection);
+
+// Re-export singleton repository
+export { courseProgressRepository } from './courseProgress.repository';

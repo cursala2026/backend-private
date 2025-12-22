@@ -790,18 +790,25 @@ class UserRepository {
       courseName: string;
       startDate: Date;
       endDate: Date;
+      progress: number;
+      completedClasses: number;
+      totalClasses: number;
     }[]
   > {
     if (!courseIds || courseIds.length === 0) {
       return [];
     }
 
-    // Obtener todos los alumnos asignados a estos cursos
-    const students = await this.model.aggregate([
+    // Obtener alumnos de dos fuentes:
+    // 1. Usuarios con assignedCourses (asignación manual por admin)
+    // 2. Cursos que tienen al estudiante en su array students (auto-inscripción)
+
+    // Fuente 1: Usuarios con assignedCourses
+    const studentsFromAssignedCourses = await this.model.aggregate([
       {
         $match: {
           'assignedCourses.courseId': { $in: courseIds },
-          roles: 'ALUMNO'
+          roles: { $in: ['ALUMNO'] }
         }
       },
       { $unwind: '$assignedCourses' },
@@ -819,8 +826,41 @@ class UserRepository {
         }
       },
       { $unwind: '$courseInfo' },
+      // Lookup para contar clases desde la colección classes
+      {
+        $lookup: {
+          from: 'classes',
+          localField: 'assignedCourses.courseId',
+          foreignField: 'courseId',
+          as: 'classesFromCollection'
+        }
+      },
+      // Lookup para obtener el progreso del estudiante
+      {
+        $lookup: {
+          from: 'courseprogresses',
+          let: { 
+            userId: '$_id', 
+            courseId: '$assignedCourses.courseId' 
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$userId', '$$userId'] },
+                    { $eq: ['$courseId', '$$courseId'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'progressInfo'
+        }
+      },
       {
         $project: {
+          uniqueKey: { $concat: [{ $toString: '$_id' }, '-', { $toString: '$assignedCourses.courseId' }] },
           userId: '$_id',
           email: 1,
           username: 1,
@@ -829,24 +869,123 @@ class UserRepository {
           profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
           courseId: '$assignedCourses.courseId',
           courseName: '$courseInfo.name',
+          totalClasses: { $size: '$classesFromCollection' },
           startDate: '$assignedCourses.startDate',
-          endDate: '$assignedCourses.endDate'
+          endDate: '$assignedCourses.endDate',
+          progressInfo: { $arrayElemAt: ['$progressInfo', 0] }
         }
       }
     ]).exec();
 
-    return students.map((s: any) => ({
-      userId: s.userId.toString(),
-      email: s.email,
-      username: s.username,
-      firstName: s.firstName,
-      lastName: s.lastName,
-      profilePhotoUrl: s.profilePhotoUrl,
-      courseId: s.courseId.toString(),
-      courseName: s.courseName,
-      startDate: s.startDate,
-      endDate: s.endDate
-    }));
+    // Fuente 2: Cursos con array students
+    const studentsFromCourseArray = await this.model.aggregate([
+      {
+        $lookup: {
+          from: 'courses',
+          let: { userId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $in: ['$_id', courseIds] },
+                    { $in: ['$$userId', { $ifNull: ['$students', []] }] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'enrolledCourses'
+        }
+      },
+      {
+        $match: {
+          enrolledCourses: { $ne: [] }
+        }
+      },
+      { $unwind: '$enrolledCourses' },
+      // Lookup para contar clases desde la colección classes
+      {
+        $lookup: {
+          from: 'classes',
+          localField: 'enrolledCourses._id',
+          foreignField: 'courseId',
+          as: 'classesFromCollection'
+        }
+      },
+      // Lookup para obtener el progreso del estudiante
+      {
+        $lookup: {
+          from: 'courseprogresses',
+          let: { 
+            userId: '$_id', 
+            courseId: '$enrolledCourses._id' 
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$userId', '$$userId'] },
+                    { $eq: ['$courseId', '$$courseId'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'progressInfo'
+        }
+      },
+      {
+        $project: {
+          uniqueKey: { $concat: [{ $toString: '$_id' }, '-', { $toString: '$enrolledCourses._id' }] },
+          userId: '$_id',
+          email: 1,
+          username: 1,
+          firstName: 1,
+          lastName: 1,
+          profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+          courseId: '$enrolledCourses._id',
+          courseName: '$enrolledCourses.name',
+          totalClasses: { $size: '$classesFromCollection' },
+          startDate: null,
+          endDate: null,
+          progressInfo: { $arrayElemAt: ['$progressInfo', 0] }
+        }
+      }
+    ]).exec();
+
+    // Combinar y eliminar duplicados (por uniqueKey)
+    const allStudents = [...studentsFromAssignedCourses, ...studentsFromCourseArray];
+    const uniqueStudentsMap = new Map<string, any>();
+    
+    for (const student of allStudents) {
+      const key = student.uniqueKey;
+      if (!uniqueStudentsMap.has(key)) {
+        uniqueStudentsMap.set(key, student);
+      }
+    }
+
+    const students = Array.from(uniqueStudentsMap.values());
+
+    return students.map((s: any) => {
+      const completedClasses = s.progressInfo?.classesProgress?.filter((cp: any) => cp.completed)?.length || 0;
+      return {
+        userId: s.userId.toString(),
+        email: s.email,
+        username: s.username,
+        firstName: s.firstName,
+        lastName: s.lastName,
+        profilePhotoUrl: s.profilePhotoUrl,
+        courseId: s.courseId.toString(),
+        courseName: s.courseName,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        progress: s.progressInfo?.overallProgress || 0,
+        completedClasses: completedClasses,
+        totalClasses: s.totalClasses || 0
+      };
+    });
   }
 
   async updateUserProfessionalData(
@@ -924,6 +1063,22 @@ class UserRepository {
    */
   async countUsers(): Promise<number> {
     return this.model.countDocuments();
+  }
+
+  /**
+   * Cuenta el total de estudiantes (usuarios con rol ALUMNO)
+   * @returns El número total de estudiantes
+   */
+  async countStudents(): Promise<number> {
+    return this.model.countDocuments({ roles: { $in: ['ALUMNO'] } });
+  }
+
+  /**
+   * Cuenta el total de profesores (usuarios con rol PROFESOR)
+   * @returns El número total de profesores
+   */
+  async countTeachers(): Promise<number> {
+    return this.model.countDocuments({ roles: { $in: ['PROFESOR'] } });
   }
 
   /**

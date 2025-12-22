@@ -83,11 +83,6 @@ class CourseRepository {
           mainTeacherInfo: { $arrayElemAt: ['$mainTeacherInfo', 0] },
         },
       },
-      {
-        $project: {
-          classes: 0,
-        },
-      },
     ]).exec();
     
     if (!res || res.length === 0) {
@@ -507,6 +502,129 @@ class CourseRepository {
     );
 
     return uniqueCourses as unknown as ICourse[];
+  }
+
+  async enrollStudent(courseId: string, studentId: string): Promise<ICourse> {
+    if (!Types.ObjectId.isValid(courseId)) {
+      throw new Error('El ID del curso proporcionado no es válido.');
+    }
+
+    if (!Types.ObjectId.isValid(studentId)) {
+      throw new Error('El ID del estudiante proporcionado no es válido.');
+    }
+
+    const updatedCourse = await this.model.findByIdAndUpdate(
+      new Types.ObjectId(courseId),
+      {
+        $addToSet: { students: new Types.ObjectId(studentId) },
+      },
+      { new: true }
+    ).lean();
+
+    if (!updatedCourse) {
+      throw new Error('Course not found');
+    }
+
+    return updatedCourse as unknown as ICourse;
+  }
+
+  async getStudentCourses(studentId: string): Promise<ICourse[]> {
+    if (!Types.ObjectId.isValid(studentId)) {
+      throw new Error('El ID del estudiante proporcionado no es válido.');
+    }
+
+    const courses = await this.model.aggregate([
+      {
+        $match: {
+          students: new Types.ObjectId(studentId),
+        },
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: '_id',
+          foreignField: 'courseId',
+          as: 'classes',
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'mainTeacher',
+          foreignField: '_id',
+          as: 'mainTeacherInfo',
+          pipeline: [
+            {
+              $project: {
+                teacherName: { $concat: ['$firstName', ' ', '$lastName'] },
+                teacherId: '$_id',
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                professionalDescription: { $ifNull: ['$professionalDescription', null] },
+                profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+              },
+            },
+          ],
+        },
+      },
+      {
+        $unwind: {
+          path: '$mainTeacherInfo',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'teacherIds',
+          foreignField: '_id',
+          as: 'teacherInfo',
+          pipeline: [
+            {
+              $project: {
+                teacherName: { $concat: ['$firstName', ' ', '$lastName'] },
+                teacherId: '$_id',
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                professionalDescription: { $ifNull: ['$professionalDescription', null] },
+                profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+              },
+            },
+          ],
+        },
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+    ]).exec();
+
+    return courses as ICourse[];
+  }
+
+  async unenrollStudent(courseId: string, studentId: string): Promise<ICourse> {
+    if (!Types.ObjectId.isValid(courseId)) {
+      throw new Error('El ID del curso proporcionado no es válido.');
+    }
+
+    if (!Types.ObjectId.isValid(studentId)) {
+      throw new Error('El ID del estudiante proporcionado no es válido.');
+    }
+
+    const updatedCourse = await this.model.findByIdAndUpdate(
+      new Types.ObjectId(courseId),
+      {
+        $pull: { students: new Types.ObjectId(studentId) },
+      },
+      { new: true }
+    ).lean();
+
+    if (!updatedCourse) {
+      throw new Error('Course not found');
+    }
+
+    return updatedCourse as unknown as ICourse;
   }
 }
 

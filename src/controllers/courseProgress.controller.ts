@@ -1,0 +1,204 @@
+import { Request, Response } from 'express';
+import { courseProgressService } from '@/services/courseProgress.service';
+import { IUser } from '@/models';
+
+class CourseProgressController {
+  /**
+   * GET /progress/:courseId
+   * Obtener el progreso del usuario en un curso
+   */
+  async getProgress(req: Request, res: Response): Promise<void> {
+    try {
+      const user = req.user as IUser;
+      const { courseId } = req.params;
+
+      if (!user?._id) {
+        res.status(401).json({ success: false, message: 'No autorizado' });
+        return;
+      }
+
+      const progress = await courseProgressService.getProgress(
+        user._id.toString(),
+        courseId
+      );
+
+      res.json({
+        success: true,
+        data: progress,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al obtener el progreso',
+      });
+    }
+  }
+
+  /**
+   * GET /progress
+   * Obtener todos los progresos del usuario
+   */
+  async getAllProgress(req: Request, res: Response): Promise<void> {
+    try {
+      const user = req.user as IUser;
+
+      if (!user?._id) {
+        res.status(401).json({ success: false, message: 'No autorizado' });
+        return;
+      }
+
+      const progress = await courseProgressService.getAllProgress(user._id.toString());
+
+      res.json({
+        success: true,
+        data: progress,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al obtener el progreso',
+      });
+    }
+  }
+
+  /**
+   * POST /progress/:courseId
+   * Actualizar el progreso de visualización de un video
+   */
+  async updateProgress(req: Request, res: Response): Promise<void> {
+    try {
+      const user = req.user as IUser;
+      const { courseId } = req.params;
+      const { classId, watchTime, duration, completed } = req.body;
+
+      if (!user?._id) {
+        res.status(401).json({ success: false, message: 'No autorizado' });
+        return;
+      }
+
+      if (!classId) {
+        res.status(400).json({ success: false, message: 'classId es requerido' });
+        return;
+      }
+
+      const progress = await courseProgressService.updateVideoProgress(
+        user._id.toString(),
+        courseId,
+        {
+          classId,
+          watchTime,
+          duration,
+          completed,
+        }
+      );
+
+      res.json({
+        success: true,
+        data: progress,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al actualizar el progreso',
+      });
+    }
+  }
+
+  /**
+   * POST /progress/:courseId/complete/:classId
+   * Marcar una clase como completada
+   */
+  async markCompleted(req: Request, res: Response): Promise<void> {
+    try {
+      const user = req.user as IUser;
+      const { courseId, classId } = req.params;
+
+      if (!user?._id) {
+        res.status(401).json({ success: false, message: 'No autorizado' });
+        return;
+      }
+
+      const progress = await courseProgressService.markClassCompleted(
+        user._id.toString(),
+        courseId,
+        classId
+      );
+
+      res.json({
+        success: true,
+        data: progress,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al marcar la clase como completada',
+      });
+    }
+  }
+
+  /**
+   * GET /progress/:courseId/class/:classId
+   * Obtener el progreso de una clase específica
+   */
+  async getClassProgress(req: Request, res: Response): Promise<void> {
+    try {
+      const user = req.user as IUser;
+      const { courseId, classId } = req.params;
+
+      if (!user?._id) {
+        res.status(401).json({ success: false, message: 'No autorizado' });
+        return;
+      }
+
+      const classProgress = await courseProgressService.getClassProgress(
+        user._id.toString(),
+        courseId,
+        classId
+      );
+
+      res.json({
+        success: true,
+        data: classProgress,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al obtener el progreso de la clase',
+      });
+    }
+  }
+
+  /**
+   * GET /progress/:courseId/can-access/:classId
+   * Verificar si el usuario puede acceder a una clase
+   */
+  async canAccessClass(req: Request, res: Response): Promise<void> {
+    try {
+      const user = req.user as IUser;
+      const { courseId, classId } = req.params;
+
+      if (!user?._id) {
+        res.status(401).json({ success: false, message: 'No autorizado' });
+        return;
+      }
+
+      const result = await courseProgressService.canAccessClass(
+        user._id.toString(),
+        courseId,
+        classId
+      );
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al verificar acceso',
+      });
+    }
+  }
+}
+
+export const courseProgressController = new CourseProgressController();
