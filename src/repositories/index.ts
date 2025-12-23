@@ -14,6 +14,8 @@ import MercadoPagoRepository from './mercadoPago.repository';
 import FAQRepository from './faq.repository';
 import FileMaterialRepository from './fileMaterial.repository';
 import CertificateRepository from './certificate.repository';
+import QuestionnaireRepository from './questionnaire.repository';
+import QuestionnaireSubmissionRepository from './questionnaireSubmission.repository';
 
 export const userRepository = new UserRepository(generalConnection);
 export const categoryRepository = new CategoryRepository(generalConnection);
@@ -29,6 +31,8 @@ export const mercadoPagoRepository = new MercadoPagoRepository(generalConnection
 export const faqRepository = new FAQRepository(generalConnection);
 export const fileMaterialRepository = new FileMaterialRepository(generalConnection);
 export const certificateRepository = new CertificateRepository(generalConnection);
+export const questionnaireRepository = new QuestionnaireRepository(generalConnection);
+export const questionnaireSubmissionRepository = new QuestionnaireSubmissionRepository(generalConnection);
 
 // Re-export singleton repository
 export { courseProgressRepository } from './courseProgress.repository';

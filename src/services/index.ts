@@ -15,6 +15,8 @@ import { FileMaterialService } from './fileMaterial.service';
 import adminSecurityService from './adminSecurity.service';
 import CertificateService from './certificate.service';
 import PromotionalCodeService from './promotionalCode.service';
+import QuestionnaireService from './questionnaire.service';
+import QuestionnaireSubmissionService from './questionnaireSubmission.service';
 
 import {
   userRepository,
@@ -29,6 +31,8 @@ import {
   companySpecificDataRepository,
   faqRepository,
   certificateRepository,
+  questionnaireRepository,
+  questionnaireSubmissionRepository,
 } from '@/repositories';
 
 export const authService = new AuthService(userRepository);
@@ -48,3 +52,8 @@ export const fileMaterialService = new FileMaterialService();
 export { adminSecurityService };
 export const certificateService = new CertificateService(userRepository, courseRepository, certificateRepository);
 export const promotionalCodeService = new PromotionalCodeService();
+export const questionnaireService = new QuestionnaireService(questionnaireRepository, questionnaireSubmissionRepository);
+export const questionnaireSubmissionService = new QuestionnaireSubmissionService(
+  questionnaireSubmissionRepository,
+  questionnaireRepository
+);

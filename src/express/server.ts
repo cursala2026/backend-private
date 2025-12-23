@@ -28,40 +28,70 @@ export default class Server implements NodeServer {
     private readonly routes: Router[],
     private readonly setErrorHandlers: (app: Express) => void
   ) {
-    this.app = express();
-    this.server = http.createServer(this.app);
-    // Basic runtime validations for production secrets
-    if (config.NODE_ENV === 'production') {
-      if (!config.JWT_SECRET) {
-        throw new Error('JWT_SECRET must be set in production');
+    try {
+      logger.info('🔧 Initializing Express app...');
+      this.app = express();
+      logger.info('🔧 Creating HTTP server...');
+      this.server = http.createServer(this.app);
+      
+      // Basic runtime validations for production secrets
+      if (config.NODE_ENV === 'production') {
+        if (!config.JWT_SECRET) {
+          throw new Error('JWT_SECRET must be set in production');
+        }
+        if (!process.env.CERTIFICATE_ENCRYPTION_KEY) {
+          throw new Error('CERTIFICATE_ENCRYPTION_KEY must be set in production');
+        }
       }
-      if (!process.env.CERTIFICATE_ENCRYPTION_KEY) {
-        throw new Error('CERTIFICATE_ENCRYPTION_KEY must be set in production');
-      }
+      
+      logger.info('🔧 Setting server configuration...');
+      this.setServerConfig();
+      logger.info('🔧 Setting server listeners...');
+      this.setListeners();
+      logger.info('✅ Server constructor completed successfully');
+    } catch (error: any) {
+      logger.error('❌ Error in Server constructor:');
+      logger.error(`   Message: ${error?.message || 'Unknown error'}`);
+      logger.error(`   Stack: ${error?.stack || 'No stack trace'}`);
+      throw error;
     }
-    this.setServerConfig();
-    this.setListeners();
   }
 
   start(): void {
-    this.server.listen(this.port, () => {
-      logger.info(`⚡ Listening on ${this.port}`);
-    });
+    try {
+      logger.info(`🔧 Starting server on port ${this.port}...`);
+      
+      this.server.listen(this.port, () => {
+        logger.info(`⚡ Listening on ${this.port}`);
+      });
 
-    this.server.on('error', (error: NodeJS.ErrnoException) => {
-      if (error.code === 'EADDRINUSE') {
-        logger.error(`❌ Port ${this.port} is already in use.`);
-        logger.error(`💡 To fix this, you can:`);
-        logger.error(`   1. Stop the process using port ${this.port}`);
-        logger.error(`   2. On Windows: netstat -ano | findstr :${this.port} to find the PID`);
-        logger.error(`   3. On Windows: taskkill /PID <PID> /F to kill the process`);
-        logger.error(`   4. Or change the PORT in your .env file`);
-        this.stop(1);
-      } else {
-        logger.error(`Server error: ${error.message}`);
-        this.stop(1);
-      }
-    });
+      this.server.on('error', (error: NodeJS.ErrnoException) => {
+        logger.error(`❌ Server error event triggered:`);
+        logger.error(`   Code: ${error.code || 'N/A'}`);
+        logger.error(`   Message: ${error.message}`);
+        logger.error(`   Stack: ${error.stack || 'No stack trace'}`);
+        
+        if (error.code === 'EADDRINUSE') {
+          logger.error(`❌ Port ${this.port} is already in use.`);
+          logger.error(`💡 To fix this, you can:`);
+          logger.error(`   1. Stop the process using port ${this.port}`);
+          logger.error(`   2. On Windows: netstat -ano | findstr :${this.port} to find the PID`);
+          logger.error(`   3. On Windows: taskkill /PID <PID> /F to kill the process`);
+          logger.error(`   4. Or change the PORT in your .env file`);
+          this.stop(1);
+        } else {
+          logger.error(`Server error: ${error.message}`);
+          this.stop(1);
+        }
+      });
+      
+      logger.info('✅ Server.start() completed');
+    } catch (error: any) {
+      logger.error('❌ Error in server.start():');
+      logger.error(`   Message: ${error?.message || 'Unknown error'}`);
+      logger.error(`   Stack: ${error?.stack || 'No stack trace'}`);
+      throw error;
+    }
   }
 
   stop(exitCode = 0): void {
@@ -73,12 +103,14 @@ export default class Server implements NodeServer {
   }
 
   setServerConfig(): void {
-    this.app.set('port', this.port);
-    this.app.set('trust proxy', 1);
-    // Disable X-Powered-By to avoid leak of Express
-    this.app.disable('x-powered-by');
+    try {
+      logger.info('🔧 Setting port and trust proxy...');
+      this.app.set('port', this.port);
+      this.app.set('trust proxy', 1);
+      // Disable X-Powered-By to avoid leak of Express
+      this.app.disable('x-powered-by');
 
-    // Seguridad y optimización
+      // Seguridad y optimización
     // Helmet default config. Enable CSP in production for stricter security.
     this.app.use(
       helmet({
@@ -180,7 +212,15 @@ export default class Server implements NodeServer {
     );
 
     // Custom error handlers
-    this.setErrorHandlers(this.app);
+      logger.info('🔧 Setting error handlers...');
+      this.setErrorHandlers(this.app);
+      logger.info('✅ Server configuration completed successfully');
+    } catch (error: any) {
+      logger.error('❌ Error in setServerConfig:');
+      logger.error(`   Message: ${error?.message || 'Unknown error'}`);
+      logger.error(`   Stack: ${error?.stack || 'No stack trace'}`);
+      throw error;
+    }
   }
 
   setListeners(): void {

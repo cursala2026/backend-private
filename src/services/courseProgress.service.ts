@@ -1,4 +1,4 @@
-import { courseProgressRepository, courseRepository } from '@/repositories';
+import { courseProgressRepository, courseRepository, questionnaireRepository, questionnaireSubmissionRepository } from '@/repositories';
 import { ICourseProgress, IClassProgress } from '@/models/mongo/courseProgress.model';
 
 export interface UpdateProgressDto {
@@ -13,7 +13,33 @@ class CourseProgressService {
    * Obtener el progreso de un usuario en un curso
    */
   async getProgress(userId: string, courseId: string): Promise<ICourseProgress | null> {
-    return courseProgressRepository.findByUserAndCourse(userId, courseId);
+    const progress = await courseProgressRepository.findByUserAndCourse(userId, courseId);
+    
+    // Si hay progreso, recalcular para asegurar que el overallProgress sea correcto
+    if (progress) {
+      const course = await courseRepository.findOneById(courseId);
+      if (course) {
+        const totalClasses = course.classes?.length || 0;
+        const totalQuestionnaires = await courseProgressRepository.getTotalQuestionnaires(courseId);
+        
+        const completedClasses = progress.classesProgress.filter((cp) => cp.completed).length;
+        const completedQuestionnaires = progress.questionnairesProgress
+          ? progress.questionnairesProgress.filter((qp) => qp.completed).length
+          : 0;
+        
+        const totalItems = totalClasses + totalQuestionnaires;
+        const completedItems = completedClasses + completedQuestionnaires;
+        const calculatedProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+        
+        // Si el progreso calculado es diferente al guardado, actualizarlo
+        if (progress.overallProgress !== calculatedProgress) {
+          await courseProgressRepository.updateOverallProgress(userId, courseId, calculatedProgress);
+          progress.overallProgress = calculatedProgress;
+        }
+      }
+    }
+    
+    return progress;
   }
 
   /**
@@ -97,7 +123,7 @@ class CourseProgressService {
 
   /**
    * Verificar si el usuario puede acceder a una clase
-   * (debe haber completado las anteriores o ser la primera)
+   * (debe haber completado las anteriores y los cuestionarios entre clases)
    */
   async canAccessClass(
     userId: string,
@@ -134,6 +160,50 @@ class CourseProgressService {
 
     if (!previousClassProgress?.completed) {
       return { canAccess: false, reason: 'Debes completar la clase anterior primero' };
+    }
+
+    // Verificar que los cuestionarios después de la clase anterior estén completados
+    const questionnaires = await questionnaireRepository.findByCourseId(courseId);
+    const activeQuestionnaires = questionnaires.filter((q: any) => q.status === 'ACTIVE');
+    
+    // Buscar cuestionarios que van después de la clase anterior
+    const questionnairesAfterPreviousClass = activeQuestionnaires.filter((q: any) => {
+      const questionnaireId = q._id?.toString() || q._id;
+      const afterClassId = q.position?.afterClassId?.toString() || q.position?.afterClassId;
+      return q.position?.type === 'BETWEEN_CLASSES' && afterClassId === previousClassId;
+    });
+
+    // Verificar que todos los cuestionarios después de la clase anterior estén completados
+    if (questionnairesAfterPreviousClass.length > 0 && progress.questionnairesProgress) {
+      for (const questionnaire of questionnairesAfterPreviousClass) {
+        const questionnaireId = questionnaire._id?.toString() || questionnaire._id;
+        const questionnaireProgress = progress.questionnairesProgress.find(
+          (qp) => qp.questionnaireId.toString() === questionnaireId
+        );
+
+        // Verificar si hay un envío pendiente de calificación
+        const submissions = await questionnaireSubmissionRepository.findByStudentAndQuestionnaire(
+          userId,
+          questionnaireId
+        );
+        
+        // Buscar si hay un envío con estado SUBMITTED (pendiente de calificación manual)
+        const pendingSubmission = submissions.find(s => s.status === 'SUBMITTED');
+        
+        if (pendingSubmission) {
+          return { 
+            canAccess: false, 
+            reason: 'Debes esperar a que el profesor califique el examen antes de continuar' 
+          };
+        }
+
+        if (!questionnaireProgress?.completed) {
+          return { 
+            canAccess: false, 
+            reason: 'Debes completar el cuestionario después de la clase anterior' 
+          };
+        }
+      }
     }
 
     return { canAccess: true };

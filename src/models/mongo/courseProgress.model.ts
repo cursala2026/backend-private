@@ -10,10 +10,19 @@ export interface IClassProgress {
   lastWatchedAt: Date;
 }
 
+export interface IQuestionnaireProgress {
+  questionnaireId: Schema.Types.ObjectId;
+  completed: boolean;
+  bestScore?: number; // Best score across all attempts (0-100)
+  attempts: number;
+  lastAttemptAt?: Date;
+}
+
 export interface ICourseProgress {
   userId: Schema.Types.ObjectId;
   courseId: Schema.Types.ObjectId;
   classesProgress: IClassProgress[];
+  questionnairesProgress: IQuestionnaireProgress[]; // Added for questionnaire tracking
   currentClassId?: Schema.Types.ObjectId; // Última clase que estaba viendo
   overallProgress: number; // Porcentaje de progreso general (0-100)
   startedAt: Date;
@@ -52,6 +61,34 @@ const ClassProgressSchema = new Schema<IClassProgress>(
   { _id: false }
 );
 
+const QuestionnaireProgressSchema = new Schema<IQuestionnaireProgress>(
+  {
+    questionnaireId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Questionnaire',
+      required: true,
+    },
+    completed: {
+      type: Boolean,
+      default: false,
+    },
+    bestScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+    },
+    attempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    lastAttemptAt: {
+      type: Date,
+    },
+  },
+  { _id: false }
+);
+
 export const CourseProgressSchema = new Schema<ICourseProgress>(
   {
     userId: {
@@ -66,6 +103,10 @@ export const CourseProgressSchema = new Schema<ICourseProgress>(
     },
     classesProgress: {
       type: [ClassProgressSchema],
+      default: [],
+    },
+    questionnairesProgress: {
+      type: [QuestionnaireProgressSchema],
       default: [],
     },
     currentClassId: {

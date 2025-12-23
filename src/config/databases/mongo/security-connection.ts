@@ -24,9 +24,11 @@ class SecurityConnection {
   }
 
   private addListeners() {
-    this.connection.on('error', (error: string) => {
-      logger.error(`⚠️  Database connection error: ${error}`);
-      throw error;
+    this.connection.on('error', (error: any) => {
+      logger.error(`⚠️  Database connection error: ${error?.message || error}`);
+      logger.error(`   Error details:`, error);
+      // No lanzar el error aquí, solo loguearlo
+      // El error será manejado por el código que usa la conexión
     });
 
     this.connection.on('disconnected', () => {

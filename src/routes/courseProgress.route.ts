@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { courseProgressController } from '@/controllers/courseProgress.controller';
+import { courseProgressController } from '@/controllers';
 import { authorize } from '@/middlewares/auth.middleware';
 
 const router = Router();
