@@ -17,10 +17,10 @@ class CourseProgressService {
     
     // Si hay progreso, recalcular para asegurar que el overallProgress sea correcto
     if (progress) {
-      const course = await courseRepository.findOneById(courseId);
-      if (course) {
-        const totalClasses = course.classes?.length || 0;
-        const totalQuestionnaires = await courseProgressRepository.getTotalQuestionnaires(courseId);
+      const totalClasses = await courseProgressRepository.getTotalClasses(courseId);
+      const totalQuestionnaires = await courseProgressRepository.getTotalQuestionnaires(courseId);
+      
+      if (totalClasses !== undefined && totalQuestionnaires !== undefined) {
         
         const completedClasses = progress.classesProgress.filter((cp) => cp.completed).length;
         const completedQuestionnaires = progress.questionnairesProgress
@@ -57,13 +57,8 @@ class CourseProgressService {
     courseId: string,
     data: UpdateProgressDto
   ): Promise<ICourseProgress> {
-    // Obtener el número total de clases del curso
-    const course = await courseRepository.findOneById(courseId);
-    if (!course) {
-      throw new Error('Curso no encontrado');
-    }
-
-    const totalClasses = course.classes?.length || 0;
+    // Obtener el número total de clases del curso desde la colección classes
+    const totalClasses = await courseProgressRepository.getTotalClasses(courseId);
 
     // Determinar si el video se considera completado (>90% visto)
     let completed = data.completed || false;
@@ -95,12 +90,8 @@ class CourseProgressService {
     courseId: string,
     classId: string
   ): Promise<ICourseProgress> {
-    const course = await courseRepository.findOneById(courseId);
-    if (!course) {
-      throw new Error('Curso no encontrado');
-    }
-
-    const totalClasses = course.classes?.length || 0;
+    // Obtener el número total de clases del curso desde la colección classes
+    const totalClasses = await courseProgressRepository.getTotalClasses(courseId);
 
     return courseProgressRepository.markClassCompleted(
       userId,

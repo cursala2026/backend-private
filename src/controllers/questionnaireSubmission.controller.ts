@@ -134,6 +134,24 @@ export default class QuestionnaireSubmissionController {
   };
 
   /**
+   * Obtener todos los exámenes pendientes de calificar para un profesor
+   */
+  getPendingGradingByTeacher = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json(prepareResponse(401, 'Not authenticated'));
+      }
+
+      const teacherId = user._id.toString();
+      const submissions = await this.submissionService.getPendingGradingByTeacher(teacherId);
+      return res.json(prepareResponse(200, 'Pending grading fetched successfully', submissions));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
    * Resetear intentos de un estudiante para un cuestionario
    */
   resetStudentAttempts = async (req: Request, res: Response, next: NextFunction) => {

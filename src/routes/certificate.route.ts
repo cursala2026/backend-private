@@ -5,6 +5,13 @@ import { certificateController } from '@/controllers';
 const router = Router();
 
 /**
+ * @route GET /validate/:verificationCode
+ * @desc Valida un certificado usando el código de verificación (público)
+ * @access Public (no requiere autenticación)
+ */
+router.get('/validate/:verificationCode', certificateController.validateCertificate);
+
+/**
  * @route GET /check/:studentId/:courseId
  * @desc Verifica si existe un certificado para un estudiante-curso
  * @access Private (requiere autenticación)
@@ -31,6 +38,13 @@ router.get('/course/:courseId', authorize, certificateController.getCertificates
  * @access Private (requiere autenticación)
  */
 router.get('/student/:studentId', authorize, certificateController.getCertificatesByStudent);
+
+/**
+ * @route GET /download/:verificationCode
+ * @desc Descarga un certificado en formato PDF usando el código de verificación
+ * @access Private (requiere autenticación)
+ */
+router.get('/download/:verificationCode', authorize, certificateController.downloadCertificate);
 
 // POST routes
 /**

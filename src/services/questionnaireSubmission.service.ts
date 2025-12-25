@@ -297,6 +297,13 @@ class QuestionnaireSubmissionService {
   }
 
   /**
+   * Obtener todos los exámenes pendientes de calificar para un profesor
+   */
+  async getPendingGradingByTeacher(teacherId: string): Promise<any[]> {
+    return await this.submissionRepository.findPendingGradingByTeacher(teacherId);
+  }
+
+  /**
    * Obtener un envío por ID
    */
   async getSubmissionById(id: string): Promise<QuestionnaireSubmissionDoc | null> {

@@ -101,12 +101,9 @@ export default class ClassService {
       try {
         await courseProgressRepository.removeClassFromAllProgress(courseId, id);
         
-        // Recalcular el progreso general con el nuevo total de clases
-        const course = await courseRepository.findOneById(courseId);
-        if (course && course.classes) {
-          const totalClasses = course.classes.length;
-          await courseProgressRepository.recalculateOverallProgress(courseId, totalClasses);
-        }
+        // Recalcular el progreso general con el nuevo total de clases desde la colección
+        const totalClasses = await courseProgressRepository.getTotalClasses(courseId);
+        await courseProgressRepository.recalculateOverallProgress(courseId, totalClasses);
       } catch (error) {
         console.error('Error al limpiar progreso de clase eliminada:', error);
       }

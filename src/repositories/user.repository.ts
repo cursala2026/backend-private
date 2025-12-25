@@ -1,6 +1,8 @@
 import { IUser, UserSchema, IAssignedCourse, IAssignedCourseEdit } from '../models/user.model';
 import { IUserExtended } from '@/types/user.types';
 import { Connection, Model, Types, UserStatus } from '@/models';
+import { CourseSchema } from '../models/mongo/course.model';
+import generalConnection from '../config/databases';
 import { logger } from '../utils';
 import bcrypt from 'bcryptjs';
 
@@ -793,6 +795,8 @@ class UserRepository {
       progress: number;
       completedClasses: number;
       totalClasses: number;
+      completedQuestionnaires: number;
+      totalQuestionnaires: number;
     }[]
   > {
     if (!courseIds || courseIds.length === 0) {
@@ -835,6 +839,26 @@ class UserRepository {
           as: 'classesFromCollection'
         }
       },
+      // Lookup para contar cuestionarios activos del curso
+      {
+        $lookup: {
+          from: 'questionnaires',
+          let: { courseId: '$assignedCourses.courseId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$courseId', '$$courseId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'questionnairesFromCollection'
+        }
+      },
       // Lookup para obtener el progreso del estudiante
       {
         $lookup: {
@@ -870,6 +894,7 @@ class UserRepository {
           courseId: '$assignedCourses.courseId',
           courseName: '$courseInfo.name',
           totalClasses: { $size: '$classesFromCollection' },
+          totalQuestionnaires: { $size: '$questionnairesFromCollection' },
           startDate: '$assignedCourses.startDate',
           endDate: '$assignedCourses.endDate',
           progressInfo: { $arrayElemAt: ['$progressInfo', 0] }
@@ -913,6 +938,26 @@ class UserRepository {
           as: 'classesFromCollection'
         }
       },
+      // Lookup para contar cuestionarios activos del curso
+      {
+        $lookup: {
+          from: 'questionnaires',
+          let: { courseId: '$enrolledCourses._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$courseId', '$$courseId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'questionnairesFromCollection'
+        }
+      },
       // Lookup para obtener el progreso del estudiante
       {
         $lookup: {
@@ -948,6 +993,7 @@ class UserRepository {
           courseId: '$enrolledCourses._id',
           courseName: '$enrolledCourses.name',
           totalClasses: { $size: '$classesFromCollection' },
+          totalQuestionnaires: { $size: '$questionnairesFromCollection' },
           startDate: null,
           endDate: null,
           progressInfo: { $arrayElemAt: ['$progressInfo', 0] }
@@ -970,6 +1016,15 @@ class UserRepository {
 
     return students.map((s: any) => {
       const completedClasses = s.progressInfo?.classesProgress?.filter((cp: any) => cp.completed)?.length || 0;
+      const completedQuestionnaires = s.progressInfo?.questionnairesProgress?.filter((qp: any) => qp.completed)?.length || 0;
+      const totalClasses = s.totalClasses || 0;
+      const totalQuestionnaires = s.totalQuestionnaires || 0;
+      
+      // Recalcular el progreso total usando los valores correctos
+      const totalItems = totalClasses + totalQuestionnaires;
+      const completedItems = completedClasses + completedQuestionnaires;
+      const calculatedProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      
       return {
         userId: s.userId.toString(),
         email: s.email,
@@ -981,9 +1036,11 @@ class UserRepository {
         courseName: s.courseName,
         startDate: s.startDate,
         endDate: s.endDate,
-        progress: s.progressInfo?.overallProgress || 0,
+        progress: calculatedProgress, // Usar el progreso recalculado en lugar del almacenado
         completedClasses: completedClasses,
-        totalClasses: s.totalClasses || 0
+        totalClasses: totalClasses,
+        completedQuestionnaires: completedQuestionnaires,
+        totalQuestionnaires: totalQuestionnaires
       };
     });
   }
@@ -1046,6 +1103,7 @@ class UserRepository {
       throw new Error('El courseId proporcionado no es válido.');
     }
 
+    // Verificar si el usuario tiene el curso en assignedCourses o assignedCoursesEdit
     const user = await this.model.findOne({
       _id: new Types.ObjectId(userId),
       $or: [
@@ -1054,7 +1112,18 @@ class UserRepository {
       ],
     }).exec() as unknown as IUser | null;
 
-    return !!user;
+    if (user) {
+      return true;
+    }
+
+    // Si no está en assignedCourses, verificar si el curso tiene al estudiante en su array students
+    const Course = generalConnection.model('Course', CourseSchema, 'courses');
+    const course = await Course.findOne({
+      _id: new Types.ObjectId(courseId),
+      students: new Types.ObjectId(userId),
+    }).lean();
+
+    return !!course;
   }
 
   /**

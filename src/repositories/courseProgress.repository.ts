@@ -1,6 +1,7 @@
 import { CourseProgressModel, ICourseProgress, IClassProgress } from '@/models/mongo/courseProgress.model';
 import { CourseSchema } from '@/models/mongo/course.model';
 import { QuestionnaireSchema } from '@/models/mongo/questionnaire.model';
+import { ClassSchema } from '@/models/mongo/class.model';
 import { Schema, Types } from 'mongoose';
 import generalConnection from '@/config/databases';
 
@@ -8,6 +9,7 @@ class CourseProgressRepository {
   // Create models with the correct connection
   private Course = generalConnection.model('Course', CourseSchema, 'courses');
   private Questionnaire = generalConnection.model('Questionnaire', QuestionnaireSchema, 'questionnaires');
+  private Class = generalConnection.model('Class', ClassSchema, 'classes');
   /**
    * Obtener el progreso de un usuario en un curso específico
    */
@@ -52,6 +54,8 @@ class CourseProgressRepository {
     if (!progress) {
       // Crear nuevo progreso
       // Calcular progreso general incluyendo cuestionarios desde el inicio
+      // Usar getTotalClasses para obtener el valor correcto
+      const actualTotalClasses = await this.getTotalClasses(courseId);
       const totalQuestionnaires = await this.Questionnaire.countDocuments({
         courseId: courseId as any,
         status: 'ACTIVE',
@@ -60,7 +64,7 @@ class CourseProgressRepository {
       const completedClasses = classProgress.completed ? 1 : 0;
       const completedQuestionnaires = 0; // No hay cuestionarios completados al crear el progreso
 
-      const totalItems = totalClasses + totalQuestionnaires;
+      const totalItems = actualTotalClasses + totalQuestionnaires;
       const completedItems = completedClasses + completedQuestionnaires;
       const initialProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
@@ -116,7 +120,8 @@ class CourseProgressRepository {
       progress.currentClassId = classId;
       progress.lastAccessedAt = now;
 
-      // Calcular progreso general incluyendo cuestionarios
+      // Recalcular progreso usando los valores correctos de la base de datos
+      const actualTotalClasses = await this.getTotalClasses(courseId);
       const totalQuestionnaires = await this.Questionnaire.countDocuments({
         courseId: courseId as any,
         status: 'ACTIVE',
@@ -127,7 +132,7 @@ class CourseProgressRepository {
         ? progress.questionnairesProgress.filter((qp) => qp.completed).length
         : 0;
 
-      const totalItems = totalClasses + totalQuestionnaires;
+      const totalItems = actualTotalClasses + totalQuestionnaires;
       const completedItems = completedClasses + completedQuestionnaires;
 
       progress.overallProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
@@ -225,16 +230,31 @@ class CourseProgressRepository {
 
   /**
    * Recalcular el progreso general de un curso para todos los usuarios
+   * Incluye tanto clases como cuestionarios
    */
-  async recalculateOverallProgress(courseId: string, totalClasses: number): Promise<void> {
+  async recalculateOverallProgress(courseId: string, totalClasses?: number): Promise<void> {
     const allProgress = await CourseProgressModel.find({
       courseId: new Types.ObjectId(courseId)
     });
 
+    // Usar getTotalClasses si no se proporciona totalClasses
+    const actualTotalClasses = totalClasses !== undefined ? totalClasses : await this.getTotalClasses(courseId);
+    const totalQuestionnaires = await this.Questionnaire.countDocuments({
+      courseId: new Types.ObjectId(courseId),
+      status: 'ACTIVE',
+    });
+
+    const totalItems = actualTotalClasses + totalQuestionnaires;
+
     for (const progress of allProgress) {
       const completedClasses = progress.classesProgress.filter((cp: IClassProgress) => cp.completed).length;
-      const newOverallProgress = totalClasses > 0 
-        ? Math.round((completedClasses / totalClasses) * 100) 
+      const completedQuestionnaires = progress.questionnairesProgress
+        ? progress.questionnairesProgress.filter((qp) => qp.completed).length
+        : 0;
+      
+      const completedItems = completedClasses + completedQuestionnaires;
+      const newOverallProgress = totalItems > 0 
+        ? Math.round((completedItems / totalItems) * 100) 
         : 0;
 
       await CourseProgressModel.updateOne(
@@ -293,8 +313,7 @@ class CourseProgressRepository {
     if (!progress) {
       // Crear nuevo progreso si no existe
       // Get total items to calculate initial progress
-      const course = await this.Course.findById(new Types.ObjectId(courseId));
-      const totalClasses = course?.classes?.length || 0;
+      const totalClasses = await this.getTotalClasses(courseId);
 
       const totalQuestionnaires = await this.Questionnaire.countDocuments({
         courseId: new Types.ObjectId(courseId),
@@ -364,8 +383,8 @@ class CourseProgressRepository {
       progress.lastAccessedAt = now;
 
       // Recalculate overall progress including both classes and questionnaires
-      const course = await this.Course.findById(courseId as any);
-      const totalClasses = course?.classes?.length || 0;
+      // Usar getTotalClasses para obtener el valor correcto
+      const actualTotalClasses = await this.getTotalClasses(courseId);
 
       const totalQuestionnaires = await this.Questionnaire.countDocuments({
         courseId: courseId as any,
@@ -377,7 +396,7 @@ class CourseProgressRepository {
         ? progress.questionnairesProgress.filter((qp) => qp.completed).length
         : 0;
 
-      const totalItems = totalClasses + totalQuestionnaires;
+      const totalItems = actualTotalClasses + totalQuestionnaires;
       const completedItems = completedClasses + completedQuestionnaires;
 
       progress.overallProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
@@ -522,6 +541,16 @@ class CourseProgressRepository {
   async getTotalQuestionnaires(courseId: string): Promise<number> {
     return this.Questionnaire.countDocuments({
       courseId: courseId as any,
+      status: 'ACTIVE',
+    });
+  }
+
+  /**
+   * Obtener el total de clases activas de un curso desde la colección classes
+   */
+  async getTotalClasses(courseId: string): Promise<number> {
+    return this.Class.countDocuments({
+      courseId: new Types.ObjectId(courseId),
       status: 'ACTIVE',
     });
   }

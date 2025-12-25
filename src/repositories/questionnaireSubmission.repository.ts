@@ -9,6 +9,7 @@ interface GradeReportEntry {
   studentId: Types.ObjectId;
   studentName: string;
   studentEmail: string;
+  profilePhotoUrl?: string;
   attemptCount: number;
   bestScore: number | null;
   lastAttempt: Date | null;
@@ -191,7 +192,12 @@ class QuestionnaireSubmissionRepository {
 
     const report = await this.model
       .aggregate([
-        { $match: { questionnaireId: new Types.ObjectId(questionnaireId) } },
+        { 
+          $match: { 
+            questionnaireId: new Types.ObjectId(questionnaireId),
+            status: 'GRADED' // Solo incluir submissions que ya fueron calificados
+          } 
+        },
         {
           $group: {
             _id: '$studentId',
@@ -215,6 +221,7 @@ class QuestionnaireSubmissionRepository {
             studentId: '$_id',
             studentName: { $concat: ['$student.firstName', ' ', '$student.lastName'] },
             studentEmail: '$student.email',
+            profilePhotoUrl: '$student.profilePhotoUrl',
             attemptCount: 1,
             bestScore: 1,
             lastAttempt: 1,
@@ -267,6 +274,86 @@ class QuestionnaireSubmissionRepository {
       .exec();
 
     return result.deletedCount || 0;
+  }
+
+  /**
+   * Obtiene todos los exámenes pendientes de calificar para un profesor
+   * @param teacherId - ID del profesor
+   * @returns Lista de exámenes pendientes con información del estudiante y cuestionario
+   */
+  async findPendingGradingByTeacher(teacherId: string): Promise<any[]> {
+    if (!Types.ObjectId.isValid(teacherId)) {
+      throw new Error('El ID del profesor proporcionado no es válido.');
+    }
+
+    const pendingSubmissions = await this.model
+      .aggregate([
+        {
+          $match: {
+            status: 'SUBMITTED', // Solo exámenes pendientes de calificación
+          },
+        },
+        {
+          $lookup: {
+            from: 'questionnaires',
+            localField: 'questionnaireId',
+            foreignField: '_id',
+            as: 'questionnaire',
+          },
+        },
+        {
+          $unwind: '$questionnaire',
+        },
+        {
+          $match: {
+            'questionnaire.createdBy': new Types.ObjectId(teacherId),
+          },
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'studentId',
+            foreignField: '_id',
+            as: 'student',
+          },
+        },
+        {
+          $unwind: '$student',
+        },
+        {
+          $lookup: {
+            from: 'courses',
+            localField: 'courseId',
+            foreignField: '_id',
+            as: 'course',
+          },
+        },
+        {
+          $unwind: '$course',
+        },
+        {
+          $project: {
+            _id: 1,
+            submissionId: '$_id',
+            questionnaireId: '$questionnaire._id',
+            questionnaireTitle: '$questionnaire.title',
+            courseId: '$course._id',
+            courseName: '$course.name',
+            studentId: '$student._id',
+            studentName: { $concat: ['$student.firstName', ' ', '$student.lastName'] },
+            studentEmail: '$student.email',
+            attemptNumber: 1,
+            submittedAt: 1,
+            autoGradedScore: 1,
+          },
+        },
+        {
+          $sort: { submittedAt: 1 }, // Más antiguos primero
+        },
+      ])
+      .exec();
+
+    return pendingSubmissions;
   }
 }
 

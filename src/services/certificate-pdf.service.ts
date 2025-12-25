@@ -60,16 +60,35 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
 
             // Cargar imágenes de header y footer
             try {
-                const headerImagePath = path.resolve('/app/src/static/certificates/header.png');
-                const footerImagePath = path.resolve('/app/src/static/certificates/footer.png');
-
-                if (fs.existsSync(headerImagePath)) {
-                    doc.image(headerImagePath, 5.67, 5.67, { width: pageWidth - 11.34 });
-                } else {
-                    logger.warn(`Header image not found at: ${headerImagePath}`);
+                // Intentar múltiples rutas posibles para las imágenes
+                const possiblePaths = [
+                    path.resolve(__dirname, '../static/certificates/header.png'),
+                    path.resolve(__dirname, '../../static/certificates/header.png'),
+                    path.resolve('/app/src/static/certificates/header.png'),
+                    path.resolve('/app/dist/src/static/certificates/header.png'),
+                ];
+                
+                let headerImagePath: string | null = null;
+                let footerImagePath: string | null = null;
+                
+                for (const testPath of possiblePaths) {
+                    const testHeader = testPath;
+                    const testFooter = testPath.replace('header.png', 'footer.png');
+                    if (fs.existsSync(testHeader) && fs.existsSync(testFooter)) {
+                        headerImagePath = testHeader;
+                        footerImagePath = testFooter;
+                        break;
+                    }
                 }
 
-                if (fs.existsSync(footerImagePath)) {
+                if (headerImagePath && fs.existsSync(headerImagePath)) {
+                    doc.image(headerImagePath, 5.67, 5.67, { width: pageWidth - 11.34 });
+                    logger.info(`Header image loaded from: ${headerImagePath}`);
+                } else {
+                    logger.warn(`Header image not found. Tried paths: ${possiblePaths.join(', ')}`);
+                }
+
+                if (footerImagePath && fs.existsSync(footerImagePath)) {
                     const footerMargin = 5.67;
                     const footerHeight = 160;
                     const bottomOfImage = pageHeight - footerMargin;
@@ -78,8 +97,9 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
                         width: pageWidth - footerMargin * 2,
                         height: footerHeight,
                     });
+                    logger.info(`Footer image loaded from: ${footerImagePath}`);
                 } else {
-                    logger.warn(`Footer image not found at: ${footerImagePath}`);
+                    logger.warn(`Footer image not found. Tried paths: ${possiblePaths.map(p => p.replace('header.png', 'footer.png')).join(', ')}`);
                 }
             } catch (error) {
                 logger.error('Error cargando imágenes header/footer', error);

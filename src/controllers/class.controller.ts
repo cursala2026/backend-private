@@ -417,11 +417,9 @@ export default class ClassController {
           const courseId = existingClass.courseId.toString();
           await courseProgressRepository.resetClassProgress(courseId, classId);
           
-          // Recalcular el progreso general del curso
-          const course = await courseRepository.findOneById(courseId);
-          if (course && course.classes) {
-            await courseProgressRepository.recalculateOverallProgress(courseId, course.classes.length);
-          }
+          // Recalcular el progreso general del curso desde la colección classes
+          const totalClasses = await courseProgressRepository.getTotalClasses(courseId);
+          await courseProgressRepository.recalculateOverallProgress(courseId, totalClasses);
           logger.info(`Progreso de clase ${classId} reseteado por cambio de video`);
         } catch (error) {
           logger.error(`Error al resetear progreso de clase: ${(error as Error).message}`);
