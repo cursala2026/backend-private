@@ -376,6 +376,15 @@ export default class UserController {
     }
   };
 
+  getAllStudentsFromAllCourses = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const resp = await this.userService.getAllStudentsFromAllCourses();
+      return res.json(prepareResponse(200, 'All students from all courses fetched successfully', resp));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
   updateUserData = async (req: Request, res: Response, next: NextFunction) => {
     console.log('🚀 DEBUG: updateUserData endpoint called with userId:', req.params.userId);
     try {

@@ -482,4 +482,23 @@ export default class UserService {
     // Obtener los alumnos de esos cursos
     return this.userRepository.getStudentsByTeacherCourses(courseIds);
   }
+
+  /**
+   * Obtiene todos los estudiantes de todos los cursos del sistema
+   * Útil para admins que necesitan ver todos los estudiantes
+   */
+  async getAllStudentsFromAllCourses() {
+    // Obtener todos los cursos
+    const courses = await this.courseRepository.findAll();
+    
+    if (!courses || courses.length === 0) {
+      return [];
+    }
+
+    // Extraer los IDs de todos los cursos
+    const courseIds = courses.map(course => new Types.ObjectId(course._id.toString()));
+
+    // Obtener los alumnos de todos los cursos
+    return this.userRepository.getStudentsByTeacherCourses(courseIds);
+  }
 }

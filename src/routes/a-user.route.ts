@@ -19,6 +19,7 @@ router.get('/getTeachers', authorize, requireAdmin, userController.getTeachers);
 router.get('/', authorize, requireAdmin, userController.getUsersPaginated);
 router.get('/getUsersByAssignedCourses/:courseId', authorize, requireAdmin, userController.getUsersByAssignedCourses);
 router.get('/getStudentsByTeacherCourses/:teacherId', authorize, userController.getStudentsByTeacherCourses);
+router.get('/getAllStudentsFromAllCourses', authorize, requireAdmin, userController.getAllStudentsFromAllCourses);
 // 🟡 MEDIO: Gestión de cursos asignados (requiere admin para asignaciones de otros usuarios)
 router.get('/getAssignedCourses/:userId', authorize, userController.getAssignedCourses);
 router.get('/getUnassignedCourses/:userId', authorize, userController.getUnassignedCourses);
