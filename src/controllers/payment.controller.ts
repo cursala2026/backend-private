@@ -288,4 +288,60 @@ export default class PaymentController {
       return next(error);
     }
   };
+
+  // Endpoint para obtener estadísticas de pagos de MercadoPago
+  getPaymentStats = async (req: Request, res: Response) => {
+    try {
+      const stats = await this.mercadoPagoPaymentService.getPaymentStats();
+
+      return res.json(prepareResponse(200, 'Payment stats retrieved successfully', stats));
+    } catch (error) {
+      logger.error(`Error getting payment stats: ${(error as Error).message}`);
+      return res
+        .status(500)
+        .json(prepareResponse(500, 'Error getting payment stats', { error: (error as Error).message }));
+    }
+  };
+
+  // Endpoint para obtener lista de pagos de MercadoPago
+  getAllPayments = async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const payments = await this.mercadoPagoPaymentService.getAllPayments(limit);
+
+      return res.json(prepareResponse(200, 'Payments retrieved successfully', payments));
+    } catch (error) {
+      logger.error(`Error getting payments: ${(error as Error).message}`);
+      return res
+        .status(500)
+        .json(prepareResponse(500, 'Error getting payments', { error: (error as Error).message }));
+    }
+  };
+
+  // Endpoint para eliminar pagos antiguos
+  // bulk delete endpoint removed; keep single delete only
+
+  // Endpoint para eliminar un pago específico
+  deletePayment = async (req: Request, res: Response) => {
+    try {
+      const { paymentId } = req.params;
+
+      if (!paymentId) {
+        return res.status(400).json(prepareResponse(400, 'Payment ID is required'));
+      }
+
+      const result = await this.mercadoPagoPaymentService.deletePayment(paymentId);
+
+      if (result.deletedCount === 0) {
+        return res.status(404).json(prepareResponse(404, 'Payment not found'));
+      }
+
+      return res.json(prepareResponse(200, 'Payment deleted successfully', result));
+    } catch (error) {
+      logger.error(`Error deleting payment: ${(error as Error).message}`);
+      return res
+        .status(500)
+        .json(prepareResponse(500, 'Error deleting payment', { error: (error as Error).message }));
+    }
+  };
 }

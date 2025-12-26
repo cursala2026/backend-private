@@ -293,4 +293,52 @@ export default class MercadoPagoRepository {
       throw error;
     }
   }
+
+  /**
+   * Obtiene todos los pagos de MercadoPago, ordenados por fecha de creación descendente
+   */
+  async getAllPayments(limit: number = 50): Promise<IMercadoPagoPayment[]> {
+    try {
+      const payments = await this.model
+        .find({})
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .exec();
+
+      return payments as unknown as IMercadoPagoPayment[];
+    } catch (error) {
+      logger.error('Error getting all payments', {
+        error: (error as Error).message,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Elimina pagos antiguos (más viejos que los días especificados)
+   */
+  // bulk deletion removed — use single-item deletion via deletePayment
+
+  /**
+   * Elimina un pago específico por ID
+   */
+  async deletePayment(paymentId: string): Promise<{ deletedCount: number }> {
+    try {
+      const result = await this.model.deleteOne({ paymentId });
+
+      if (result.deletedCount > 0) {
+        logger.info('Payment deleted', { paymentId });
+      } else {
+        logger.warn('Payment not found for deletion', { paymentId });
+      }
+
+      return { deletedCount: result.deletedCount };
+    } catch (error) {
+      logger.error('Error deleting payment', {
+        error: (error as Error).message,
+        paymentId,
+      });
+      throw error;
+    }
+  }
 }

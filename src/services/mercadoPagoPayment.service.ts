@@ -478,6 +478,25 @@ export default class MercadoPagoPaymentService {
   }
 
   /**
+   * Obtiene todos los pagos de MercadoPago
+   */
+  async getAllPayments(limit: number = 50) {
+    return this.mercadoPagoRepository.getAllPayments(limit);
+  }
+
+  /**
+   * Elimina pagos antiguos
+   */
+  // bulk delete removed per UI change
+
+  /**
+   * Elimina un pago específico por ID
+   */
+  async deletePayment(paymentId: string) {
+    return this.mercadoPagoRepository.deletePayment(paymentId);
+  }
+
+  /**
    * Asigna un curso automáticamente al usuario cuando realiza un pago exitoso
    * Fecha de inicio: fecha del pago
    * Fecha de fin: fecha del pago + 3 meses

@@ -12,5 +12,8 @@ router.get('/payments/status/:paymentId', paymentController.getPaymentStatus);
 router.get('/payments/details/:paymentId', paymentController.getPaymentDetails);
 router.post('/payments/webhook', paymentController.handleWebhook);
 router.post('/payments/register-success', paymentController.registerSuccessfulPayment);
+router.get('/payments/stats', paymentController.getPaymentStats);
+router.get('/payments/all', paymentController.getAllPayments);
+router.delete('/payments/:paymentId', paymentController.deletePayment);
 
 export default router;
