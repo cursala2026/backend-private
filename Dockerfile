@@ -24,10 +24,9 @@ WORKDIR /app
 # Copy only package metadata and install production deps
 COPY package*.json ./
 COPY package-lock.json ./
-# Use legacy-peer-deps temporarily to avoid CI build failures caused by dev-time
-# peer dependency conflicts (eslint / airbnb config). This allows the image to
-# install production deps in environments with newer npm/eslint versions.
-RUN npm ci --omit=dev --legacy-peer-deps
+# Para desarrollo local, instalamos todas las dependencias
+# En producción, usar --omit=dev
+RUN npm ci --legacy-peer-deps
 
 # Copy built assets only
 COPY --from=builder /app/dist ./dist
