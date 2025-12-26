@@ -98,8 +98,45 @@ async function importDatabase() {
       process.exit(1);
     }
     
+    // Buscar mongorestore en ubicaciones comunes de Windows
+    const possiblePaths = [
+      'mongorestore', // En PATH
+      'C:\\mongodb-database-tools-windows-x86_64-100.14.0\\mongodb-database-tools-windows-x86_64-100.14.0\\bin\\mongorestore.exe',
+      'C:\\Program Files\\MongoDB\\Tools\\100\\bin\\mongorestore.exe',
+      'C:\\Program Files\\MongoDB\\Tools\\bin\\mongorestore.exe',
+      'C:\\Program Files (x86)\\MongoDB\\Tools\\100\\bin\\mongorestore.exe',
+      'C:\\Program Files (x86)\\MongoDB\\Tools\\bin\\mongorestore.exe',
+    ];
+    
+    let mongorestorePath = 'mongorestore';
+    let foundMongorestore = false;
+    
+    // Intentar encontrar mongorestore
+    for (const testPath of possiblePaths) {
+      try {
+        await execAsync(`"${testPath}" --version`);
+        mongorestorePath = testPath;
+        foundMongorestore = true;
+        console.log(`✓ Encontrado: ${testPath}\n`);
+        break;
+      } catch (error) {
+        // Continuar buscando
+      }
+    }
+    
+    if (!foundMongorestore) {
+      console.error('\n❌ Error: mongorestore no está instalado o no está en el PATH');
+      console.log('\n💡 Soluciones:');
+      console.log('   1. Instala MongoDB Database Tools:');
+      console.log('      https://www.mongodb.com/try/download/database-tools');
+      console.log('   2. O agrega la ruta de instalación al PATH del sistema');
+      console.log('   3. Busca la carpeta de instalación (ej: C:\\Program Files\\MongoDB\\Tools\\100\\bin)');
+      console.log('      y agrégala a las variables de entorno PATH\n');
+      process.exit(1);
+    }
+    
     // Ejecutar mongorestore
-    const command = `mongorestore --uri="${dbUrl}" --drop "${dbDumpPath}"`;
+    const command = `"${mongorestorePath}" --uri="${dbUrl}" --drop "${dbDumpPath}"`;
     
     try {
       const { stdout, stderr } = await execAsync(command, { maxBuffer: 1024 * 1024 * 10 });

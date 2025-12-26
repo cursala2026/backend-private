@@ -35,8 +35,45 @@ async function exportDatabase() {
     console.log('⏳ Exportando base de datos...');
     console.log(`📂 Destino: ${backupPath}\n`);
     
+    // Buscar mongodump en ubicaciones comunes de Windows
+    const possiblePaths = [
+      'mongodump', // En PATH
+      'C:\\mongodb-database-tools-windows-x86_64-100.14.0\\mongodb-database-tools-windows-x86_64-100.14.0\\bin\\mongodump.exe',
+      'C:\\Program Files\\MongoDB\\Tools\\100\\bin\\mongodump.exe',
+      'C:\\Program Files\\MongoDB\\Tools\\bin\\mongodump.exe',
+      'C:\\Program Files (x86)\\MongoDB\\Tools\\100\\bin\\mongodump.exe',
+      'C:\\Program Files (x86)\\MongoDB\\Tools\\bin\\mongodump.exe',
+    ];
+    
+    let mongodumpPath = 'mongodump';
+    let foundMongodump = false;
+    
+    // Intentar encontrar mongodump
+    for (const testPath of possiblePaths) {
+      try {
+        await execAsync(`"${testPath}" --version`);
+        mongodumpPath = testPath;
+        foundMongodump = true;
+        console.log(`✓ Encontrado: ${testPath}\n`);
+        break;
+      } catch (error) {
+        // Continuar buscando
+      }
+    }
+    
+    if (!foundMongodump) {
+      console.error('\n❌ Error: mongodump no está instalado o no está en el PATH');
+      console.log('\n💡 Soluciones:');
+      console.log('   1. Instala MongoDB Database Tools:');
+      console.log('      https://www.mongodb.com/try/download/database-tools');
+      console.log('   2. O agrega la ruta de instalación al PATH del sistema');
+      console.log('   3. Busca la carpeta de instalación (ej: C:\\Program Files\\MongoDB\\Tools\\100\\bin)');
+      console.log('      y agrégala a las variables de entorno PATH\n');
+      process.exit(1);
+    }
+    
     // Ejecutar mongodump
-    const command = `mongodump --uri="${dbUrl}" --out="${backupPath}"`;
+    const command = `"${mongodumpPath}" --uri="${dbUrl}" --out="${backupPath}"`;
     
     try {
       const { stdout, stderr } = await execAsync(command);
