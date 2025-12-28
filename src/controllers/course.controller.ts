@@ -206,8 +206,28 @@ export default class CourseController {
           if (price !== undefined) updateData.price = Number(price);
           if (maxInstallments !== undefined) updateData.maxInstallments = Number(maxInstallments);
           if (interestFree !== undefined) updateData.interestFree = interestFree === 'true' || interestFree === true;
-          if (numberOfClasses !== undefined) updateData.numberOfClasses = Number(numberOfClasses);
-          if (duration !== undefined) updateData.duration = Number(duration);
+          
+          // Solo actualizar numberOfClasses si es un número válido (>= 1)
+          if (numberOfClasses !== undefined) {
+            const numValue = Number(numberOfClasses);
+            if (numValue > 0) {
+              updateData.numberOfClasses = numValue;
+            } else if (numberOfClasses === '' || numberOfClasses === null) {
+              // Si está vacío o null, eliminarlo
+              unsetFields.push('numberOfClasses');
+            }
+          }
+          
+          // Solo actualizar duration si es un número válido (>= 0.5)
+          if (duration !== undefined) {
+            const durValue = Number(duration);
+            if (durValue >= 0.5) {
+              updateData.duration = durValue;
+            } else if (duration === '' || duration === null) {
+              // Si está vacío o null, eliminarlo
+              unsetFields.push('duration');
+            }
+          }
 
           const files = req.files as Record<string, Express.Multer.File[]>;
           const imageFile = files?.imageFile?.[0];

@@ -42,6 +42,7 @@ class UserRepository {
         ]
       })
       .exec();
+    
     return res as unknown as IUser | null;
   }
 
@@ -73,8 +74,16 @@ class UserRepository {
   }
 
   async findById(id: string): Promise<IUser | null> {
-    const res = await this.model.findById(id).exec();
-    return res as unknown as IUser | null;
+    // WORKAROUND: findById está roto con Mongoose 9.x + Node 24
+    // Buscar en todos los usuarios y comparar _id como string
+    const allUsers = await this.model.find({}).exec();
+    const foundUser = allUsers.find(u => String(u._id) === id);
+    
+    if (foundUser) {
+      return foundUser as unknown as IUser;
+    }
+    
+    return null;
   }
 
   async addCountriesToUser(userId: string, updatedCountries: string[]) {

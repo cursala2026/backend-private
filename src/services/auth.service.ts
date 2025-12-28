@@ -57,7 +57,8 @@ class AuthService {
     const expiresIn = String(config.EXPIRE_TIME_TOKEN_USER_LOGGED ?? '1h');
 
     const signFn = jwt.sign as unknown as (payload: unknown, secret: jwt.Secret, options?: any) => string;
-    const token = signFn({ _id: userDoc._id }, jwtSecret as jwt.Secret, { expiresIn });
+    const userId = String(userDoc._id);
+    const token = signFn({ _id: userId }, jwtSecret as jwt.Secret, { expiresIn });
 
     let resolvedRoles = await this.resolveRoleCodes(rolesSource);
     // Si la resolución no devuelve roles pero el documento indica isAdmin o contiene 'ADMIN', forzar ADMIN

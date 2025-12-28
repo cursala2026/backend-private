@@ -21,7 +21,7 @@ passport.use(
       }
       return done(null, false);
     } catch (error) {
-      logger.error(error);
+      logger.error(`JWT Strategy error:`, error);
       return done(error, false);
     }
   })
