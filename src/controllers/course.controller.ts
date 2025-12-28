@@ -166,6 +166,7 @@ export default class CourseController {
             interestFree,
             numberOfClasses,
             duration,
+            showOnHome,
           } = req.body;
 
           // Solo actualizar campos si están presentes en req.body
@@ -206,6 +207,7 @@ export default class CourseController {
           if (price !== undefined) updateData.price = Number(price);
           if (maxInstallments !== undefined) updateData.maxInstallments = Number(maxInstallments);
           if (interestFree !== undefined) updateData.interestFree = interestFree === 'true' || interestFree === true;
+          if (showOnHome !== undefined) updateData.showOnHome = showOnHome === 'true' || showOnHome === true;
           
           // Solo actualizar numberOfClasses si es un número válido (>= 1)
           if (numberOfClasses !== undefined) {
