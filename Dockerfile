@@ -23,7 +23,7 @@ WORKDIR /app
 # Do not copy secrets or .env to the image; expect env vars from the host or secret manager
 # Copy only package metadata and install production deps
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 # Copy built assets only
 COPY --from=builder /app/dist ./dist
