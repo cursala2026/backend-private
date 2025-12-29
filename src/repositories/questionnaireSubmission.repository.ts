@@ -277,6 +277,30 @@ class QuestionnaireSubmissionRepository {
   }
 
   /**
+   * Elimina todos los envíos de cuestionarios de un estudiante para un curso
+   * @param studentId - ID del estudiante
+   * @param courseId - ID del curso
+   * @returns Número de submissions eliminadas
+   */
+  async deleteByStudentAndCourse(
+    studentId: string,
+    courseId: string
+  ): Promise<number> {
+    if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(courseId)) {
+      throw new Error('Los IDs proporcionados no son válidos.');
+    }
+
+    const result = await this.model
+      .deleteMany({
+        studentId: new Types.ObjectId(studentId),
+        courseId: new Types.ObjectId(courseId),
+      })
+      .exec();
+
+    return result.deletedCount || 0;
+  }
+
+  /**
    * Obtiene todos los exámenes pendientes de calificar para un profesor
    * @param teacherId - ID del profesor
    * @returns Lista de exámenes pendientes con información del estudiante y cuestionario

@@ -839,12 +839,23 @@ class UserRepository {
         }
       },
       { $unwind: '$courseInfo' },
-      // Lookup para contar clases desde la colección classes
+      // Lookup para contar clases activas desde la colección classes
       {
         $lookup: {
           from: 'classes',
-          localField: 'assignedCourses.courseId',
-          foreignField: 'courseId',
+          let: { courseId: '$assignedCourses.courseId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$courseId', '$$courseId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
           as: 'classesFromCollection'
         }
       },
@@ -938,12 +949,23 @@ class UserRepository {
         }
       },
       { $unwind: '$enrolledCourses' },
-      // Lookup para contar clases desde la colección classes
+      // Lookup para contar clases activas desde la colección classes
       {
         $lookup: {
           from: 'classes',
-          localField: 'enrolledCourses._id',
-          foreignField: 'courseId',
+          let: { courseId: '$enrolledCourses._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$courseId', '$$courseId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
           as: 'classesFromCollection'
         }
       },
@@ -1024,15 +1046,37 @@ class UserRepository {
     const students = Array.from(uniqueStudentsMap.values());
 
     return students.map((s: any) => {
-      const completedClasses = s.progressInfo?.classesProgress?.filter((cp: any) => cp.completed)?.length || 0;
-      const completedQuestionnaires = s.progressInfo?.questionnairesProgress?.filter((qp: any) => qp.completed)?.length || 0;
+      // Filtrar clases duplicadas usando un Set de IDs únicos
+      const completedClassIds = new Set<string>();
+      if (s.progressInfo?.classesProgress) {
+        s.progressInfo.classesProgress.forEach((cp: any) => {
+          if (cp.completed && cp.classId) {
+            completedClassIds.add(String(cp.classId));
+          }
+        });
+      }
+      const completedClasses = completedClassIds.size;
+      
+      // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+      const completedQuestionnaireIds = new Set<string>();
+      if (s.progressInfo?.questionnairesProgress) {
+        s.progressInfo.questionnairesProgress.forEach((qp: any) => {
+          if (qp.completed && qp.questionnaireId) {
+            completedQuestionnaireIds.add(String(qp.questionnaireId));
+          }
+        });
+      }
+      const completedQuestionnaires = completedQuestionnaireIds.size;
+      
       const totalClasses = s.totalClasses || 0;
       const totalQuestionnaires = s.totalQuestionnaires || 0;
       
-      // Recalcular el progreso total usando los valores correctos
+      // Recalcular el progreso total usando los valores correctos y limitar a 100%
       const totalItems = totalClasses + totalQuestionnaires;
       const completedItems = completedClasses + completedQuestionnaires;
-      const calculatedProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      const calculatedProgress = totalItems > 0 
+        ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
+        : 0;
       
       return {
         userId: s.userId.toString(),

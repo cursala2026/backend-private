@@ -24,6 +24,25 @@ class CourseProgressRepository {
       progress.questionnairesProgress = [];
     }
 
+    // Convertir ObjectIds a strings para asegurar serialización correcta
+    if (progress) {
+      // Convertir classId en classesProgress a string
+      if (progress.classesProgress) {
+        progress.classesProgress = progress.classesProgress.map((cp: any) => ({
+          ...cp,
+          classId: cp.classId?.toString() || String(cp.classId),
+        }));
+      }
+      
+      // Convertir questionnaireId en questionnairesProgress a string
+      if (progress.questionnairesProgress) {
+        progress.questionnairesProgress = progress.questionnairesProgress.map((qp: any) => ({
+          ...qp,
+          questionnaireId: qp.questionnaireId?.toString() || String(qp.questionnaireId),
+        }));
+      }
+    }
+
     return progress;
   }
 
@@ -31,9 +50,26 @@ class CourseProgressRepository {
    * Obtener todos los progresos de un usuario
    */
   async findAllByUser(userId: string): Promise<ICourseProgress[]> {
-    return CourseProgressModel.find({
+    const progressList = await CourseProgressModel.find({
       userId: new Types.ObjectId(userId),
     }).lean();
+
+    // Convertir ObjectIds a strings para asegurar serialización correcta
+    return progressList.map((progress: any) => {
+      if (progress.classesProgress) {
+        progress.classesProgress = progress.classesProgress.map((cp: any) => ({
+          ...cp,
+          classId: cp.classId?.toString() || String(cp.classId),
+        }));
+      }
+      if (progress.questionnairesProgress) {
+        progress.questionnairesProgress = progress.questionnairesProgress.map((qp: any) => ({
+          ...qp,
+          questionnaireId: qp.questionnaireId?.toString() || String(qp.questionnaireId),
+        }));
+      }
+      return progress;
+    });
   }
 
   /**
@@ -57,7 +93,7 @@ class CourseProgressRepository {
       // Usar getTotalClasses para obtener el valor correcto
       const actualTotalClasses = await this.getTotalClasses(courseId);
       const totalQuestionnaires = await this.Questionnaire.countDocuments({
-        courseId: courseId as any,
+        courseId: new Types.ObjectId(courseId),
         status: 'ACTIVE',
       });
 
@@ -66,7 +102,10 @@ class CourseProgressRepository {
 
       const totalItems = actualTotalClasses + totalQuestionnaires;
       const completedItems = completedClasses + completedQuestionnaires;
-      const initialProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      // Limitar el progreso a máximo 100%
+      const initialProgress = totalItems > 0 
+        ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
+        : 0;
 
       const created = await CourseProgressModel.create({
         userId: new Types.ObjectId(userId),
@@ -87,67 +126,156 @@ class CourseProgressRepository {
         startedAt: now,
         lastAccessedAt: now,
       });
-      return created.toObject();
+      const progressObj = created.toObject();
+      // Convertir ObjectIds a strings
+      if (progressObj.classesProgress) {
+        progressObj.classesProgress = progressObj.classesProgress.map((cp: any) => ({
+          ...cp,
+          classId: cp.classId?.toString() || String(cp.classId),
+        }));
+      }
+      return progressObj;
     } else {
       // Actualizar progreso existente
+      // Usar findOneAndUpdate para evitar problemas con ObjectIds en subdocumentos
       const existingClassIndex = progress.classesProgress.findIndex(
         (cp) => cp.classId.toString() === classProgress.classId
       );
 
+      let updateOperation: any;
+      
       if (existingClassIndex >= 0) {
-        // Actualizar clase existente
+        // Actualizar clase existente usando $ para encontrar el elemento correcto del array
         const existing = progress.classesProgress[existingClassIndex];
-        progress.classesProgress[existingClassIndex] = {
-          ...existing,
-          watchTime: classProgress.watchTime ?? existing.watchTime,
-          duration: classProgress.duration ?? existing.duration,
-          completed: classProgress.completed ?? existing.completed,
-          completedAt: classProgress.completed ? now : existing.completedAt,
-          lastWatchedAt: now,
+        updateOperation = {
+          $set: {
+            'classesProgress.$.watchTime': classProgress.watchTime ?? existing.watchTime ?? 0,
+            'classesProgress.$.duration': classProgress.duration ?? existing.duration ?? 0,
+            'classesProgress.$.completed': classProgress.completed ?? existing.completed ?? false,
+            'classesProgress.$.lastWatchedAt': now,
+            currentClassId: classId,
+            lastAccessedAt: now,
+          },
         };
+        
+        if (classProgress.completed) {
+          updateOperation.$set['classesProgress.$.completedAt'] = now;
+        } else if (existing.completedAt) {
+          // Mantener el completedAt existente si no se está completando ahora
+          updateOperation.$set['classesProgress.$.completedAt'] = existing.completedAt;
+        }
       } else {
         // Agregar nueva clase al progreso
-        progress.classesProgress.push({
-          classId,
-          watchTime: classProgress.watchTime || 0,
-          duration: classProgress.duration || 0,
-          completed: classProgress.completed || false,
-          completedAt: classProgress.completed ? now : undefined,
-          lastWatchedAt: now,
-        });
+        updateOperation = {
+          $push: {
+            classesProgress: {
+              classId,
+              watchTime: classProgress.watchTime || 0,
+              duration: classProgress.duration || 0,
+              completed: classProgress.completed || false,
+              completedAt: classProgress.completed ? now : undefined,
+              lastWatchedAt: now,
+            },
+          },
+          $set: {
+            currentClassId: classId,
+            lastAccessedAt: now,
+          },
+        };
       }
-
-      progress.currentClassId = classId;
-      progress.lastAccessedAt = now;
 
       // Recalcular progreso usando los valores correctos de la base de datos
       const actualTotalClasses = await this.getTotalClasses(courseId);
       const totalQuestionnaires = await this.Questionnaire.countDocuments({
-        courseId: courseId as any,
+        courseId: new Types.ObjectId(courseId),
         status: 'ACTIVE',
       });
 
-      const completedClasses = progress.classesProgress.filter((cp) => cp.completed).length;
-      const completedQuestionnaires = progress.questionnairesProgress
-        ? progress.questionnairesProgress.filter((qp) => qp.completed).length
-        : 0;
+      // Obtener el progreso actualizado para calcular correctamente
+      const updatedProgress = existingClassIndex >= 0 
+        ? {
+            ...progress,
+            classesProgress: progress.classesProgress.map((cp, idx) => 
+              idx === existingClassIndex 
+                ? { ...cp, ...classProgress, completedAt: classProgress.completed ? now : cp.completedAt, lastWatchedAt: now }
+                : cp
+            ),
+          }
+        : {
+            ...progress,
+            classesProgress: [...progress.classesProgress, {
+              classId: classId,
+              watchTime: classProgress.watchTime || 0,
+              duration: classProgress.duration || 0,
+              completed: classProgress.completed || false,
+              completedAt: classProgress.completed ? now : undefined,
+              lastWatchedAt: now,
+            }],
+          };
+
+      // Filtrar clases duplicadas usando un Set de IDs únicos
+      const completedClassIds = new Set<string>();
+      updatedProgress.classesProgress.forEach((cp) => {
+        if (cp.completed && cp.classId) {
+          completedClassIds.add(String(cp.classId));
+        }
+      });
+      const completedClasses = completedClassIds.size;
+      
+      // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+      const completedQuestionnaireIds = new Set<string>();
+      if (updatedProgress.questionnairesProgress) {
+        updatedProgress.questionnairesProgress.forEach((qp) => {
+          if (qp.completed && qp.questionnaireId) {
+            completedQuestionnaireIds.add(String(qp.questionnaireId));
+          }
+        });
+      }
+      const completedQuestionnaires = completedQuestionnaireIds.size;
 
       const totalItems = actualTotalClasses + totalQuestionnaires;
       const completedItems = completedClasses + completedQuestionnaires;
 
-      progress.overallProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      // Limitar el progreso a máximo 100%
+      const overallProgress = totalItems > 0 
+        ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
+        : 0;
 
-      await CourseProgressModel.updateOne(
-        { userId: new Types.ObjectId(userId), courseId: new Types.ObjectId(courseId) },
-        {
-          $set: {
-            classesProgress: progress.classesProgress,
-            currentClassId: progress.currentClassId,
-            overallProgress: progress.overallProgress,
-            lastAccessedAt: progress.lastAccessedAt,
-          },
-        }
-      );
+      updateOperation.$set.overallProgress = overallProgress;
+
+      // Usar el operador $ para encontrar el elemento correcto del array cuando existe
+      const query = existingClassIndex >= 0
+        ? {
+            userId: new Types.ObjectId(userId),
+            courseId: new Types.ObjectId(courseId),
+            'classesProgress.classId': new Types.ObjectId(classProgress.classId),
+          }
+        : {
+            userId: new Types.ObjectId(userId),
+            courseId: new Types.ObjectId(courseId),
+          };
+
+      await CourseProgressModel.updateOne(query, updateOperation);
+
+      // Actualizar el objeto progress para retornarlo
+      progress.classesProgress = updatedProgress.classesProgress;
+      progress.currentClassId = classId;
+      progress.overallProgress = overallProgress;
+      progress.lastAccessedAt = now;
+    }
+
+    // Convertir ObjectIds a strings antes de retornar
+    if (progress.classesProgress) {
+      progress.classesProgress = progress.classesProgress.map((cp: any) => ({
+        ...cp,
+        classId: cp.classId?.toString() || String(cp.classId),
+      }));
+    }
+    if (progress.questionnairesProgress) {
+      progress.questionnairesProgress = progress.questionnairesProgress.map((qp: any) => ({
+        ...qp,
+        questionnaireId: qp.questionnaireId?.toString() || String(qp.questionnaireId),
+      }));
     }
 
     return progress;
@@ -184,9 +312,13 @@ class CourseProgressRepository {
     const progress = await this.findByUserAndCourse(userId, courseId);
     if (!progress) return null;
 
-    return (
-      progress.classesProgress.find((cp) => cp.classId.toString() === classId) || null
-    );
+    const normalizedClassId = String(classId);
+    const classProgress = progress.classesProgress.find((cp) => {
+      const cpClassId = String(cp.classId);
+      return cpClassId === normalizedClassId;
+    });
+    
+    return classProgress || null;
   }
 
   /**
@@ -247,14 +379,30 @@ class CourseProgressRepository {
     const totalItems = actualTotalClasses + totalQuestionnaires;
 
     for (const progress of allProgress) {
-      const completedClasses = progress.classesProgress.filter((cp: IClassProgress) => cp.completed).length;
-      const completedQuestionnaires = progress.questionnairesProgress
-        ? progress.questionnairesProgress.filter((qp) => qp.completed).length
-        : 0;
+      // Filtrar clases duplicadas usando un Set de IDs únicos
+      const completedClassIds = new Set<string>();
+      progress.classesProgress.forEach((cp: IClassProgress) => {
+        if (cp.completed && cp.classId) {
+          completedClassIds.add(String(cp.classId));
+        }
+      });
+      const completedClasses = completedClassIds.size;
+      
+      // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+      const completedQuestionnaireIds = new Set<string>();
+      if (progress.questionnairesProgress) {
+        progress.questionnairesProgress.forEach((qp) => {
+          if (qp.completed && qp.questionnaireId) {
+            completedQuestionnaireIds.add(String(qp.questionnaireId));
+          }
+        });
+      }
+      const completedQuestionnaires = completedQuestionnaireIds.size;
       
       const completedItems = completedClasses + completedQuestionnaires;
+      // Limitar el progreso a máximo 100%
       const newOverallProgress = totalItems > 0 
-        ? Math.round((completedItems / totalItems) * 100) 
+        ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
         : 0;
 
       await CourseProgressModel.updateOne(
@@ -323,7 +471,10 @@ class CourseProgressRepository {
       const totalItems = totalClasses + totalQuestionnaires;
       // Only count as completed if passed
       const completedItems = isPassed ? 1 : 0;
-      const initialProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      // Limitar el progreso a máximo 100%
+      const initialProgress = totalItems > 0 
+        ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
+        : 0;
 
       const created = await CourseProgressModel.create({
         userId: new Types.ObjectId(userId),
@@ -342,7 +493,15 @@ class CourseProgressRepository {
         startedAt: now,
         lastAccessedAt: now,
       });
-      return created.toObject();
+      const progressObj = created.toObject();
+      // Convertir ObjectIds a strings
+      if (progressObj.questionnairesProgress) {
+        progressObj.questionnairesProgress = progressObj.questionnairesProgress.map((qp: any) => ({
+          ...qp,
+          questionnaireId: qp.questionnaireId?.toString() || String(qp.questionnaireId),
+        }));
+      }
+      return progressObj;
     } else {
       // Actualizar progreso existente
       // Ensure questionnairesProgress array exists (for backward compatibility)
@@ -387,19 +546,37 @@ class CourseProgressRepository {
       const actualTotalClasses = await this.getTotalClasses(courseId);
 
       const totalQuestionnaires = await this.Questionnaire.countDocuments({
-        courseId: courseId as any,
+        courseId: new Types.ObjectId(courseId),
         status: 'ACTIVE',
       });
 
-      const completedClasses = progress.classesProgress.filter((cp) => cp.completed).length;
-      const completedQuestionnaires = progress.questionnairesProgress
-        ? progress.questionnairesProgress.filter((qp) => qp.completed).length
-        : 0;
+      // Filtrar clases duplicadas usando un Set de IDs únicos
+      const completedClassIds = new Set<string>();
+      progress.classesProgress.forEach((cp) => {
+        if (cp.completed && cp.classId) {
+          completedClassIds.add(String(cp.classId));
+        }
+      });
+      const completedClasses = completedClassIds.size;
+      
+      // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+      const completedQuestionnaireIds = new Set<string>();
+      if (progress.questionnairesProgress) {
+        progress.questionnairesProgress.forEach((qp) => {
+          if (qp.completed && qp.questionnaireId) {
+            completedQuestionnaireIds.add(String(qp.questionnaireId));
+          }
+        });
+      }
+      const completedQuestionnaires = completedQuestionnaireIds.size;
 
       const totalItems = actualTotalClasses + totalQuestionnaires;
       const completedItems = completedClasses + completedQuestionnaires;
 
-      progress.overallProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      // Limitar el progreso a máximo 100%
+      progress.overallProgress = totalItems > 0 
+        ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
+        : 0;
 
       await CourseProgressModel.updateOne(
         { userId: new Types.ObjectId(userId), courseId: new Types.ObjectId(courseId) },
@@ -411,6 +588,20 @@ class CourseProgressRepository {
           },
         }
       );
+    }
+
+    // Convertir ObjectIds a strings antes de retornar
+    if (progress.classesProgress) {
+      progress.classesProgress = progress.classesProgress.map((cp: any) => ({
+        ...cp,
+        classId: cp.classId?.toString() || String(cp.classId),
+      }));
+    }
+    if (progress.questionnairesProgress) {
+      progress.questionnairesProgress = progress.questionnairesProgress.map((qp: any) => ({
+        ...qp,
+        questionnaireId: qp.questionnaireId?.toString() || String(qp.questionnaireId),
+      }));
     }
 
     return progress;
@@ -484,13 +675,31 @@ class CourseProgressRepository {
       status: 'ACTIVE',
     });
 
-    const completedClasses = progress.classesProgress.filter((cp) => cp.completed).length;
-    const completedQuestionnaires = updatedQuestionnairesProgress.filter((qp) => qp.completed).length;
+      // Filtrar clases duplicadas usando un Set de IDs únicos
+      const completedClassIds = new Set<string>();
+      progress.classesProgress.forEach((cp) => {
+        if (cp.completed && cp.classId) {
+          completedClassIds.add(String(cp.classId));
+        }
+      });
+      const completedClasses = completedClassIds.size;
+      
+      // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+      const completedQuestionnaireIds = new Set<string>();
+      updatedQuestionnairesProgress.forEach((qp) => {
+        if (qp.completed && qp.questionnaireId) {
+          completedQuestionnaireIds.add(String(qp.questionnaireId));
+        }
+      });
+      const completedQuestionnaires = completedQuestionnaireIds.size;
 
-    const totalItems = totalClasses + totalQuestionnaires;
-    const completedItems = completedClasses + completedQuestionnaires;
+      const totalItems = totalClasses + totalQuestionnaires;
+      const completedItems = completedClasses + completedQuestionnaires;
 
-    const newOverallProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      // Limitar el progreso a máximo 100%
+      const newOverallProgress = totalItems > 0 
+        ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
+        : 0;
 
     // Actualizar el progreso
     await CourseProgressModel.updateOne(
@@ -520,13 +729,31 @@ class CourseProgressRepository {
     });
 
     for (const progress of allProgress) {
-      const completedClasses = progress.classesProgress.filter((cp: any) => cp.completed).length;
-      const completedQuestionnaires = progress.questionnairesProgress.filter((qp: any) => qp.completed).length;
+      // Filtrar clases duplicadas usando un Set de IDs únicos
+      const completedClassIds = new Set<string>();
+      progress.classesProgress.forEach((cp: any) => {
+        if (cp.completed && cp.classId) {
+          completedClassIds.add(String(cp.classId));
+        }
+      });
+      const completedClasses = completedClassIds.size;
+      
+      // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+      const completedQuestionnaireIds = new Set<string>();
+      progress.questionnairesProgress.forEach((qp: any) => {
+        if (qp.completed && qp.questionnaireId) {
+          completedQuestionnaireIds.add(String(qp.questionnaireId));
+        }
+      });
+      const completedQuestionnaires = completedQuestionnaireIds.size;
 
       const totalItems = totalClasses + totalQuestionnaires;
       const completedItems = completedClasses + completedQuestionnaires;
 
-      const newOverallProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      // Limitar el progreso a máximo 100%
+      const newOverallProgress = totalItems > 0 
+        ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
+        : 0;
 
       await CourseProgressModel.updateOne(
         { _id: progress._id },
@@ -540,7 +767,7 @@ class CourseProgressRepository {
    */
   async getTotalQuestionnaires(courseId: string): Promise<number> {
     return this.Questionnaire.countDocuments({
-      courseId: courseId as any,
+      courseId: new Types.ObjectId(courseId),
       status: 'ACTIVE',
     });
   }

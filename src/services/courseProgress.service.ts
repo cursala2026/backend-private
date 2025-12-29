@@ -21,15 +21,32 @@ class CourseProgressService {
       const totalQuestionnaires = await courseProgressRepository.getTotalQuestionnaires(courseId);
       
       if (totalClasses !== undefined && totalQuestionnaires !== undefined) {
+        // Filtrar clases duplicadas usando un Set de IDs únicos
+        const completedClassIds = new Set<string>();
+        progress.classesProgress.forEach((cp) => {
+          if (cp.completed && cp.classId) {
+            completedClassIds.add(String(cp.classId));
+          }
+        });
+        const completedClasses = completedClassIds.size;
         
-        const completedClasses = progress.classesProgress.filter((cp) => cp.completed).length;
-        const completedQuestionnaires = progress.questionnairesProgress
-          ? progress.questionnairesProgress.filter((qp) => qp.completed).length
-          : 0;
+        // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+        const completedQuestionnaireIds = new Set<string>();
+        if (progress.questionnairesProgress) {
+          progress.questionnairesProgress.forEach((qp) => {
+            if (qp.completed && qp.questionnaireId) {
+              completedQuestionnaireIds.add(String(qp.questionnaireId));
+            }
+          });
+        }
+        const completedQuestionnaires = completedQuestionnaireIds.size;
         
         const totalItems = totalClasses + totalQuestionnaires;
         const completedItems = completedClasses + completedQuestionnaires;
-        const calculatedProgress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+        // Limitar el progreso a máximo 100%
+        const calculatedProgress = totalItems > 0 
+          ? Math.min(100, Math.round((completedItems / totalItems) * 100)) 
+          : 0;
         
         // Si el progreso calculado es diferente al guardado, actualizarlo
         if (progress.overallProgress !== calculatedProgress) {

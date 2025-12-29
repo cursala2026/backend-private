@@ -3,7 +3,7 @@ import path from 'path';
 import { ICourse, Types } from '@/models';
 import CourseRepository from '@/repositories/course.repository';
 import UserRepository from '@/repositories/user.repository';
-import { courseProgressRepository } from '@/repositories/courseProgress.repository';
+import { courseProgressRepository, questionnaireSubmissionRepository } from '@/repositories';
 import { courseUploadService } from './course-upload.service';
 
 export default class CourseService {
@@ -256,8 +256,11 @@ export default class CourseService {
       throw new Error('Student is not enrolled in this course');
     }
 
-    // Eliminar el progreso del estudiante en este curso
+    // Eliminar el progreso del estudiante en este curso (incluye progreso de clases y cuestionarios)
     await courseProgressRepository.deleteByUserAndCourse(studentId, courseId);
+
+    // Eliminar todos los envíos de cuestionarios del estudiante para este curso
+    await questionnaireSubmissionRepository.deleteByStudentAndCourse(studentId, courseId);
 
     // Remover el estudiante del array de estudiantes del curso
     return this.courseRepository.unenrollStudent(courseId, studentId);
