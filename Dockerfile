@@ -23,10 +23,7 @@ WORKDIR /app
 # Do not copy secrets or .env to the image; expect env vars from the host or secret manager
 # Copy only package metadata and install production deps
 COPY package*.json ./
-COPY package-lock.json ./
-# Para desarrollo local, instalamos todas las dependencias
-# En producción, usar --omit=dev
-RUN npm ci --legacy-peer-deps
+RUN npm ci --omit=dev
 
 # Copy built assets only
 COPY --from=builder /app/dist ./dist
@@ -38,9 +35,9 @@ COPY --from=builder /app/src/static ./src/static
 RUN mkdir -p /app/logs && chmod -R 755 /app/logs
 
 # Add a non-root user for security
-# RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
-#     chown -R appuser:appgroup /app/dist/src/static /app/logs
-# USER appuser
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    chown -R appuser:appgroup /app /app/logs
+USER appuser
 
 EXPOSE 8080
 

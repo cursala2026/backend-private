@@ -1,6 +1,8 @@
 # Docker ignore - keep secrets out of image/context
-.env
-dist/.env
+.env*
+*.env
+dist/.env*
+.env-b-private
 node_modules
 .git
 .gitignore
