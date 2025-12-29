@@ -86,39 +86,62 @@ export class CourseUploadService {
     }
 
     /**
-     * Elimina un archivo de programa de curso (PDF)
+     * Sube un archivo de programa de curso (PDF) a Bunny CDN
      */
-    deleteProgramFile(fileName: string): void {
-        const filePath = path.join(uploadDirFilesPublic, fileName);
-        if (fs.existsSync(filePath)) {
-            fs.unlink(filePath, (err) => {
-                if (err) {
-                    logger.error(`Error deleting program file: ${err.message}`);
+    async uploadProgramFile(file: Express.Multer.File): Promise<string> {
+        try {
+            const fileName = this.bunnyService.generateUniqueFileName(file.originalname, 'program');
+            const cdnUrl = await this.bunnyService.uploadFile(file.buffer, fileName, 'course-programs');
+            logger.info(`✅ Program file uploaded to Bunny CDN: ${cdnUrl}`);
+            return cdnUrl;
+        } catch (error) {
+            logger.error(`Error uploading program file: ${(error as Error).message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Elimina un archivo de programa de curso (PDF) desde Bunny CDN
+     */
+    async deleteProgramFile(programUrl: string): Promise<boolean> {
+        try {
+            // Si la URL es del CDN, eliminarla
+            if (programUrl.includes('bunnycdn') || programUrl.includes('b-cdn.net')) {
+                const deleted = await this.bunnyService.deleteFile(programUrl);
+                if (deleted) {
+                    logger.info(`✅ Program file deleted from Bunny CDN: ${programUrl}`);
                 }
-            });
+                return deleted;
+            }
+
+            // Si es un archivo antiguo del filesystem local, intentar eliminarlo
+            const filePath = path.join(uploadDirFilesPublic, programUrl);
+            if (fs.existsSync(filePath)) {
+                fs.unlink(filePath, (err) => {
+                    if (err) {
+                        logger.error(`Error deleting legacy program file: ${err.message}`);
+                    } else {
+                        logger.info(`✅ Legacy program file deleted: ${programUrl}`);
+                    }
+                });
+                return true;
+            }
+
+            logger.info(`ℹ️ Program file not found (already deleted or doesn't exist): ${programUrl}`);
+            return true;
+        } catch (error) {
+            logger.error(`Error deleting program file: ${(error as Error).message}`);
+            return false;
         }
     }
 
     /**
      * Guarda un archivo de programa (PDF) desde el buffer en memoria
+     * @deprecated Use uploadProgramFile instead - mantiene compatibilidad con código existente
      */
     async saveProgramFile(file: Express.Multer.File): Promise<string> {
-        try {
-            const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-            const ext = path.extname(file.originalname);
-            const fileNameWithoutExtension = file.originalname.slice(0, -ext.length);
-            const fileName = `${fileNameWithoutExtension}[${uniqueSuffix}]${ext}`;
-            const filePath = path.join(uploadDirFilesPublic, fileName);
-
-            // Escribir el buffer en disco
-            await fs.promises.writeFile(filePath, file.buffer);
-            
-            logger.info(`✅ Program file saved: ${fileName}`);
-            return fileName;
-        } catch (error) {
-            logger.error(`Error saving program file: ${(error as Error).message}`);
-            throw error;
-        }
+        // Usar el nuevo método que sube a Bunny CDN
+        return this.uploadProgramFile(file);
     }
 }
 

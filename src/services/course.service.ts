@@ -49,10 +49,10 @@ export default class CourseService {
         updateData.imageUrl = imageUrl;
       }
 
-      // Subir PDF si se proporcionó
+      // Subir PDF a Bunny CDN si se proporcionó
       if (programFile) {
-        const pdfFileName = await courseUploadService.saveProgramFile(programFile);
-        updateData.programUrl = pdfFileName;
+        const programUrl = await courseUploadService.uploadProgramFile(programFile);
+        updateData.programUrl = programUrl;
       }
 
       // Actualizar el curso con las URLs de los archivos
@@ -96,13 +96,13 @@ export default class CourseService {
 
     // Procesar archivo de programa si se proporciona uno nuevo
     if (programFile) {
-      // Guardar el PDF en el filesystem local
-      const pdfFileName = await courseUploadService.saveProgramFile(programFile);
-      updateData.programUrl = pdfFileName;
+      // Subir el PDF a Bunny CDN
+      const programUrl = await courseUploadService.uploadProgramFile(programFile);
+      updateData.programUrl = programUrl;
 
       // Eliminar programa anterior
       if (existingCourse.programUrl) {
-        courseUploadService.deleteProgramFile(existingCourse.programUrl);
+        await courseUploadService.deleteProgramFile(existingCourse.programUrl);
       }
     }
 
@@ -125,9 +125,9 @@ export default class CourseService {
       await courseUploadService.deleteCourseImage(course.imageUrl);
     }
 
-    // Eliminar el archivo PDF si existe
+    // Eliminar el archivo PDF desde Bunny CDN si existe
     if (course.programUrl) {
-      courseUploadService.deleteProgramFile(course.programUrl);
+      await courseUploadService.deleteProgramFile(course.programUrl);
     }
 
     // Eliminar todo el progreso de este curso
