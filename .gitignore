@@ -1,6 +1,6 @@
 # Entorno
 .env.b.private
-
+.env
 # Node.js
 node_modules/
 dist/
