@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { userController } from '../controllers';
 import { authorize } from '@/middlewares/auth.middleware';
-import { requireAdmin } from '@/middlewares/adminSecurity.middleware';
+import { requireAdmin, requireAdminOrSelf } from '@/middlewares/adminSecurity.middleware';
 
 const router = Router();
 
@@ -49,7 +49,8 @@ router.post('/changueStatus', authorize, requireAdmin, userController.changueSta
 // PATCH routes
 // 🟠 ALTO: Actualizar datos de usuario requiere admin
 router.patch('/updateUser/:userId', authorize, requireAdmin, userController.updateUser);
-router.patch('/updateUserData/:userId', authorize, requireAdmin, userController.updateUserData);
+// Permite que los usuarios actualicen su propio perfil (incluyendo foto) o que admin actualice cualquier perfil
+router.patch('/updateUserData/:userId', authorize, requireAdminOrSelf, userController.updateUserData);
 router.patch('/updateLastConnection/:userId', authorize, userController.updateLastConnection);
 router.patch('/:userId/toggle-status', authorize, requireAdmin, userController.toggleUserStatus);
 

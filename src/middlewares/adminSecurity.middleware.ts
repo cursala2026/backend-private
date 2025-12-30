@@ -192,6 +192,59 @@ export default requireAdminVerification;
 export { hasAdminRole };
 
 /**
+ * Middleware que permite acceso a admins O al usuario actualizando su propio perfil.
+ * Busca el userId en req.params (como 'userId' o 'id').
+ * Si el usuario es admin, pasa. Si no, verifica que esté actualizando su propio perfil.
+ */
+export function requireAdminOrSelf(req: Request, res: Response, next: NextFunction) {
+  (async () => {
+    const { user } = req;
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'No autenticado' });
+    }
+
+    try {
+      // Si es admin, permitir acceso
+      if (await hasAdminRole(user)) {
+        return next();
+      }
+
+      // Intentar obtener la versión completa del usuario
+      const fullUser = await userRepository.getUserById(String((user as any)._id));
+      if (fullUser && (await hasAdminRole(fullUser as IUser))) {
+        req.user = fullUser as any;
+        return next();
+      }
+
+      // No es admin, verificar si está actualizando su propio perfil
+      const targetUserId = req.params.userId || req.params.id;
+      if (!targetUserId) {
+        return res.status(400).json({ success: false, message: 'ID de usuario no especificado' });
+      }
+
+      const currentUserId = String((user as any)._id);
+      const targetUserIdString = String(targetUserId);
+
+      if (currentUserId === targetUserIdString) {
+        return next();
+      }
+
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acceso denegado. Solo puedes actualizar tu propio perfil o necesitas ser administrador.' 
+      });
+    } catch (err) {
+      logger.error('Error en requireAdminOrSelf:', err);
+      return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+  })().catch((err) => {
+    logger.error('Error en requireAdminOrSelf catch:', err);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  });
+}
+
+/**
  * Middleware que permite acceso a admins O al profesor propietario del curso.
  * Busca el courseId en req.params (como 'id' o 'courseId').
  * Si el usuario es admin, pasa. Si no, verifica que sea el mainTeacher del curso.
