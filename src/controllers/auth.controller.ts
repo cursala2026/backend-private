@@ -18,8 +18,14 @@ class AuthController {
 
   initiateResetPassword = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { expiresIn } = await this.authService.generateResetPasswordToken(req.body.email);
-      return res.json(prepareResponse(200, 'Correo de restablecimiento de contraseña enviado.', { expiresIn }));
+      const result = await this.authService.generateResetPasswordToken(req.body.email);
+      // En desarrollo, si el email falló, incluir el token y URL en la respuesta
+      const responseData: any = { expiresIn: result.expiresIn };
+      if (result.tokenForDev) {
+        responseData.tokenForDev = result.tokenForDev;
+        responseData.resetUrlForDev = result.resetUrlForDev;
+      }
+      return res.json(prepareResponse(200, 'Correo de restablecimiento de contraseña enviado.', responseData));
     } catch (error) {
       return next(error);
     }

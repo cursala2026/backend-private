@@ -177,18 +177,53 @@ class AuthService {
         .replace(/https:\/\/todo-gestion\.com\/static\/Imagenes\/Logo\.png/g, '/images/logo/logo-02-A-white.svg');
     }
 
-    await sendEmail({
-      email,
-      subject: 'Restablecimiento de contraseña - Cursala',
-      html: htmlContent,
-    });
+    // Intentar enviar el email, pero no fallar si estamos en desarrollo
+    const isDevelopment = config.NODE_ENV === 'development';
+    let emailSent = false;
+    
+    try {
+      await sendEmail({
+        email,
+        subject: 'Restablecimiento de contraseña - Cursala',
+        html: htmlContent,
+      });
+      emailSent = true;
+      logger.info(`Email de restablecimiento de contraseña enviado a ${email}`);
+    } catch (emailError) {
+      if (isDevelopment) {
+        // En desarrollo, loguear el error pero continuar
+        // Esto permite probar el flujo sin tener SMTP configurado
+        logger.warn(`⚠️ Error al enviar email de restablecimiento (desarrollo):`, emailError);
+        logger.info(`📧 Token de restablecimiento generado para ${email}: ${token}`);
+        logger.info(`🔗 URL de restablecimiento: ${resetUrl}`);
+      } else {
+        // En producción, lanzar error más específico
+        logger.error(`❌ Error al enviar email de restablecimiento:`, emailError);
+        // Loguear el token en caso de que el admin necesite dárselo manualmente al usuario
+        logger.error(`Token generado (por si el admin necesita darlo manualmente): ${token}`);
+        throw new Error('No se pudo enviar el correo de restablecimiento de contraseña. Por favor, contacta al administrador.');
+      }
+    }
 
     // Asegurar tipos: `ms` recibe string y retorna number
     const expiresInMilliseconds = Number(
       ms(String(config.EXPIRE_TIME_TOKEN_RESET_PASSWORD ?? '1h') as unknown as import('ms').StringValue) as unknown as number
     );
 
-    return { token, expiresIn: expiresInMilliseconds };
+    // En desarrollo, incluir el token en la respuesta para facilitar las pruebas
+    // Esto permite probar manualmente sin necesidad de email
+    const response: { token: string; expiresIn: number; tokenForDev?: string; resetUrlForDev?: string } = { 
+      token, 
+      expiresIn: expiresInMilliseconds 
+    };
+    
+    // Solo incluir el token en desarrollo para que puedan usarlo manualmente
+    if (isDevelopment && !emailSent) {
+      response.tokenForDev = token;
+      response.resetUrlForDev = resetUrl;
+    }
+
+    return response;
   }
 
   async resetPassword(token: string, newPassword: string): Promise<IUser> {

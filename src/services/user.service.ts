@@ -2,6 +2,7 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import bcrypt from 'bcryptjs';
 import { IUser } from '../models/user.model';
 import { sendEmail } from '../utils/emailer';
 import { IUserExtended } from '@/types/user.types';
@@ -53,6 +54,11 @@ export default class UserService {
   }
 
   async createUser(userData: Partial<IUser>) {
+    // Hashear la contraseña antes de crear el usuario si se proporciona
+    if (userData.password) {
+      const saltRounds = 10;
+      userData.password = await bcrypt.hash(userData.password, saltRounds);
+    }
     return this.userRepository.createUser(userData);
   }
 

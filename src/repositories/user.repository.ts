@@ -52,23 +52,13 @@ class UserRepository {
    * @returns A promise that resolves when the save operation is complete.
    */
   async save(user: IUser): Promise<IUser> {
-    // Hashear la contraseña antes de guardar el usuario
-    if (user.password) {
-      const saltRounds = 10;
-      user.password = await bcrypt.hash(user.password, saltRounds);
-    }
-    
+    // La contraseña ya debe venir hasheada desde el servicio
     const res = await this.model.create(user as Partial<IUser>);
     return res as unknown as IUser;
   }
 
   async createUser(user: Partial<IUser>) {
-    // Hashear la contraseña antes de crear el usuario
-    if (user.password) {
-      const saltRounds = 10;
-      user.password = await bcrypt.hash(user.password, saltRounds);
-    }
-    
+    // La contraseña ya debe venir hasheada desde el servicio
     const res = await this.model.create(user as Partial<IUser>);
     return res as unknown as IUser;
   }
@@ -77,7 +67,7 @@ class UserRepository {
     // WORKAROUND: findById está roto con Mongoose 9.x + Node 24
     // Buscar en todos los usuarios y comparar _id como string
     const allUsers = await this.model.find({}).exec();
-    const foundUser = allUsers.find(u => String(u._id) === id);
+    const foundUser = allUsers.find((u: any) => String(u._id) === id);
     
     if (foundUser) {
       return foundUser as unknown as IUser;
