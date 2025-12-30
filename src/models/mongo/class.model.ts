@@ -52,6 +52,12 @@ export const ClassSchema: Schema<IClassData> = new Schema<IClassData>(
       type: String,
       match: /\.(mp4|mov|avi|mkv)$/i,
     },
+    videoStatus: {
+      type: String,
+      enum: ['ready', 'processing', 'error'],
+      default: 'ready',
+      required: false,
+    },
     courseId: {
       type: Schema.Types.ObjectId,
       ref: 'Course',

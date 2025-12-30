@@ -38,7 +38,7 @@ export default class UserController {
 
   getUsersPaginated = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, sort, dir, search } = req.query;
+      const { page, limit, sort, dir, search, role } = req.query;
 
       const result = await this.userService.getUsersPaginated({
         page: Number(page) || 1,
@@ -46,6 +46,7 @@ export default class UserController {
         sort: (sort as string) || 'createdAt',
         dir: dir === 'ASC' ? 1 : -1,
         search: search as string,
+        role: role as string,
       });
 
       // DEBUG: Log del usuario específico

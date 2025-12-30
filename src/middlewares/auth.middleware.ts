@@ -7,8 +7,23 @@ import { logger } from '../utils';
 import config from '@/config';
 import { userRepository } from '@/repositories';
 
+// Extractor personalizado que acepta token desde header o query parameter (útil para SSE)
+const jwtExtractor = (req: Request) => {
+  // Primero intentar desde el header Authorization
+  const authHeader = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+  if (authHeader) {
+    return authHeader;
+  }
+  // Si no está en el header, intentar desde query parameter (para SSE)
+  const tokenFromQuery = req.query.token as string | undefined;
+  if (tokenFromQuery) {
+    return tokenFromQuery;
+  }
+  return null;
+};
+
 const options = {
-  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+  jwtFromRequest: jwtExtractor,
   secretOrKey: config.JWT_SECRET,
 };
 

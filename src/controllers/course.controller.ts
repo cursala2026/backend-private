@@ -59,7 +59,6 @@ export default class CourseController {
             name,
             description,
             longDescription,
-            status,
             order,
             days,
             time,
@@ -70,14 +69,41 @@ export default class CourseController {
             maxInstallments,
             interestFree,
             isPublished,
+            teachers,
           } = req.body;
+
+          // Procesar teachers: puede venir como array o string separado por comas
+          let teachersArray: string[] = [];
+          if (teachers) {
+            if (Array.isArray(teachers)) {
+              teachersArray = teachers.filter(t => t && t.trim() !== '');
+            } else if (typeof teachers === 'string') {
+              teachersArray = teachers.split(',').map(t => t.trim()).filter(t => t !== '');
+            }
+          }
+
+          // Validar que haya entre 1 y 3 profesores
+          if (teachersArray.length < 1 || teachersArray.length > 3) {
+            return res.status(400).json({ 
+              message: 'El curso debe tener entre 1 y 3 profesores asignados' 
+            });
+          }
+
+          // Convertir a ObjectIds
+          const { Types } = require('mongoose');
+          const teachersObjectIds = teachersArray.map(id => {
+            if (!Types.ObjectId.isValid(id)) {
+              throw new Error(`ID de profesor inválido: ${id}`);
+            }
+            return new Types.ObjectId(id);
+          });
 
           // Construir el objeto de datos del curso
           const courseData = {
             name,
             description,
             longDescription,
-            status,
+            status: 'ACTIVE', // Siempre crear cursos con estado activo
             order: order ? Number(order) : 0,
             days: typeof days === 'string' ? days.split(',').map((day) => day.trim()) : days,
             time,
@@ -92,6 +118,7 @@ export default class CourseController {
               if (typeof isPublished === 'string') return isPublished.toLowerCase() === 'true';
               return Boolean(isPublished);
             })(),
+            teachers: teachersObjectIds,
           };
 
           // Obtener archivos
@@ -150,6 +177,21 @@ export default class CourseController {
             return res.status(404).json({ message: 'Course not found' });
           }
 
+          // Migración automática: si tiene mainTeacher pero no teachers, migrar
+          if (existingCourse.mainTeacher && (!existingCourse.teachers || existingCourse.teachers.length === 0)) {
+            const { Types } = require('mongoose');
+            const mainTeacherId = typeof existingCourse.mainTeacher === 'string' 
+              ? existingCourse.mainTeacher 
+              : existingCourse.mainTeacher.toString();
+            
+            if (Types.ObjectId.isValid(mainTeacherId)) {
+              // Agregar mainTeacher al array teachers si no está ya
+              const teachersArray = [new Types.ObjectId(mainTeacherId)];
+              existingCourse.teachers = teachersArray;
+              await this.courseService.update(id, { teachers: teachersArray }, []);
+            }
+          }
+
           const updateData: Partial<ICourse> = {};
           const unsetFields: string[] = [];
           const {
@@ -167,6 +209,8 @@ export default class CourseController {
             numberOfClasses,
             duration,
             showOnHome,
+            deleteImage,
+            teachers,
           } = req.body;
 
           // Solo actualizar campos si están presentes en req.body
@@ -231,9 +275,49 @@ export default class CourseController {
             }
           }
 
+          // Procesar teachers si se proporciona
+          if (teachers !== undefined) {
+            let teachersArray: string[] = [];
+            if (teachers) {
+              if (Array.isArray(teachers)) {
+                teachersArray = teachers.filter(t => t && t.trim() !== '');
+              } else if (typeof teachers === 'string') {
+                teachersArray = teachers.split(',').map(t => t.trim()).filter(t => t !== '');
+              }
+            }
+
+            // Validar que haya entre 1 y 3 profesores
+            if (teachersArray.length < 1 || teachersArray.length > 3) {
+              return res.status(400).json({ 
+                message: 'El curso debe tener entre 1 y 3 profesores asignados' 
+              });
+            }
+
+            // Convertir a ObjectIds
+            const { Types } = require('mongoose');
+            const teachersObjectIds = teachersArray.map(id => {
+              if (!Types.ObjectId.isValid(id)) {
+                throw new Error(`ID de profesor inválido: ${id}`);
+              }
+              return new Types.ObjectId(id);
+            });
+
+            updateData.teachers = teachersObjectIds;
+          }
+
           const files = req.files as Record<string, Express.Multer.File[]>;
           const imageFile = files?.imageFile?.[0];
           const programFile = files?.programFile?.[0];
+          
+          // Si se solicita eliminar la imagen y no hay nueva imagen, agregar a unsetFields
+          if (deleteImage === 'true' || deleteImage === true) {
+            if (!imageFile && existingCourse.imageUrl) {
+              unsetFields.push('imageUrl');
+              // Eliminar imagen del CDN
+              const courseUploadService = require('@/services/courseUpload.service').default;
+              await courseUploadService.deleteCourseImage(existingCourse.imageUrl);
+            }
+          }
           
           const hasUpdates = Object.keys(updateData).length > 0 || unsetFields.length > 0 || imageFile || programFile;
 

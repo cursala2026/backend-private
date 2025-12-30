@@ -85,8 +85,36 @@ class CourseRepository {
         },
       },
       {
+        $lookup: {
+          from: 'users',
+          localField: 'teachers',
+          foreignField: '_id',
+          as: 'teachersInfo',
+          pipeline: [
+            {
+              $project: {
+                teacherName: { $concat: ['$firstName', ' ', '$lastName'] },
+                teacherId: '$_id',
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                professionalDescription: { $ifNull: ['$professionalDescription', null] },
+                profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+              },
+            },
+          ],
+        },
+      },
+      {
         $addFields: {
-          mainTeacherInfo: { $arrayElemAt: ['$mainTeacherInfo', 0] },
+          // Si hay teachersInfo, limpiar mainTeacherInfo para evitar confusión
+          mainTeacherInfo: {
+            $cond: {
+              if: { $gt: [{ $size: { $ifNull: ['$teachersInfo', []] } }, 0] },
+              then: null, // Si hay teachers, no mostrar mainTeacher
+              else: { $arrayElemAt: ['$mainTeacherInfo', 0] }
+            }
+          }
         },
       },
       {
@@ -237,9 +265,37 @@ class CourseRepository {
         },
       },
       {
+        $lookup: {
+          from: 'users',
+          localField: 'teachers',
+          foreignField: '_id',
+          as: 'teachersInfo',
+          pipeline: [
+            {
+              $project: {
+                teacherName: { $concat: ['$firstName', ' ', '$lastName'] },
+                teacherId: '$_id',
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                professionalDescription: { $ifNull: ['$professionalDescription', null] },
+                profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+              },
+            },
+          ],
+        },
+      },
+      {
         $addFields: {
           classCount: { $size: '$classes' },
-          mainTeacherInfo: { $arrayElemAt: ['$mainTeacherInfo', 0] },
+          // Si hay teachersInfo, limpiar mainTeacherInfo para evitar confusión
+          mainTeacherInfo: {
+            $cond: {
+              if: { $gt: [{ $size: { $ifNull: ['$teachersInfo', []] } }, 0] },
+              then: null, // Si hay teachers, no mostrar mainTeacher
+              else: { $arrayElemAt: ['$mainTeacherInfo', 0] }
+            }
+          }
         },
       },
       {
@@ -319,9 +375,37 @@ class CourseRepository {
         },
       },
       {
+        $lookup: {
+          from: 'users',
+          localField: 'teachers',
+          foreignField: '_id',
+          as: 'teachersInfo',
+          pipeline: [
+            {
+              $project: {
+                teacherName: { $concat: ['$firstName', ' ', '$lastName'] },
+                teacherId: '$_id',
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                professionalDescription: { $ifNull: ['$professionalDescription', null] },
+                profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
+              },
+            },
+          ],
+        },
+      },
+      {
         $addFields: {
           classCount: { $size: '$classes' },
-          mainTeacherInfo: { $arrayElemAt: ['$mainTeacherInfo', 0] },
+          // Si hay teachersInfo, limpiar mainTeacherInfo para evitar confusión
+          mainTeacherInfo: {
+            $cond: {
+              if: { $gt: [{ $size: { $ifNull: ['$teachersInfo', []] } }, 0] },
+              then: null, // Si hay teachers, no mostrar mainTeacher
+              else: { $arrayElemAt: ['$mainTeacherInfo', 0] }
+            }
+          }
         },
       },
       {
@@ -444,7 +528,7 @@ class CourseRepository {
 
   /**
    * Obtiene todos los cursos asignados a un profesor
-   * Incluye cursos donde el profesor es mainTeacher o está en assignedCoursesEdit
+   * Prioriza el array teachers, luego mainTeacher para compatibilidad, y finalmente assignedCoursesEdit
    * @param teacherId ID del profesor
    * @returns Array de cursos asignados al profesor
    */
@@ -455,11 +539,51 @@ class CourseRepository {
 
     const teacherObjectId = new Types.ObjectId(teacherId);
 
-    // Buscar cursos donde el profesor es mainTeacher
+    // Buscar cursos donde el profesor está en el array teachers (prioridad)
+    const teachersArrayCourses = await this.model.aggregate([
+      {
+        $match: {
+          teachers: teacherObjectId,
+        },
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: '_id',
+          foreignField: 'courseId',
+          as: 'classes',
+        },
+      },
+      {
+        $addFields: {
+          classCount: { $size: '$classes' },
+          isMainTeacher: false,
+        },
+      },
+      {
+        $project: {
+          classes: 0,
+        },
+      },
+      {
+        $sort: { order: 1 },
+      },
+    ]).exec();
+
+    // Buscar cursos donde el profesor es mainTeacher (compatibilidad, solo si no tiene teachers)
     const mainTeacherCourses = await this.model.aggregate([
       {
         $match: {
-          mainTeacher: teacherObjectId,
+          $and: [
+            { mainTeacher: teacherObjectId },
+            {
+              $or: [
+                { teachers: { $exists: false } },
+                { teachers: { $size: 0 } },
+                { teachers: { $ne: teacherObjectId } }
+              ]
+            }
+          ],
         },
       },
       {
@@ -486,7 +610,7 @@ class CourseRepository {
       },
     ]).exec();
 
-    // Buscar cursos donde el profesor está en assignedCoursesEdit
+    // Buscar cursos donde el profesor está en assignedCoursesEdit (legacy)
     const assignedCourses = await this.model.aggregate([
       {
         $lookup: {
@@ -511,6 +635,16 @@ class CourseRepository {
       {
         $match: {
           teacherMatch: { $ne: [] },
+          // Excluir cursos que ya están en teachers o mainTeacher
+          $and: [
+            {
+              $or: [
+                { teachers: { $exists: false } },
+                { teachers: { $ne: teacherObjectId } }
+              ]
+            },
+            { mainTeacher: { $ne: teacherObjectId } }
+          ]
         },
       },
       {
@@ -538,8 +672,8 @@ class CourseRepository {
       },
     ]).exec();
 
-    // Combinar ambos resultados y eliminar duplicados
-    const allCourses = [...mainTeacherCourses, ...assignedCourses];
+    // Combinar todos los resultados y eliminar duplicados
+    const allCourses = [...teachersArrayCourses, ...mainTeacherCourses, ...assignedCourses];
     const uniqueCourses = allCourses.filter((course, index, self) =>
       index === self.findIndex((c) => String(c._id) === String(course._id))
     );

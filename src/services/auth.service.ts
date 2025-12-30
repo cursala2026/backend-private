@@ -337,7 +337,7 @@ class AuthService {
       birthDate: birthDateValue,
       dni: user.dni as string,
       roles: userRoles,
-      status: user.status || 'ACTIVE',
+      status: 'ACTIVE', // Siempre crear usuarios con estado activo
     } as IUser;
     const created = await this.userRepository.createUser(newUser);
 

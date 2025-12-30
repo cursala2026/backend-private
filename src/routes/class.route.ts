@@ -27,6 +27,14 @@ router.get('/:videoFileName/video', authorize, classController.getClassVideo);
 router.get('/:classId', authorize, classController.findOneById);
 
 /**
+ * @route GET /:classId/upload-progress
+ * @description Obtiene el progreso de subida de video mediante Server-Sent Events (SSE).
+ * @access Private (requiere autorización)
+ * @returns Event stream con eventos de progreso: { percent: number }
+ */
+router.get('/:classId/upload-progress', authorize, classController.getUploadProgress);
+
+/**
  * @route POST /
  * @description Crea una nueva clase con una imagen obligatoria.
  * @access Private (requiere autorización)

@@ -45,6 +45,7 @@ export default class UserService {
     sort: string;
     dir: number;
     search?: string;
+    role?: string;
   }) {
     return this.userRepository.getUsersPaginated(params);
   }
@@ -59,6 +60,8 @@ export default class UserService {
       const saltRounds = 10;
       userData.password = await bcrypt.hash(userData.password, saltRounds);
     }
+    // Asegurar que siempre se cree con estado activo
+    userData.status = 'ACTIVE';
     return this.userRepository.createUser(userData);
   }
 

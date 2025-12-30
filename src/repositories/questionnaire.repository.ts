@@ -79,7 +79,7 @@ class QuestionnaireRepository {
 
   /**
    * Encuentra todos los cuestionarios creados por un profesor
-   * Usa aggregation para hacer lookup con courses y filtrar por mainTeacher
+   * Busca en el array teachers (prioridad) y mainTeacher (compatibilidad)
    * @param professorId - ID del profesor
    * @returns Lista de cuestionarios del profesor
    */
@@ -87,6 +87,8 @@ class QuestionnaireRepository {
     if (!Types.ObjectId.isValid(professorId)) {
       throw new Error('El ID del profesor proporcionado no es válido.');
     }
+
+    const professorObjectId = new Types.ObjectId(professorId);
 
     const questionnaires = await this.model
       .aggregate([
@@ -101,7 +103,23 @@ class QuestionnaireRepository {
         { $unwind: '$course' },
         {
           $match: {
-            'course.mainTeacher': new Types.ObjectId(professorId),
+            $or: [
+              // Prioridad: buscar en el array teachers
+              { 'course.teachers': professorObjectId },
+              // Compatibilidad: buscar en mainTeacher solo si no tiene teachers o el profesor no está en teachers
+              {
+                $and: [
+                  { 'course.mainTeacher': professorObjectId },
+                  {
+                    $or: [
+                      { 'course.teachers': { $exists: false } },
+                      { 'course.teachers': { $size: 0 } },
+                      { 'course.teachers': { $ne: professorObjectId } }
+                    ]
+                  }
+                ]
+              }
+            ]
           },
         },
         { $sort: { 'course.name': 1, 'position.type': 1, createdAt: 1 } },

@@ -36,6 +36,7 @@ export interface IQuestionnaire {
   allowRetries: boolean;
   maxRetries?: number; // null = unlimited retries
   showCorrectAnswers: boolean;
+  timeLimitMinutes?: number; // Tiempo límite en minutos para resolver el cuestionario (opcional)
   createdBy: ObjectId; // Reference to User (professor)
 }
 
@@ -178,6 +179,12 @@ export const QuestionnaireSchema: Schema<QuestionnaireModel> = new Schema<Questi
       type: Boolean,
       required: true,
       default: true,
+    },
+    timeLimitMinutes: {
+      type: Number,
+      required: false,
+      min: 1,
+      max: 1440, // Máximo 24 horas (1440 minutos)
     },
     createdBy: {
       type: Schema.Types.ObjectId,

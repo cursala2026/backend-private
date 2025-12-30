@@ -2,6 +2,7 @@ import axios from 'axios';
 import config from '@/config';
 import { logger } from '@/utils';
 import FormData from 'form-data';
+import { Transform } from 'stream';
 
 class BunnyService {
   private readonly storageApiKey: string;
@@ -67,10 +68,17 @@ class BunnyService {
    * @param stream - Stream del archivo
    * @param fileName - Nombre del archivo con extensión
    * @param folder - Carpeta dentro del storage zone (ej: 'class-videos')
-   * @param fileSize - Tamaño del archivo en bytes (opcional, para logging)
+   * @param fileSize - Tamaño del archivo en bytes (requerido para tracking de progreso)
+   * @param onProgress - Callback opcional para trackear progreso (percent: number)
    * @returns URL del CDN del archivo subido
    */
-  async uploadFileStream(stream: NodeJS.ReadableStream, fileName: string, folder: string = 'class-videos', fileSize?: number): Promise<string> {
+  async uploadFileStream(
+    stream: NodeJS.ReadableStream,
+    fileName: string,
+    folder: string = 'class-videos',
+    fileSize?: number,
+    onProgress?: (percent: number) => void
+  ): Promise<string> {
     try {
       // Sanitizar el nombre del archivo
       const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -80,16 +88,50 @@ class BunnyService {
       const sizeInfo = fileSize ? ` (${(fileSize / (1024 * 1024)).toFixed(2)} MB)` : '';
       logger.info(`🚀 Uploading stream to Bunny: ${uploadUrl}${sizeInfo}`);
 
-      const response = await axios.put(uploadUrl, stream, {
+      // Configurar tracking de progreso usando onUploadProgress de axios
+      // Esto trackea el progreso real de la subida HTTP, no solo los bytes leídos del archivo
+      const config: any = {
         headers: {
           'AccessKey': this.storageApiKey,
           'Content-Type': 'application/octet-stream',
         },
         maxBodyLength: Infinity,
         maxContentLength: Infinity,
-      });
+      };
+
+      if (fileSize && onProgress) {
+        let lastReportedPercent = -1;
+        const MIN_PERCENT_CHANGE = 1; // Reportar cada 1% de cambio mínimo
+        
+        config.onUploadProgress = (progressEvent: any) => {
+          if (progressEvent.total && progressEvent.total > 0) {
+            const percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+            
+            // Solo reportar si el porcentaje cambió significativamente
+            if (percent !== lastReportedPercent && 
+                Math.abs(percent - lastReportedPercent) >= MIN_PERCENT_CHANGE) {
+              lastReportedPercent = percent;
+              onProgress(Math.min(percent, 99)); // No reportar 100% hasta que termine completamente
+            }
+          } else if (fileSize) {
+            // Fallback: si axios no reporta total, usar fileSize
+            const percent = Math.round((progressEvent.loaded / fileSize) * 100);
+            if (percent !== lastReportedPercent && 
+                Math.abs(percent - lastReportedPercent) >= MIN_PERCENT_CHANGE) {
+              lastReportedPercent = percent;
+              onProgress(Math.min(percent, 99));
+            }
+          }
+        };
+      }
+
+      const response = await axios.put(uploadUrl, stream, config);
 
       if (response.status === 201 || response.status === 200) {
+        // Reportar 100% cuando la subida termine completamente
+        if (fileSize && onProgress) {
+          onProgress(100);
+        }
         const cdnUrl = `${this.cdnHostname}${filePath}`;
         logger.info(`✅ File stream uploaded successfully to Bunny: ${cdnUrl}`);
         return cdnUrl;

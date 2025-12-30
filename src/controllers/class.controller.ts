@@ -14,6 +14,7 @@ import { fileUploadService } from '@/services/file-upload.service';
 import BunnyService from '@/services/bunny.service';
 import { courseProgressRepository } from '@/repositories/courseProgress.repository';
 import { courseRepository } from '@/repositories';
+import { videoUploadProgressService } from '@/services/video-upload-progress.service';
 
 // Re-exportar para mantener compatibilidad con rutas existentes
 export { uploadFiles, uploadChunkMulter } from '@/services/file-upload.service';
@@ -80,13 +81,12 @@ export default class ClassController {
 
       logger.info('Creando nueva clase');
 
-      if (!name || !description || !courseId) {
-        return res.status(400).json({ message: 'Faltan campos requeridos: name, description o courseId.' });
+      if (!name || !courseId) {
+        return res.status(400).json({ message: 'Faltan campos requeridos: name o courseId.' });
       }
-
-      if (!files?.imageFile && !imageFileId) {
-        return res.status(400).json({ message: 'Se requiere una imagen.' });
-      }
+      
+      // description es opcional, pero si viene vacío, establecerlo como string vacío
+      const finalDescription = description || '';
 
       // Resolver archivos usando el servicio
       const resolvedFiles = fileUploadService.resolveClassFiles(files, imageFileId, videoFileId, supportMaterialIds);
@@ -95,6 +95,34 @@ export default class ClassController {
 
       if (errors.length > 0) {
         return res.status(400).json({ message: errors[0] });
+      }
+
+      // Si no hay imagen, usar la imagen por defecto
+      if (!imageUrl) {
+        // Buscar la imagen por defecto en desarrollo (src) y producción (dist)
+        const defaultImagePaths = [
+          path.join(__dirname, '../static/clase/clase.png'), // Producción (dist)
+          path.join(__dirname, '../../static/clase/clase.png'), // Desarrollo (src)
+        ];
+        
+        let defaultImagePath: string | null = null;
+        for (const imagePath of defaultImagePaths) {
+          if (fs.existsSync(imagePath)) {
+            defaultImagePath = imagePath;
+            break;
+          }
+        }
+        
+        if (defaultImagePath) {
+          logger.info('📷 Usando imagen por defecto para la clase');
+          // Copiar la imagen por defecto al directorio de imágenes temporales
+          const tempImageName = `default-class-${Date.now()}.png`;
+          const tempImagePath = path.join(uploadDirImages, tempImageName);
+          fs.copyFileSync(defaultImagePath, tempImagePath);
+          imageUrl = tempImageName;
+        } else {
+          logger.warn('⚠️ No se encontró la imagen por defecto. Rutas intentadas:', defaultImagePaths);
+        }
       }
 
       // Subir imagen a Bunny Storage si existe
@@ -119,37 +147,18 @@ export default class ClassController {
         }
       }
 
-      // Subir video a Bunny Storage si existe
-      if (videoUrl) {
-        try {
-          const localVideoPath = path.join(uploadDirVideos, videoUrl);
-          const videoStats = fs.statSync(localVideoPath);
-          const videoSizeMB = videoStats.size / (1024 * 1024);
-          const uniqueFileName = this.bunnyService.generateUniqueFileName(videoUrl, 'class-video');
+      // Manejar video: si existe, se subirá en background
+      const hasVideo = !!videoUrl;
+      const localVideoPath = videoUrl ? path.join(uploadDirVideos, videoUrl) : null;
+      let videoStats: fs.Stats | null = null;
+      let videoSizeMB = 0;
+      let uniqueVideoFileName = '';
 
-          logger.info(`🐰 Subiendo video a Bunny (${videoSizeMB.toFixed(2)} MB): ${uniqueFileName}`);
-
-          // Para videos mayores a 100MB, usar streaming para evitar cargar todo en memoria
-          let bunnyUrl: string;
-          if (videoStats.size > 100 * 1024 * 1024) {
-            logger.info('📹 Usando streaming para video grande');
-            const videoStream = fs.createReadStream(localVideoPath);
-            bunnyUrl = await this.bunnyService.uploadFileStream(videoStream, uniqueFileName, 'class-videos', videoStats.size);
-          } else {
-            const videoBuffer = fs.readFileSync(localVideoPath);
-            bunnyUrl = await this.bunnyService.uploadFile(videoBuffer, uniqueFileName, 'class-videos');
-          }
-
-          // Eliminar archivo local después de subir a Bunny
-          fs.unlinkSync(localVideoPath);
-
-          // Reemplazar videoUrl con la URL de Bunny
-          videoUrl = bunnyUrl;
-          logger.info(`✅ Video subido a Bunny exitosamente: ${bunnyUrl}`);
-        } catch (error) {
-          logger.error(`❌ Error subiendo video a Bunny: ${(error as Error).message}`);
-          return res.status(500).json({ message: 'Error subiendo video a Bunny Storage' });
-        }
+      if (hasVideo && localVideoPath && fs.existsSync(localVideoPath)) {
+        videoStats = fs.statSync(localVideoPath);
+        videoSizeMB = videoStats.size / (1024 * 1024);
+        uniqueVideoFileName = this.bunnyService.generateUniqueFileName(videoUrl, 'class-video');
+        logger.info(`📹 Video detectado (${videoSizeMB.toFixed(2)} MB): ${uniqueVideoFileName}`);
       }
 
       // Subir archivos de apoyo a Bunny Storage si existen
@@ -181,26 +190,80 @@ export default class ClassController {
       // Construir datos de clase
       const classData: Partial<IClassData> = {
         name,
-        description,
+        description: finalDescription,
         imageUrl,
         courseId,
         supportMaterials,
       };
 
-      if (videoUrl) {
-        classData.videoUrl = videoUrl;
+      // Si hay video, marcar como processing (se subirá en background)
+      if (hasVideo) {
+        classData.videoStatus = 'processing';
+        // NO establecer videoUrl todavía - se establecerá cuando termine la subida
+        // Esto evita problemas de validación con nombres de archivo locales
+        // classData.videoUrl se establecerá en uploadVideoInBackground
       }
 
       if (linkLive !== undefined) {
         classData.linkLive = linkLive;
       }
 
-      logger.info('Datos para crear clase:', { name, imageUrl, videoUrl, supportMaterialsCount: supportMaterials.length });
+      logger.info('Datos para crear clase:', { 
+        name, 
+        imageUrl, 
+        hasVideo, 
+        videoStatus: classData.videoStatus,
+        videoUrl: classData.videoUrl,
+        supportMaterialsCount: supportMaterials.length 
+      });
 
-      const newClass = await this.classService.create(classData);
+      let newClass;
+      try {
+        newClass = await this.classService.create(classData);
+      } catch (error) {
+        logger.error(`Error creando clase en servicio: ${(error as Error).message}`);
+        logger.error(`Stack trace: ${(error as Error).stack}`);
+        // Si es un error de validación, devolver 400 con mensaje descriptivo
+        if ((error as any).name === 'ValidationError') {
+          const validationErrors = Object.values((error as any).errors || {}).map((e: any) => e.message).join(', ');
+          return res.status(400).json({ 
+            message: `Error de validación: ${validationErrors}`,
+            error: (error as Error).message 
+          });
+        }
+        throw error;
+      }
+      
+      const classId = newClass._id.toString();
 
       // Limpiar mapeo después de usar
       fileUploadService.cleanupAssembledFilesMappings(uploadIdsToClean);
+
+      // Si hay video, subirlo en background
+      if (hasVideo && localVideoPath && videoStats && fs.existsSync(localVideoPath)) {
+        // Iniciar tracking de progreso (empezar en 0%)
+        videoUploadProgressService.startTracking(classId);
+        // Enviar progreso inicial de 0% para que el frontend sepa que empezó
+        videoUploadProgressService.updateProgress(classId, 0);
+
+        // Ejecutar subida en background (no await)
+        // Usar setTimeout para asegurar que la respuesta HTTP se envíe primero
+        setImmediate(() => {
+          this.uploadVideoInBackground(
+            classId,
+            localVideoPath,
+            uniqueVideoFileName,
+            videoStats.size
+          ).catch((error) => {
+            logger.error(`❌ Error en background upload para clase ${classId}: ${(error as Error).message}`);
+            videoUploadProgressService.setError(classId);
+            // Actualizar status a error
+            this.classService.update(classId, { videoStatus: 'error' }).catch((updateError) => {
+              logger.error(`Error actualizando videoStatus a error: ${(updateError as Error).message}`);
+            });
+          });
+        });
+      }
 
       return res.json(prepareResponse(201, 'Clase creada exitosamente', newClass));
     } catch (error) {
@@ -244,6 +307,8 @@ export default class ClassController {
       }
 
       // Resolver archivos usando el servicio
+      const shouldDeleteVideo = deleteCurrentVideo === 'true';
+      
       let { imageUrl, videoUrl, supportMaterials, filesToDelete, uploadIdsToClean } =
         fileUploadService.resolveClassFilesForUpdate(
           files,
@@ -254,7 +319,7 @@ export default class ClassController {
           existingClass.videoUrl,
           existingClass.supportMaterials,
           deleteCurrentImage === 'true',
-          deleteCurrentVideo === 'true',
+          shouldDeleteVideo,
           materialsToDelete
         );
 
@@ -287,43 +352,39 @@ export default class ClassController {
         }
       }
 
-      // Subir nuevo video a Bunny Storage si existe y es diferente al anterior
-      if (videoUrl && videoUrl !== existingClass.videoUrl) {
-        try {
-          // Si existe un video anterior en Bunny, eliminarlo
-          if (existingClass.videoUrl && this.bunnyService.isBunnyCdnUrl(existingClass.videoUrl)) {
-            logger.info(`🗑️ Eliminando video anterior de Bunny: ${existingClass.videoUrl}`);
-            await this.bunnyService.deleteFile(existingClass.videoUrl);
-          }
+      // Manejar video: si existe y es diferente, se subirá en background
+      const hasNewVideo = videoUrl && videoUrl !== existingClass.videoUrl;
+      // Verificar si se está eliminando el video: debe estar marcado para eliminar Y no haber videoUrl nuevo
+      const isVideoDeleted = shouldDeleteVideo && (videoUrl === undefined || videoUrl === null || videoUrl === '');
+      const localVideoPath = hasNewVideo ? path.join(uploadDirVideos, videoUrl) : null;
+      let videoStats: fs.Stats | null = null;
+      let videoSizeMB = 0;
+      let uniqueVideoFileName = '';
 
-          // Subir nuevo video a Bunny
-          const localVideoPath = path.join(uploadDirVideos, videoUrl);
-          const videoStats = fs.statSync(localVideoPath);
-          const videoSizeMB = videoStats.size / (1024 * 1024);
-          const uniqueFileName = this.bunnyService.generateUniqueFileName(videoUrl, 'class-video');
+      // Si se está eliminando el video, eliminar de Bunny
+      if (isVideoDeleted && existingClass.videoUrl) {
+        if (this.bunnyService.isBunnyCdnUrl(existingClass.videoUrl)) {
+          logger.info(`🗑️ Eliminando video de Bunny: ${existingClass.videoUrl}`);
+          // Eliminar en background para no bloquear
+          this.bunnyService.deleteFile(existingClass.videoUrl).catch((error) => {
+            logger.error(`Error eliminando video de Bunny: ${(error as Error).message}`);
+          });
+        }
+      }
 
-          logger.info(`🐰 Subiendo nuevo video a Bunny (${videoSizeMB.toFixed(2)} MB): ${uniqueFileName}`);
+      if (hasNewVideo && localVideoPath && fs.existsSync(localVideoPath)) {
+        videoStats = fs.statSync(localVideoPath);
+        videoSizeMB = videoStats.size / (1024 * 1024);
+        uniqueVideoFileName = this.bunnyService.generateUniqueFileName(videoUrl, 'class-video');
+        logger.info(`📹 Nuevo video detectado (${videoSizeMB.toFixed(2)} MB): ${uniqueVideoFileName}`);
 
-          // Para videos mayores a 100MB, usar streaming para evitar cargar todo en memoria
-          let bunnyUrl: string;
-          if (videoStats.size > 100 * 1024 * 1024) {
-            logger.info('📹 Usando streaming para video grande');
-            const videoStream = fs.createReadStream(localVideoPath);
-            bunnyUrl = await this.bunnyService.uploadFileStream(videoStream, uniqueFileName, 'class-videos', videoStats.size);
-          } else {
-            const videoBuffer = fs.readFileSync(localVideoPath);
-            bunnyUrl = await this.bunnyService.uploadFile(videoBuffer, uniqueFileName, 'class-videos');
-          }
-
-          // Eliminar archivo local después de subir a Bunny
-          fs.unlinkSync(localVideoPath);
-
-          // Reemplazar videoUrl con la URL de Bunny
-          videoUrl = bunnyUrl;
-          logger.info(`✅ Video actualizado en Bunny exitosamente: ${bunnyUrl}`);
-        } catch (error) {
-          logger.error(`❌ Error actualizando video en Bunny: ${(error as Error).message}`);
-          return res.status(500).json({ message: 'Error actualizando video en Bunny Storage' });
+        // Si existe un video anterior en Bunny, eliminarlo
+        if (existingClass.videoUrl && this.bunnyService.isBunnyCdnUrl(existingClass.videoUrl)) {
+          logger.info(`🗑️ Eliminando video anterior de Bunny: ${existingClass.videoUrl}`);
+          // Eliminar en background para no bloquear
+          this.bunnyService.deleteFile(existingClass.videoUrl).catch((error) => {
+            logger.error(`Error eliminando video anterior: ${(error as Error).message}`);
+          });
         }
       }
 
@@ -383,15 +444,92 @@ export default class ClassController {
       if (description !== undefined) updateData.description = description;
       if (linkLive !== undefined) updateData.linkLive = linkLive;
 
-      // Solo actualizar URLs si cambiaron
-      if (imageUrl !== existingClass.imageUrl) {
+      // Manejar eliminación de imagen: si deleteCurrentImage es true y imageUrl es undefined
+      const isImageDeleted = deleteCurrentImage === 'true' && (imageUrl === undefined || imageUrl === null);
+      
+      // Solo actualizar URLs si cambiaron y hay un valor válido
+      if (imageUrl !== undefined && imageUrl !== null && imageUrl !== existingClass.imageUrl) {
         updateData.imageUrl = imageUrl;
+      } else if (isImageDeleted && existingClass.imageUrl) {
+        // Si se está eliminando la imagen, usar $unset
+        const unsetFields: string[] = ['imageUrl'];
+        const setData: Partial<IClassData> = {};
+        
+        if (name !== undefined) setData.name = name;
+        if (description !== undefined) setData.description = description;
+        if (linkLive !== undefined) setData.linkLive = linkLive;
+        if (supportMaterials.join(',') !== (existingClass.supportMaterials || []).join(',')) {
+          setData.supportMaterials = supportMaterials;
+        }
+        
+        // Eliminar imagen de Bunny si existe
+        if (existingClass.imageUrl && this.bunnyService.isBunnyCdnUrl(existingClass.imageUrl)) {
+          logger.info(`🗑️ Eliminando imagen de Bunny: ${existingClass.imageUrl}`);
+          this.bunnyService.deleteFile(existingClass.imageUrl).catch((error) => {
+            logger.error(`Error eliminando imagen de Bunny: ${(error as Error).message}`);
+          });
+        }
+        
+        // Usar updateWithOperators para eliminar el campo
+        const updateQuery: any = {};
+        if (Object.keys(setData).length > 0) {
+          updateQuery.$set = setData;
+        }
+        updateQuery.$unset = {};
+        unsetFields.forEach(field => {
+          updateQuery.$unset[field] = '';
+        });
+        
+        const updatedClass = await this.classService.updateWithOperators(classId, updateQuery);
+        return res.json(prepareResponse(200, 'Class updated successfully', updatedClass));
       }
       
-      // Si el video cambió, actualizar y resetear progreso de esta clase
-      const videoChanged = videoUrl !== existingClass.videoUrl;
-      if (videoChanged) {
-        updateData.videoUrl = videoUrl;
+      // Si se está eliminando el video, usar $unset para eliminar los campos
+      if (isVideoDeleted) {
+        // Usar updateWithOperators para eliminar los campos
+        const unsetFields: string[] = ['videoUrl', 'videoStatus'];
+        const setData: Partial<IClassData> = {};
+        
+        if (name !== undefined) setData.name = name;
+        if (description !== undefined) setData.description = description;
+        if (linkLive !== undefined) setData.linkLive = linkLive;
+        if (imageUrl !== existingClass.imageUrl) {
+          setData.imageUrl = imageUrl;
+        }
+        if (supportMaterials.join(',') !== (existingClass.supportMaterials || []).join(',')) {
+          setData.supportMaterials = supportMaterials;
+        }
+
+        logger.info('Datos para actualizar clase (eliminando video):', {
+          name: setData.name,
+          imageUrl: setData.imageUrl,
+          unsetFields,
+          supportMaterialsCount: setData.supportMaterials?.length,
+        });
+
+        // Eliminar archivos viejos
+        fileUploadService.deleteFiles(filesToDelete);
+
+        // Usar updateWithOperators para eliminar campos
+        const updateQuery: any = {};
+        if (Object.keys(setData).length > 0) {
+          updateQuery.$set = setData;
+        }
+        updateQuery.$unset = {};
+        unsetFields.forEach(field => {
+          updateQuery.$unset[field] = '';
+        });
+
+        const updatedClass = await this.classService.updateWithOperators(classId, updateQuery);
+        
+        return res.json(prepareResponse(200, 'Class updated successfully', updatedClass));
+      }
+      
+      // Si hay nuevo video, marcar como processing (se subirá en background)
+      if (hasNewVideo) {
+        updateData.videoStatus = 'processing';
+        // Guardar temporalmente el nombre del archivo local
+        updateData.videoUrl = videoUrl; // Se actualizará cuando termine la subida
       }
       
       if (supportMaterials.join(',') !== (existingClass.supportMaterials || []).join(',')) {
@@ -402,7 +540,8 @@ export default class ClassController {
         name: updateData.name,
         imageUrl: updateData.imageUrl,
         videoUrl: updateData.videoUrl,
-        videoChanged,
+        hasNewVideo,
+        isVideoDeleted,
         supportMaterialsCount: updateData.supportMaterials?.length,
       });
 
@@ -411,8 +550,34 @@ export default class ClassController {
 
       const updatedClass = await this.classService.update(classId, updateData);
 
+      // Si hay nuevo video, subirlo en background
+      if (hasNewVideo && localVideoPath && videoStats && fs.existsSync(localVideoPath)) {
+        // Iniciar tracking de progreso (empezar en 0%)
+        videoUploadProgressService.startTracking(classId);
+        // Enviar progreso inicial de 0% para que el frontend sepa que empezó
+        videoUploadProgressService.updateProgress(classId, 0);
+
+        // Ejecutar subida en background (no await)
+        // Usar setImmediate para asegurar que la respuesta HTTP se envíe primero
+        setImmediate(() => {
+          this.uploadVideoInBackground(
+            classId,
+            localVideoPath,
+            uniqueVideoFileName,
+            videoStats.size
+          ).catch((error) => {
+            logger.error(`❌ Error en background upload para clase ${classId}: ${(error as Error).message}`);
+            videoUploadProgressService.setError(classId);
+            // Actualizar status a error
+            this.classService.update(classId, { videoStatus: 'error' }).catch((updateError) => {
+              logger.error(`Error actualizando videoStatus a error: ${(updateError as Error).message}`);
+            });
+          });
+        });
+      }
+
       // Si el video cambió, resetear el progreso de esta clase para todos los usuarios
-      if (videoChanged && existingClass.courseId) {
+      if (hasNewVideo && existingClass.courseId) {
         try {
           const courseId = existingClass.courseId.toString();
           await courseProgressRepository.resetClassProgress(courseId, classId);
@@ -835,6 +1000,160 @@ export default class ClassController {
       );
     } catch (error) {
       logger.error(`❌ Error eliminando media de clase: ${(error as Error).message}`);
+      return next(error);
+    }
+  };
+
+  /**
+   * Sube un video en background y actualiza el estado de la clase
+   */
+  private async uploadVideoInBackground(
+    classId: string,
+    localVideoPath: string,
+    uniqueFileName: string,
+    fileSize: number
+  ): Promise<void> {
+    try {
+      logger.info(`🚀 Iniciando subida en background para clase ${classId}`);
+
+      // Usar streaming siempre para videos (más eficiente)
+      const videoStream = fs.createReadStream(localVideoPath);
+      
+      // Callback para actualizar progreso
+      const onProgress = (percent: number) => {
+        videoUploadProgressService.updateProgress(classId, percent);
+      };
+
+      // Subir a Bunny con tracking de progreso
+      const bunnyUrl = await this.bunnyService.uploadFileStream(
+        videoStream,
+        uniqueFileName,
+        'class-videos',
+        fileSize,
+        onProgress
+      );
+
+      // Eliminar archivo local después de subir
+      if (fs.existsSync(localVideoPath)) {
+        fs.unlinkSync(localVideoPath);
+        logger.info(`🗑️ Archivo local eliminado: ${localVideoPath}`);
+      }
+
+      // Actualizar clase con videoUrl y status ready
+      await this.classService.update(classId, {
+        videoUrl: bunnyUrl,
+        videoStatus: 'ready',
+      });
+
+      // Finalizar tracking
+      videoUploadProgressService.finishTracking(classId);
+
+      logger.info(`✅ Video subido exitosamente en background para clase ${classId}: ${bunnyUrl}`);
+    } catch (error) {
+      logger.error(`❌ Error subiendo video en background para clase ${classId}: ${(error as Error).message}`);
+      
+      // Limpiar archivo local en caso de error
+      if (fs.existsSync(localVideoPath)) {
+        try {
+          fs.unlinkSync(localVideoPath);
+        } catch (unlinkError) {
+          logger.error(`Error eliminando archivo local después de error: ${(unlinkError as Error).message}`);
+        }
+      }
+
+      // Marcar error en tracking y actualizar clase
+      videoUploadProgressService.setError(classId);
+      await this.classService.update(classId, { videoStatus: 'error' });
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Endpoint SSE para obtener el progreso de subida de video
+   * GET /classes/:id/upload-progress
+   */
+  getUploadProgress = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { classId } = req.params;
+
+      if (!classId) {
+        return res.status(400).json({ message: 'classId es requerido' });
+      }
+
+      // Configurar headers para SSE
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no'); // Deshabilitar buffering en nginx
+
+      // Crear un EventEmitter para este cliente
+      const { EventEmitter } = require('events');
+      const clientEmitter = new EventEmitter();
+
+      // Registrar cliente SSE
+      videoUploadProgressService.registerSSEClient(classId, clientEmitter);
+
+      // Enviar progreso inicial si existe
+      const initialProgress = videoUploadProgressService.getProgress(classId);
+      if (initialProgress >= 0) {
+        const initialData = JSON.stringify({ percent: initialProgress });
+        res.write(`data: ${initialData}\n\n`);
+        // Forzar flush
+        if (typeof (res as any).flush === 'function') {
+          (res as any).flush();
+        }
+      }
+
+      // Escuchar eventos de progreso
+      let lastSentPercent = -1;
+      const progressHandler = (data: { percent: number }) => {
+        // Solo enviar si el porcentaje cambió (evitar spam)
+        if (data.percent !== lastSentPercent && !res.writableEnded) {
+          lastSentPercent = data.percent;
+          const progressData = JSON.stringify({ percent: data.percent });
+          res.write(`data: ${progressData}\n\n`);
+          // Forzar flush del stream para asegurar que se envíe inmediatamente
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        }
+      };
+
+      const errorHandler = (data: { message: string }) => {
+        res.write(`data: ${JSON.stringify({ error: data.message })}\n\n`);
+        cleanup();
+      };
+
+      clientEmitter.on('progress', progressHandler);
+      clientEmitter.on('error', errorHandler);
+
+      // Limpiar cuando el cliente se desconecta
+      const cleanup = () => {
+        clientEmitter.removeListener('progress', progressHandler);
+        clientEmitter.removeListener('error', errorHandler);
+        videoUploadProgressService.unregisterSSEClient(classId, clientEmitter);
+        res.end();
+      };
+
+      req.on('close', cleanup);
+      req.on('aborted', cleanup);
+
+      // Enviar heartbeat cada 30 segundos para mantener la conexión
+      const heartbeatInterval = setInterval(() => {
+        if (!res.writableEnded) {
+          res.write(`: heartbeat\n\n`);
+        } else {
+          clearInterval(heartbeatInterval);
+        }
+      }, 30000);
+
+      // Limpiar intervalo cuando se cierre la conexión
+      req.on('close', () => {
+        clearInterval(heartbeatInterval);
+      });
+    } catch (error) {
+      logger.error(`Error en getUploadProgress: ${(error as Error).message}`);
       return next(error);
     }
   };

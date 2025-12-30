@@ -168,12 +168,13 @@ class UserRepository {
     sort: string;
     dir: number;
     search?: string;
+    role?: string;
   }) {
-    const { page, limit, sort, dir, search } = params;
+    const { page, limit, sort, dir, search, role } = params;
     const skip = (page - 1) * limit;
 
     // Build search filter
-    const searchFilter = search
+    const searchFilter: any = search
       ? {
           $or: [
             { email: { $regex: search, $options: 'i' } },
@@ -182,6 +183,11 @@ class UserRepository {
           ],
         }
       : {};
+
+    // Add role filter if provided
+    if (role) {
+      searchFilter.roles = { $in: [role.toUpperCase()] };
+    }
 
     // Get total count
     const total = await this.model.countDocuments(searchFilter).exec();
@@ -1194,6 +1200,14 @@ class UserRepository {
   }
 
   /**
+   * Cuenta el total de administradores (usuarios con rol ADMIN)
+   * @returns El número total de administradores
+   */
+  async countAdmins(): Promise<number> {
+    return this.model.countDocuments({ roles: { $in: ['ADMIN'] } });
+  }
+
+  /**
    * Obtiene los últimos usuarios registrados
    * @param limit - Número de usuarios a retornar (por defecto 5)
    * @returns Array de usuarios recientes sin información sensible
@@ -1201,13 +1215,41 @@ class UserRepository {
   async getRecentUsers(limit: number = 5): Promise<Partial<IUser>[]> {
     const users = await this.model
       .find()
-      .select('_id username email firstName lastName createdAt roles')
+      .select('_id username email firstName lastName createdAt roles profilePhotoUrl')
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
       .exec();
 
     return users as Partial<IUser>[];
+  }
+
+  /**
+   * Obtiene la cantidad de usuarios registrados por mes (últimos 6 meses)
+   * @returns Array con objetos { month: string, count: number }
+   */
+  async getUsersByMonth(months: number = 6): Promise<Array<{ month: string; count: number }>> {
+    const now = new Date();
+    const result: Array<{ month: string; count: number }> = [];
+
+    // Generar los últimos N meses
+    for (let i = months - 1; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+      const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const count = await this.model.countDocuments({
+        createdAt: {
+          $gte: startOfMonth,
+          $lte: endOfMonth,
+        },
+      });
+
+      const monthName = date.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+      result.push({ month: monthName, count });
+    }
+
+    return result;
   }
 }
 

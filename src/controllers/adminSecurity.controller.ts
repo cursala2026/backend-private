@@ -431,20 +431,24 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
       totalUsers,
       totalStudents,
       totalTeachers,
+      totalAdmins,
       totalCourses,
       totalCategories,
       totalPromotionalCodes,
       activePromotionalCodes,
       recentUsers,
+      usersByMonth,
     ] = await Promise.all([
       userRepository.countUsers(),
       userRepository.countStudents(),
       userRepository.countTeachers(),
+      userRepository.countAdmins(),
       courseRepository.countCourses(),
       categoryRepository.countCategories(),
       PromotionalCode.countDocuments({ status: { $ne: 'DELETED' } }),
       PromotionalCode.countDocuments({ status: 'ACTIVE' }),
       userRepository.getRecentUsers(3),
+      userRepository.getUsersByMonth(6),
     ]);
 
     return res.status(200).json({
@@ -453,11 +457,13 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
         totalUsers,
         totalStudents,
         totalTeachers,
+        totalAdmins,
         totalCourses,
         totalCategories,
         totalPromotionalCodes,
         activePromotionalCodes,
         recentUsers,
+        usersByMonth,
       },
       timestamp: new Date(),
     });
