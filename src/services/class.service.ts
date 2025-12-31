@@ -8,7 +8,7 @@ import {
   formatArgentinaDate,
   formatForFrontend,
 } from '../utils';
-import { IClassData } from '@/models';
+import { IClassData, ClassDoc } from '@/models';
 import ClassRepository from '@/repositories/class.repository';
 import { courseProgressRepository } from '@/repositories/courseProgress.repository';
 import { courseRepository } from '@/repositories';
@@ -56,7 +56,7 @@ export default class ClassService {
    * @param classData - Datos de la clase a crear.
    * @returns La clase creada.
    */
-  async create(classData: Partial<IClassData>): Promise<IClassData> {
+  async create(classData: Partial<IClassData>): Promise<ClassDoc> {
     return this.classRepository.create(classData);
   }
 
@@ -66,7 +66,7 @@ export default class ClassService {
    * @param updateData - Datos a actualizar.
    * @returns La clase actualizada.
    */
-  async update(id: string, updateData: Partial<IClassData>): Promise<IClassData> {
+  async update(id: string, updateData: Partial<IClassData>): Promise<ClassDoc> {
     return this.classRepository.update(id, updateData);
   }
 
@@ -76,7 +76,7 @@ export default class ClassService {
    * @param updateQuery - Query con operadores de MongoDB ($set, $unset, etc.).
    * @returns La clase actualizada.
    */
-  async updateWithOperators(id: string, updateQuery: Record<string, unknown>): Promise<IClassData> {
+  async updateWithOperators(id: string, updateQuery: Record<string, unknown>): Promise<ClassDoc> {
     const updateQ = updateQuery as unknown as import('mongoose').UpdateQuery<IClassData>;
     return this.classRepository.updateWithOperators(id, updateQ);
   }

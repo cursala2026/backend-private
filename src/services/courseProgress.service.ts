@@ -184,7 +184,7 @@ class CourseProgressService {
     // Verificar que todos los cuestionarios después de la clase anterior estén completados
     if (questionnairesAfterPreviousClass.length > 0 && progress.questionnairesProgress) {
       for (const questionnaire of questionnairesAfterPreviousClass) {
-        const questionnaireId = questionnaire._id?.toString() || questionnaire._id;
+        const questionnaireId = String(questionnaire._id);
         const questionnaireProgress = progress.questionnairesProgress.find(
           (qp) => qp.questionnaireId.toString() === questionnaireId
         );

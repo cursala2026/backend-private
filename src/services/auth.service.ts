@@ -119,7 +119,7 @@ class AuthService {
    * @param email - The email of the user to generate a token for.
    * @returns The reset token and its expiration date.
    */
-  async generateResetPasswordToken(email: string): Promise<{ token: string; expiresIn: number }> {
+  async generateResetPasswordToken(email: string): Promise<{ token: string; expiresIn: number; tokenForDev?: string; resetUrlForDev?: string }> {
     let user = await this.userRepository.findOneByEmail(email);
 
     if (!user) {

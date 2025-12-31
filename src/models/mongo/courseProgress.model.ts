@@ -2,7 +2,7 @@ import { Schema, model } from 'mongoose';
 import generalConnection from '@/config/databases';
 
 export interface IClassProgress {
-  classId: Schema.Types.ObjectId;
+  classId: string | Schema.Types.ObjectId;
   watchTime: number; // Tiempo en segundos donde se quedó
   duration: number; // Duración total del video en segundos
   completed: boolean;
@@ -11,7 +11,7 @@ export interface IClassProgress {
 }
 
 export interface IQuestionnaireProgress {
-  questionnaireId: Schema.Types.ObjectId;
+  questionnaireId: string | Schema.Types.ObjectId;
   completed: boolean;
   bestScore?: number; // Best score across all attempts (0-100)
   attempts: number;

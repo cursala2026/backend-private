@@ -1,4 +1,4 @@
-import { CourseProgressModel, ICourseProgress, IClassProgress } from '@/models/mongo/courseProgress.model';
+import { CourseProgressModel, ICourseProgress, IClassProgress, IQuestionnaireProgress } from '@/models/mongo/courseProgress.model';
 import { CourseSchema } from '@/models/mongo/course.model';
 import { QuestionnaireSchema } from '@/models/mongo/questionnaire.model';
 import { ClassSchema } from '@/models/mongo/class.model';
@@ -391,7 +391,7 @@ class CourseProgressRepository {
       // Filtrar cuestionarios duplicados usando un Set de IDs únicos
       const completedQuestionnaireIds = new Set<string>();
       if (progress.questionnairesProgress) {
-        progress.questionnairesProgress.forEach((qp) => {
+        progress.questionnairesProgress.forEach((qp: IQuestionnaireProgress) => {
           if (qp.completed && qp.questionnaireId) {
             completedQuestionnaireIds.add(String(qp.questionnaireId));
           }

@@ -3,7 +3,7 @@ import QuestionnaireSubmissionRepository, { GradeReportEntry } from '@/repositor
 import { courseProgressRepository } from '@/repositories/courseProgress.repository';
 import { IQuestionnaireSubmission, IAnswer, QuestionnaireSubmissionDoc } from '@/models/mongo/questionnaireSubmission.model';
 import { IQuestion } from '@/models/mongo/questionnaire.model';
-import { Types } from 'mongoose';
+import { Types, Schema } from 'mongoose';
 
 class QuestionnaireSubmissionService {
   constructor(
@@ -42,7 +42,7 @@ class QuestionnaireSubmissionService {
     return await this.submissionRepository.create({
       questionnaireId: questionnaire._id,
       courseId: questionnaire.courseId,
-      studentId: new Types.ObjectId(studentId) as any,
+      studentId: new Types.ObjectId(studentId),
       attemptNumber,
       answers: [],
       status: 'IN_PROGRESS',

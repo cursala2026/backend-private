@@ -294,7 +294,7 @@ class QuestionnaireSubmissionRepository {
       .deleteMany({
         studentId: new Types.ObjectId(studentId),
         courseId: new Types.ObjectId(courseId),
-      })
+      } as any)
       .exec();
 
     return result.deletedCount || 0;

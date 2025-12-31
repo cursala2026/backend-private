@@ -9,6 +9,7 @@ export interface IClassData {
   order: number;
   imageUrl?: string;
   videoUrl?: string;
+  videoStatus?: string;
   courseId: Types.ObjectId;
   supportMaterials?: string[];
   meta?: {

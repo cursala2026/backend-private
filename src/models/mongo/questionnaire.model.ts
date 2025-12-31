@@ -1,14 +1,15 @@
-import { Schema, model, ObjectId } from 'mongoose';
+import { Schema, model } from 'mongoose';
+import { Types } from '@/models';
 
 // Interfaces for the Questionnaire model
 export interface IQuestionOption {
-  _id?: ObjectId;
+  _id?: Types.ObjectId;
   text: string;
   order: number;
 }
 
 export interface IQuestion {
-  _id?: ObjectId;
+  _id?: Types.ObjectId;
   type: 'MULTIPLE_CHOICE' | 'TEXT';
   questionText: string;
   order: number;
@@ -16,17 +17,17 @@ export interface IQuestion {
   required: boolean;
   // Solo para MULTIPLE_CHOICE
   options?: IQuestionOption[];
-  correctOptionId?: ObjectId;
+  correctOptionId?: Types.ObjectId;
 }
 
 export interface IQuestionnairePosition {
   type: 'BETWEEN_CLASSES' | 'FINAL_EXAM';
-  afterClassId?: ObjectId; // Required if type is BETWEEN_CLASSES
+  afterClassId?: Types.ObjectId; // Required if type is BETWEEN_CLASSES
 }
 
 export interface IQuestionnaire {
-  _id?: ObjectId;
-  courseId: ObjectId;
+  _id?: Types.ObjectId;
+  courseId: Types.ObjectId;
   title: string;
   description?: string;
   status: string; // 'ACTIVE' | 'INACTIVE' | 'DRAFT'
@@ -37,7 +38,7 @@ export interface IQuestionnaire {
   maxRetries?: number; // null = unlimited retries
   showCorrectAnswers: boolean;
   timeLimitMinutes?: number; // Tiempo límite en minutos para resolver el cuestionario (opcional)
-  createdBy: ObjectId; // Reference to User (professor)
+  createdBy: Types.ObjectId; // Reference to User (professor)
 }
 
 export interface QuestionnaireModel extends IQuestionnaire {}

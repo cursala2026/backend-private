@@ -17,6 +17,8 @@ import CertificateService from './certificate.service';
 import PromotionalCodeService from './promotionalCode.service';
 import QuestionnaireService from './questionnaire.service';
 import QuestionnaireSubmissionService from './questionnaireSubmission.service';
+import NotificationService from './notification.service';
+import SupportTicketService from './supportTicket.service';
 
 import {
   userRepository,
@@ -33,6 +35,8 @@ import {
   certificateRepository,
   questionnaireRepository,
   questionnaireSubmissionRepository,
+  notificationRepository,
+  supportTicketRepository,
 } from '@/repositories';
 
 export const authService = new AuthService(userRepository);
@@ -57,3 +61,5 @@ export const questionnaireSubmissionService = new QuestionnaireSubmissionService
   questionnaireSubmissionRepository,
   questionnaireRepository
 );
+export const notificationService = new NotificationService(notificationRepository);
+export const supportTicketService = new SupportTicketService(supportTicketRepository);

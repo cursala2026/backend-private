@@ -61,7 +61,7 @@ export default class UserService {
       userData.password = await bcrypt.hash(userData.password, saltRounds);
     }
     // Asegurar que siempre se cree con estado activo
-    userData.status = 'ACTIVE';
+    userData.status = UserStatus.ACTIVE;
     return this.userRepository.createUser(userData);
   }
 

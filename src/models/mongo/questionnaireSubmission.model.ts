@@ -1,4 +1,5 @@
-import { Schema, model, ObjectId } from 'mongoose';
+import { Schema, model } from 'mongoose';
+import { ObjectId } from '@/models';
 
 // Interface for Answer
 export interface IAnswer {

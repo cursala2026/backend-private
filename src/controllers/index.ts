@@ -16,6 +16,8 @@ import PromotionalCodeController from './promotionalCode.controller';
 import QuestionnaireController from './questionnaire.controller';
 import QuestionnaireSubmissionController from './questionnaireSubmission.controller';
 import { courseProgressController } from './courseProgress.controller';
+import NotificationController from './notification.controller';
+import SupportTicketController from './supportTicket.controller';
 
 import {
   authService,
@@ -35,6 +37,8 @@ import {
   promotionalCodeService,
   questionnaireService,
   questionnaireSubmissionService,
+  notificationService,
+  supportTicketService,
 } from '@/services';
 
 export const authController = new AuthController(authService);
@@ -54,4 +58,6 @@ export const certificateController = new CertificateController(certificateServic
 export const promotionalCodeController = new PromotionalCodeController(promotionalCodeService);
 export const questionnaireController = new QuestionnaireController(questionnaireService);
 export const questionnaireSubmissionController = new QuestionnaireSubmissionController(questionnaireSubmissionService);
+export const notificationController = new NotificationController(notificationService);
+export const supportTicketController = new SupportTicketController(supportTicketService);
 export { courseProgressController };

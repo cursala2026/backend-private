@@ -1,7 +1,7 @@
 import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 import QuestionnaireSubmissionRepository from '@/repositories/questionnaireSubmission.repository';
-import { IQuestionnaire, QuestionnaireDoc } from '@/models/mongo/questionnaire.model';
-import { Types } from 'mongoose';
+import { IQuestionnaire, QuestionnaireDoc, IQuestion } from '@/models/mongo/questionnaire.model';
+import { Types, Schema, ObjectId } from 'mongoose';
 
 class QuestionnaireService {
   constructor(
