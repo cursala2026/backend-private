@@ -28,4 +28,9 @@ router.get('/:courseId/can-access/:classId', authorize, (req, res) =>
   courseProgressController.canAccessClass(req, res)
 );
 
+// DELETE /progress/:courseId/student/:userId - Resetear progreso completo de un estudiante
+router.delete('/:courseId/student/:userId', authorize, (req, res) =>
+  courseProgressController.resetStudentProgress(req, res)
+);
+
 export default router;

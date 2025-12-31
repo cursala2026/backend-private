@@ -1024,13 +1024,13 @@ export default class ClassController {
         videoUploadProgressService.updateProgress(classId, percent);
       };
 
-      // Subir a Bunny con tracking de progreso
-      const bunnyUrl = await this.bunnyService.uploadFileStream(
+      // Subir a Bunny Stream (no Storage) con tracking de progreso
+      const bunnyUrl = await this.bunnyService.uploadVideoToStream(
         videoStream,
         uniqueFileName,
-        'class-videos',
         fileSize,
-        onProgress
+        onProgress,
+        `Class Video - ${classId}`
       );
 
       // Eliminar archivo local después de subir

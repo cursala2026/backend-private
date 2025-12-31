@@ -216,6 +216,26 @@ class CourseProgressService {
 
     return { canAccess: true };
   }
+
+  /**
+   * Resetear completamente el progreso de un estudiante en un curso
+   * Esto elimina:
+   * - Progreso de clases (videos vistos)
+   * - Progreso de cuestionarios
+   * - Todas las submissions de cuestionarios
+   */
+  async resetStudentProgress(userId: string, courseId: string): Promise<{ success: boolean; deletedSubmissions: number }> {
+    // 1. Eliminar todas las submissions de cuestionarios del estudiante en este curso
+    const deletedSubmissions = await questionnaireSubmissionRepository.deleteByStudentAndCourse(userId, courseId);
+
+    // 2. Eliminar el progreso completo del curso (incluye clases y cuestionarios)
+    const deleted = await courseProgressRepository.deleteByUserAndCourse(userId, courseId);
+
+    return {
+      success: deleted,
+      deletedSubmissions
+    };
+  }
 }
 
 export const courseProgressService = new CourseProgressService();

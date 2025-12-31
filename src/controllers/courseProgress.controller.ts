@@ -199,6 +199,37 @@ class CourseProgressController {
       });
     }
   }
+
+  /**
+   * DELETE /progress/:courseId/student/:userId
+   * Resetear completamente el progreso de un estudiante en un curso
+   */
+  async resetStudentProgress(req: Request, res: Response): Promise<void> {
+    try {
+      const { courseId, userId } = req.params;
+
+      if (!userId || !courseId) {
+        res.status(400).json({
+          success: false,
+          message: 'userId y courseId son requeridos',
+        });
+        return;
+      }
+
+      const result = await courseProgressService.resetStudentProgress(userId, courseId);
+
+      res.json({
+        success: true,
+        message: 'Progreso del estudiante reseteado exitosamente',
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al resetear el progreso del estudiante',
+      });
+    }
+  }
 }
 
 export const courseProgressController = new CourseProgressController();
