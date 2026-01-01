@@ -20,4 +20,4 @@ RUN mkdir -p /app/logs && chmod -R 755 /app/logs
 EXPOSE 8080
 
 # Run with nodemon for hot-reload
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]

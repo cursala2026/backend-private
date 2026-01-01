@@ -364,11 +364,18 @@ export default class ClassController {
       // Si se está eliminando el video, eliminar de Bunny
       if (isVideoDeleted && existingClass.videoUrl) {
         if (this.bunnyService.isBunnyCdnUrl(existingClass.videoUrl)) {
-          logger.info(`🗑️ Eliminando video de Bunny: ${existingClass.videoUrl}`);
-          // Eliminar en background para no bloquear
-          this.bunnyService.deleteFile(existingClass.videoUrl).catch((error) => {
-            logger.error(`Error eliminando video de Bunny: ${(error as Error).message}`);
-          });
+          // Detectar si es Stream o Storage y usar el método apropiado
+          if (this.bunnyService.isStreamUrl(existingClass.videoUrl)) {
+            logger.info(`🗑️ Eliminando video de Bunny Stream: ${existingClass.videoUrl}`);
+            this.bunnyService.deleteVideoFromStream(existingClass.videoUrl).catch((error) => {
+              logger.error(`Error eliminando video de Stream: ${(error as Error).message}`);
+            });
+          } else {
+            logger.info(`🗑️ Eliminando video de Bunny Storage: ${existingClass.videoUrl}`);
+            this.bunnyService.deleteFile(existingClass.videoUrl).catch((error) => {
+              logger.error(`Error eliminando video de Storage: ${(error as Error).message}`);
+            });
+          }
         }
       }
 
@@ -380,11 +387,18 @@ export default class ClassController {
 
         // Si existe un video anterior en Bunny, eliminarlo
         if (existingClass.videoUrl && this.bunnyService.isBunnyCdnUrl(existingClass.videoUrl)) {
-          logger.info(`🗑️ Eliminando video anterior de Bunny: ${existingClass.videoUrl}`);
-          // Eliminar en background para no bloquear
-          this.bunnyService.deleteFile(existingClass.videoUrl).catch((error) => {
-            logger.error(`Error eliminando video anterior: ${(error as Error).message}`);
-          });
+          // Detectar si es Stream o Storage y usar el método apropiado
+          if (this.bunnyService.isStreamUrl(existingClass.videoUrl)) {
+            logger.info(`🗑️ Eliminando video anterior de Bunny Stream: ${existingClass.videoUrl}`);
+            this.bunnyService.deleteVideoFromStream(existingClass.videoUrl).catch((error) => {
+              logger.error(`Error eliminando video anterior de Stream: ${(error as Error).message}`);
+            });
+          } else {
+            logger.info(`🗑️ Eliminando video anterior de Bunny Storage: ${existingClass.videoUrl}`);
+            this.bunnyService.deleteFile(existingClass.videoUrl).catch((error) => {
+              logger.error(`Error eliminando video anterior de Storage: ${(error as Error).message}`);
+            });
+          }
         }
       }
 

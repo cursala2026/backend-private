@@ -114,7 +114,12 @@ export default class ClassService {
       await this.bunnyService.deleteFile(classData.imageUrl);
     }
     if (classData.videoUrl && this.bunnyService.isBunnyCdnUrl(classData.videoUrl)) {
-      await this.bunnyService.deleteFile(classData.videoUrl);
+      // Detectar si es Stream o Storage y usar el método apropiado
+      if (this.bunnyService.isStreamUrl(classData.videoUrl)) {
+        await this.bunnyService.deleteVideoFromStream(classData.videoUrl);
+      } else {
+        await this.bunnyService.deleteFile(classData.videoUrl);
+      }
     }
     // Elimina archivos de material de apoyo de Bunny CDN si existen
     if (classData.supportMaterials && Array.isArray(classData.supportMaterials)) {

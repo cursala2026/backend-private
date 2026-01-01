@@ -240,6 +240,89 @@ class BunnyService {
   }
 
   /**
+   * Verifica si una URL es de Bunny Stream
+   * @param url - URL a verificar
+   * @returns true si es una URL de Bunny Stream
+   */
+  isStreamUrl(url: string): boolean {
+    // Las URLs de Stream tienen formato: https://vz-{libraryId}.b-cdn.net/{videoId}
+    return url.includes(`vz-${this.streamLibraryId}.b-cdn.net`) || url.includes('iframe.mediadelivery.net');
+  }
+
+  /**
+   * Extrae el videoId de una URL de Bunny Stream
+   * @param videoUrl - URL del video en Stream
+   * @returns El videoId extraído o null si no es válido
+   */
+  private extractVideoIdFromStreamUrl(videoUrl: string): string | null {
+    try {
+      // Las URLs pueden tener varios formatos:
+      // https://vz-{libraryId}.b-cdn.net/{videoId}/playlist.m3u8
+      // https://vz-{libraryId}.b-cdn.net/{videoId}
+      // https://iframe.mediadelivery.net/embed/{libraryId}/{videoId}
+
+      if (videoUrl.includes('iframe.mediadelivery.net')) {
+        const parts = videoUrl.split('/');
+        return parts[parts.length - 1];
+      }
+
+      // Para URLs de CDN, el videoId es el primer segmento del path
+      const urlObj = new URL(videoUrl);
+      const pathParts = urlObj.pathname.split('/').filter(p => p);
+      return pathParts[0] || null;
+    } catch (error) {
+      logger.error(`Error extrayendo videoId de URL: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Elimina un video de Bunny Stream
+   * @param videoUrl - URL del video en Stream (formato: https://vz-{libraryId}.b-cdn.net/{videoId})
+   * @returns true si se eliminó correctamente
+   */
+  async deleteVideoFromStream(videoUrl: string): Promise<boolean> {
+    try {
+      if (!this.streamApiKey || !this.streamLibraryId) {
+        logger.warn('Bunny Stream API Key o Library ID no están configurados');
+        return false;
+      }
+
+      const videoId = this.extractVideoIdFromStreamUrl(videoUrl);
+      if (!videoId) {
+        logger.error(`No se pudo extraer videoId de la URL: ${videoUrl}`);
+        return false;
+      }
+
+      const deleteUrl = `${this.streamApiBaseUrl}/library/${this.streamLibraryId}/videos/${videoId}`;
+
+      logger.info(`🗑️ Eliminando video de Bunny Stream: ${videoId}`);
+
+      const response = await axios.delete(deleteUrl, {
+        headers: {
+          'AccessKey': this.streamApiKey,
+        },
+      });
+
+      if (response.status === 200 || response.status === 204) {
+        logger.info(`✅ Video eliminado exitosamente de Bunny Stream: ${videoId}`);
+        return true;
+      }
+
+      logger.warn(`Respuesta inesperada al eliminar video de Stream: ${response.status}`);
+      return false;
+    } catch (error) {
+      // Si el error es 404, el video ya no existe (puede haber sido eliminado previamente)
+      if ((error as any).response?.status === 404) {
+        logger.info(`ℹ️ Video no encontrado en Bunny Stream (posiblemente ya eliminado): ${videoUrl}`);
+        return true;
+      }
+      logger.error(`❌ Error eliminando video de Bunny Stream: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
+  /**
    * Sube un video a Bunny Stream
    * @param stream - Stream del archivo de video
    * @param fileName - Nombre del archivo con extensión
