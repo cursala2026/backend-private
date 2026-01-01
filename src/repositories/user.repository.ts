@@ -121,40 +121,10 @@ class UserRepository {
 
   async getAllUsers() {
     const res = await this.model.aggregate([
-      // Lookup by role code (roles stored as strings). For backward compatibility,
-      // allow matching by _id if roles contain ObjectId-like hex strings.
-      {
-        $lookup: {
-          from: 'roles',
-          localField: 'roles',
-          foreignField: 'code',
-          as: 'roleDetails',
-        },
-      },
       {
         $project: {
           password: 0,
           resetPasswordToken: 0,
-          roleDetails: {
-            password: 0,
-            resetPasswordToken: 0,
-          },
-        },
-      },
-      {
-        $addFields: {
-          roleNames: {
-            $map: {
-              input: '$roleDetails',
-              as: 'role',
-              in: '$$role.name',
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          roleDetails: 0,
         },
       },
     ]).exec();
@@ -808,118 +778,9 @@ class UserRepository {
       return [];
     }
 
-    // Obtener alumnos de dos fuentes:
-    // 1. Usuarios con assignedCourses (asignación manual por admin)
-    // 2. Cursos que tienen al estudiante en su array students (auto-inscripción)
-
-    // Fuente 1: Usuarios con assignedCourses
-    const studentsFromAssignedCourses = await this.model.aggregate([
-      {
-        $match: {
-          'assignedCourses.courseId': { $in: courseIds },
-          roles: { $in: ['ALUMNO'] }
-        }
-      },
-      { $unwind: '$assignedCourses' },
-      {
-        $match: {
-          'assignedCourses.courseId': { $in: courseIds }
-        }
-      },
-      {
-        $lookup: {
-          from: 'courses',
-          localField: 'assignedCourses.courseId',
-          foreignField: '_id',
-          as: 'courseInfo'
-        }
-      },
-      { $unwind: '$courseInfo' },
-      // Lookup para contar clases activas desde la colección classes
-      {
-        $lookup: {
-          from: 'classes',
-          let: { courseId: '$assignedCourses.courseId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$courseId', '$$courseId'] },
-                    { $eq: ['$status', 'ACTIVE'] }
-                  ]
-                }
-              }
-            }
-          ],
-          as: 'classesFromCollection'
-        }
-      },
-      // Lookup para contar cuestionarios activos del curso
-      {
-        $lookup: {
-          from: 'questionnaires',
-          let: { courseId: '$assignedCourses.courseId' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$courseId', '$$courseId'] },
-                    { $eq: ['$status', 'ACTIVE'] }
-                  ]
-                }
-              }
-            }
-          ],
-          as: 'questionnairesFromCollection'
-        }
-      },
-      // Lookup para obtener el progreso del estudiante
-      {
-        $lookup: {
-          from: 'courseprogresses',
-          let: { 
-            userId: '$_id', 
-            courseId: '$assignedCourses.courseId' 
-          },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$userId', '$$userId'] },
-                    { $eq: ['$courseId', '$$courseId'] }
-                  ]
-                }
-              }
-            }
-          ],
-          as: 'progressInfo'
-        }
-      },
-      {
-        $project: {
-          uniqueKey: { $concat: [{ $toString: '$_id' }, '-', { $toString: '$assignedCourses.courseId' }] },
-          userId: '$_id',
-          email: 1,
-          username: 1,
-          firstName: 1,
-          lastName: 1,
-          profilePhotoUrl: { $ifNull: ['$profilePhotoUrl', null] },
-          courseId: '$assignedCourses.courseId',
-          courseName: '$courseInfo.name',
-          totalClasses: { $size: '$classesFromCollection' },
-          totalQuestionnaires: { $size: '$questionnairesFromCollection' },
-          startDate: '$assignedCourses.startDate',
-          endDate: '$assignedCourses.endDate',
-          progressInfo: { $arrayElemAt: ['$progressInfo', 0] }
-        }
-      }
-    ]).exec();
-
-    // Fuente 2: Cursos con array students
-    const studentsFromCourseArray = await this.model.aggregate([
+    // Obtener alumnos desde el array students de los cursos
+    // (Sistema unificado - ya no se usa assignedCourses)
+    const allStudents = await this.model.aggregate([
       {
         $lookup: {
           from: 'courses',
@@ -930,7 +791,7 @@ class UserRepository {
                 $expr: {
                   $and: [
                     { $in: ['$_id', courseIds] },
-                    { $in: ['$$userId', { $ifNull: ['$students', []] }] }
+                    { $in: ['$$userId', { $ifNull: [{ $map: { input: '$students', as: 'student', in: '$$student.userId' } }, []] }] }
                   ]
                 }
               }
@@ -945,6 +806,23 @@ class UserRepository {
         }
       },
       { $unwind: '$enrolledCourses' },
+      // Obtener el objeto student del curso para extraer startDate y endDate
+      {
+        $addFields: {
+          studentInfo: {
+            $arrayElemAt: [
+              {
+                $filter: {
+                  input: '$enrolledCourses.students',
+                  as: 'student',
+                  cond: { $eq: ['$$student.userId', '$_id'] }
+                }
+              },
+              0
+            ]
+          }
+        }
+      },
       // Lookup para contar clases activas desde la colección classes
       {
         $lookup: {
@@ -989,9 +867,9 @@ class UserRepository {
       {
         $lookup: {
           from: 'courseprogresses',
-          let: { 
-            userId: '$_id', 
-            courseId: '$enrolledCourses._id' 
+          let: {
+            userId: '$_id',
+            courseId: '$enrolledCourses._id'
           },
           pipeline: [
             {
@@ -1021,27 +899,14 @@ class UserRepository {
           courseName: '$enrolledCourses.name',
           totalClasses: { $size: '$classesFromCollection' },
           totalQuestionnaires: { $size: '$questionnairesFromCollection' },
-          startDate: null,
-          endDate: null,
+          startDate: { $ifNull: ['$studentInfo.startDate', null] },
+          endDate: { $ifNull: ['$studentInfo.endDate', null] },
           progressInfo: { $arrayElemAt: ['$progressInfo', 0] }
         }
       }
     ]).exec();
 
-    // Combinar y eliminar duplicados (por uniqueKey)
-    const allStudents = [...studentsFromAssignedCourses, ...studentsFromCourseArray];
-    const uniqueStudentsMap = new Map<string, any>();
-    
-    for (const student of allStudents) {
-      const key = student.uniqueKey;
-      if (!uniqueStudentsMap.has(key)) {
-        uniqueStudentsMap.set(key, student);
-      }
-    }
-
-    const students = Array.from(uniqueStudentsMap.values());
-
-    return students.map((s: any) => {
+    return allStudents.map((s: any) => {
       // Filtrar clases duplicadas usando un Set de IDs únicos
       const completedClassIds = new Set<string>();
       if (s.progressInfo?.classesProgress) {

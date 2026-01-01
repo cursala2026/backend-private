@@ -3,7 +3,7 @@ import path from 'path';
 import { ICourse, Types } from '@/models';
 import CourseRepository from '@/repositories/course.repository';
 import UserRepository from '@/repositories/user.repository';
-import { courseProgressRepository, questionnaireSubmissionRepository } from '@/repositories';
+import { courseProgressRepository, questionnaireSubmissionRepository, certificateRepository } from '@/repositories';
 import { courseUploadService } from './course-upload.service';
 
 export default class CourseService {
@@ -222,17 +222,57 @@ export default class CourseService {
 
     // Verificar si el estudiante ya está inscrito
     const students = course.students || [];
-    const isAlreadyEnrolled = students.some((student: any) => {
-      const studentIdStr = student.toString ? student.toString() : student;
-      return studentIdStr === studentId;
+    const isAlreadyEnrolled = students.some((enrolledStudent: any) => {
+      const enrolledUserId = enrolledStudent.userId
+        ? enrolledStudent.userId.toString()
+        : String(enrolledStudent);
+      return enrolledUserId === studentId;
     });
 
     if (isAlreadyEnrolled) {
       throw new Error('Student already enrolled in this course');
     }
 
-    // Agregar el estudiante al array de estudiantes del curso
-    return this.courseRepository.enrollStudent(courseId, studentId);
+    // Agregar el estudiante al array de estudiantes del curso (auto-inscripción)
+    return this.courseRepository.enrollStudent(courseId, studentId, 'SELF');
+  }
+
+  /**
+   * Inscribe manualmente a un estudiante en un curso (solo admin).
+   * Permite especificar fechas de inicio y fin para cohorts.
+   * @param courseId - ID del curso
+   * @param studentId - ID del estudiante a inscribir
+   * @param startDate - Fecha de inicio opcional
+   * @param endDate - Fecha de fin opcional
+   * @returns El curso actualizado
+   */
+  async enrollStudentByAdmin(courseId: string, studentId: string, startDate?: Date, endDate?: Date): Promise<ICourse> {
+    const course = await this.courseRepository.findOneById(courseId);
+    if (!course) {
+      throw new Error('Course not found');
+    }
+
+    // Verificar que el estudiante existe
+    const student = await this.userRepository.getUserById(studentId);
+    if (!student) {
+      throw new Error('Student not found');
+    }
+
+    // Verificar si el estudiante ya está inscrito
+    const students = course.students || [];
+    const isAlreadyEnrolled = students.some((enrolledStudent: any) => {
+      const enrolledUserId = enrolledStudent.userId
+        ? enrolledStudent.userId.toString()
+        : String(enrolledStudent);
+      return enrolledUserId === studentId;
+    });
+
+    if (isAlreadyEnrolled) {
+      throw new Error('Student already enrolled in this course');
+    }
+
+    // Agregar el estudiante al array de estudiantes del curso (inscripción manual por admin)
+    return this.courseRepository.enrollStudent(courseId, studentId, 'MANUAL', startDate, endDate);
   }
 
   async getStudentCourses(studentId: string): Promise<ICourse[]> {
@@ -247,9 +287,11 @@ export default class CourseService {
 
     // Verificar si el estudiante está inscrito
     const students = course.students || [];
-    const isEnrolled = students.some((student: any) => {
-      const studentIdStr = student.toString ? student.toString() : student;
-      return studentIdStr === studentId;
+    const isEnrolled = students.some((enrolledStudent: any) => {
+      const enrolledUserId = enrolledStudent.userId
+        ? enrolledStudent.userId.toString()
+        : String(enrolledStudent);
+      return enrolledUserId === studentId;
     });
 
     if (!isEnrolled) {
@@ -263,6 +305,57 @@ export default class CourseService {
     await questionnaireSubmissionRepository.deleteByStudentAndCourse(studentId, courseId);
 
     // Remover el estudiante del array de estudiantes del curso
+    return this.courseRepository.unenrollStudent(courseId, studentId);
+  }
+
+  /**
+   * Desasocia completamente a un estudiante de un curso (solo admin).
+   * Elimina toda la información relacionada con el curso del estudiante:
+   * - Inscripción en el curso
+   * - Progreso del curso
+   * - Envíos de cuestionarios
+   * - Certificados
+   * @param courseId - ID del curso
+   * @param studentId - ID del estudiante a desasociar
+   * @returns El curso actualizado
+   */
+  async unenrollStudentByAdmin(courseId: string, studentId: string): Promise<ICourse> {
+    const course = await this.courseRepository.findOneById(courseId);
+    if (!course) {
+      throw new Error('Course not found');
+    }
+
+    // Verificar si el estudiante existe
+    const student = await this.userRepository.getUserById(studentId);
+    if (!student) {
+      throw new Error('Student not found');
+    }
+
+    // Verificar si el estudiante está inscrito en el curso
+    const students = course.students || [];
+    const normalizedStudentId = studentId.toString();
+
+    const isEnrolled = students.some((enrolledStudent: any) => {
+      const enrolledUserId = enrolledStudent.userId
+        ? enrolledStudent.userId.toString()
+        : String(enrolledStudent);
+      return enrolledUserId === normalizedStudentId;
+    });
+
+    if (!isEnrolled) {
+      throw new Error('Student is not enrolled in this course');
+    }
+
+    // 1. Eliminar el progreso del estudiante en este curso (incluye progreso de clases y cuestionarios)
+    await courseProgressRepository.deleteByUserAndCourse(studentId, courseId);
+
+    // 2. Eliminar todos los envíos de cuestionarios del estudiante para este curso
+    await questionnaireSubmissionRepository.deleteByStudentAndCourse(studentId, courseId);
+
+    // 3. Eliminar todos los certificados del estudiante para este curso
+    await certificateRepository.deleteByStudentAndCourse(studentId, courseId);
+
+    // 4. Remover el estudiante del array de estudiantes del curso
     return this.courseRepository.unenrollStudent(courseId, studentId);
   }
 }

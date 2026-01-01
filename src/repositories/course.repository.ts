@@ -681,7 +681,7 @@ class CourseRepository {
     return uniqueCourses as unknown as ICourse[];
   }
 
-  async enrollStudent(courseId: string, studentId: string): Promise<ICourse> {
+  async enrollStudent(courseId: string, studentId: string, enrollmentType: 'MANUAL' | 'SELF' = 'SELF', startDate?: Date, endDate?: Date): Promise<ICourse> {
     if (!Types.ObjectId.isValid(courseId)) {
       throw new Error('El ID del curso proporcionado no es válido.');
     }
@@ -690,16 +690,31 @@ class CourseRepository {
       throw new Error('El ID del estudiante proporcionado no es válido.');
     }
 
-    const updatedCourse = await this.model.findByIdAndUpdate(
-      new Types.ObjectId(courseId),
-      {
-        $addToSet: { students: new Types.ObjectId(studentId) },
+    const filter = {
+      _id: new Types.ObjectId(courseId),
+      'students.userId': { $ne: new Types.ObjectId(studentId) }
+    } as any;
+
+    const update = {
+      $push: {
+        students: {
+          userId: new Types.ObjectId(studentId),
+          enrolledAt: new Date(),
+          enrollmentType: enrollmentType,
+          ...(startDate && { startDate }),
+          ...(endDate && { endDate }),
+        }
       },
+    } as any;
+
+    const updatedCourse = await this.model.findOneAndUpdate(
+      filter,
+      update,
       { new: true }
     ).lean();
 
     if (!updatedCourse) {
-      throw new Error('Course not found');
+      throw new Error('Course not found or student already enrolled');
     }
 
     return updatedCourse as unknown as ICourse;
@@ -713,7 +728,7 @@ class CourseRepository {
     const courses = await this.model.aggregate([
       {
         $match: {
-          students: new Types.ObjectId(studentId),
+          'students.userId': new Types.ObjectId(studentId),
         },
       },
       {
@@ -792,7 +807,7 @@ class CourseRepository {
     const updatedCourse = await this.model.findByIdAndUpdate(
       new Types.ObjectId(courseId),
       {
-        $pull: { students: new Types.ObjectId(studentId) },
+        $pull: { students: { userId: new Types.ObjectId(studentId) } },
       },
       { new: true }
     ).lean();

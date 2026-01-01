@@ -24,6 +24,10 @@ router.get('/:courseId', authorize, courseController.findOneById); // Ver detall
 router.post('/:courseId/enroll', authorize, courseController.enrollStudent); // Inscribirse en un curso gratis
 router.post('/:courseId/unenroll', authorize, courseController.unenrollStudent); // Desinscribirse de un curso
 
+// 🔴 ADMIN: Gestión manual de estudiantes (asociar/desasociar)
+router.post('/:courseId/enroll/:userId', authorize, requireAdmin, courseController.enrollStudentByAdmin); // Asociar estudiante manualmente
+router.delete('/:courseId/unenroll/:userId', authorize, requireAdmin, courseController.unenrollStudentByAdmin); // Desasociar estudiante completamente
+
 // �🟠 ALTO: Administración de cursos requiere admin
 router.post('/course', authorize, requireAdmin, courseController.create);
 router.patch('/:id', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);

@@ -583,6 +583,53 @@ export default class CourseController {
     }
   };
 
+  enrollStudentByAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { courseId, userId } = req.params;
+      const { startDate, endDate } = req.body;
+
+      if (!courseId) {
+        return res.status(400).json(prepareResponse(400, 'Course ID is required'));
+      }
+
+      if (!userId) {
+        return res.status(400).json(prepareResponse(400, 'User ID is required'));
+      }
+
+      // Verificar que el curso existe
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
+
+      // Convertir fechas si vienen como string
+      const parsedStartDate = startDate ? new Date(startDate) : undefined;
+      const parsedEndDate = endDate ? new Date(endDate) : undefined;
+
+      // Inscribir manualmente al estudiante
+      const updatedCourse = await this.courseService.enrollStudentByAdmin(
+        courseId,
+        userId,
+        parsedStartDate,
+        parsedEndDate
+      );
+
+      return res.json(prepareResponse(200, 'Student enrolled successfully by admin', updatedCourse));
+    } catch (error) {
+      logger.error('Error enrolling student by admin:', error);
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as Error).message;
+        if (message.includes('not found')) {
+          return res.status(404).json(prepareResponse(404, message));
+        }
+        if (message.includes('already enrolled')) {
+          return res.status(400).json(prepareResponse(400, 'Student already enrolled in this course'));
+        }
+      }
+      return next(error);
+    }
+  };
+
   getStudentCourses = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req.user as any)?._id;
@@ -626,6 +673,43 @@ export default class CourseController {
       logger.error('Error unenrolling student:', error);
       if (error && typeof error === 'object' && 'message' in error) {
         const message = (error as Error).message;
+        if (message.includes('not enrolled')) {
+          return res.status(400).json(prepareResponse(400, 'Student is not enrolled in this course'));
+        }
+      }
+      return next(error);
+    }
+  };
+
+  unenrollStudentByAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { courseId, userId } = req.params;
+
+      if (!courseId) {
+        return res.status(400).json(prepareResponse(400, 'Course ID is required'));
+      }
+
+      if (!userId) {
+        return res.status(400).json(prepareResponse(400, 'User ID is required'));
+      }
+
+      // Verificar que el curso existe
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
+
+      // Desasociar completamente al estudiante del curso
+      const updatedCourse = await this.courseService.unenrollStudentByAdmin(courseId, userId);
+
+      return res.json(prepareResponse(200, 'Student completely unenrolled from course', updatedCourse));
+    } catch (error) {
+      logger.error('Error unenrolling student by admin:', error);
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as Error).message;
+        if (message.includes('not found')) {
+          return res.status(404).json(prepareResponse(404, message));
+        }
         if (message.includes('not enrolled')) {
           return res.status(400).json(prepareResponse(400, 'Student is not enrolled in this course'));
         }

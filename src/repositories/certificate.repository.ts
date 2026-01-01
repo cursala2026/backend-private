@@ -132,6 +132,22 @@ class CertificateRepository {
   async softDelete(certificateId: string): Promise<CertificateDoc | null> {
     return (await this.model.findByIdAndUpdate(certificateId, { isActive: false }, { new: true }).exec()) as CertificateDoc | null;
   }
+
+  /**
+   * Deletes all certificates for a specific student-course combination.
+   * This is used when completely unenrolling a student from a course.
+   * @param studentId - The student's ID.
+   * @param courseId - The course's ID.
+   * @returns A promise that resolves to the delete result.
+   */
+  async deleteByStudentAndCourse(studentId: string, courseId: string): Promise<{ deletedCount: number }> {
+    const filter = {
+      studentId: studentId,
+      courseId: courseId,
+    } as unknown as import('mongoose').QueryFilter<ICertificate>;
+    const result = await this.model.deleteMany(filter).exec();
+    return { deletedCount: result.deletedCount || 0 };
+  }
 }
 
 export default CertificateRepository;

@@ -8,6 +8,14 @@ export interface IClass {
   imageUrl?: string;
 }
 
+export interface IEnrolledStudent {
+  userId: ObjectId;
+  enrolledAt: Date;
+  enrollmentType: 'MANUAL' | 'SELF'; // MANUAL = asignado por admin, SELF = auto-inscripción
+  startDate?: Date; // Fecha de inicio del alumno (para cursos con cohorts)
+  endDate?: Date; // Fecha de fin del alumno (para cursos con cohorts)
+}
+
 export interface ICourse {
   _id: ObjectId;
   name: string;
@@ -17,7 +25,7 @@ export interface ICourse {
   order: number;
   imageUrl?: string;
   classes: IClass[];
-  students?: ObjectId[]; // Array de estudiantes inscritos
+  students?: IEnrolledStudent[]; // Array de estudiantes inscritos con metadata
   meta?: {
     totalClasses: number;
     popularity: number;
@@ -50,6 +58,36 @@ const ClassSchema = new Schema<IClass>(
   { _id: false }
 );
 
+const EnrolledStudentSchema = new Schema<IEnrolledStudent>(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    enrolledAt: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+    enrollmentType: {
+      type: String,
+      required: true,
+      enum: ['MANUAL', 'SELF'],
+      default: 'SELF',
+    },
+    startDate: {
+      type: Date,
+      required: false,
+    },
+    endDate: {
+      type: Date,
+      required: false,
+    },
+  },
+  { _id: false }
+);
+
 export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
   {
     name: { type: String, required: true, unique: true, trim: true },
@@ -63,8 +101,7 @@ export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
       default: [],
     },
     students: {
-      type: [Schema.Types.ObjectId],
-      ref: 'User',
+      type: [EnrolledStudentSchema],
       default: [],
     },
     meta: {
