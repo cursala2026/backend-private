@@ -45,16 +45,20 @@ async function executeCommand(command: string, path: string) {
   try {
     // Remove current build
     await remove('./dist/');
-    // Copy config files
-    //await copy('./src/config/docs/swagger.yml', './dist/src/config/docs/swagger.yml');
+
+    // Compile project first (creates dist folder structure)
+    await executeCommand('tsc --project ./', './');
+    logger.info('✔️ TypeScript compiled successfully!');
+
+    // Copy config files after compilation
     await copy('./src/config/errors/error.yml', './dist/src/config/errors/error.yml');
     await copy('./src/static/password-recovery-email.html', './dist/src/static/password-recovery-email.html');
     await copy('./src/static/clase', './dist/src/static/clase');
     await copy('./package.json', './dist/package.json');
-    // Compile project
-    await executeCommand('tsc --project ./', './');
-    logger.info('✔️ Project compiled successfully!');
+
+    logger.info('✔️ Build completed successfully!');
   } catch (err) {
-    logger.error(err);
+    logger.error('Build failed:', err);
+    process.exit(1);
   }
 })();
