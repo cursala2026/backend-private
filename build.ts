@@ -50,6 +50,10 @@ async function executeCommand(command: string, path: string) {
     await executeCommand('tsc --project ./', './');
     logger.info('✔️ TypeScript compiled successfully!');
 
+    // Resolve path aliases (@/ imports)
+    await executeCommand('tsc-alias -p tsconfig.json', './');
+    logger.info('✔️ Path aliases resolved successfully!');
+
     // Copy config files after compilation
     await copy('./src/config/errors/error.yml', './dist/src/config/errors/error.yml');
     await copy('./src/static/password-recovery-email.html', './dist/src/static/password-recovery-email.html');
