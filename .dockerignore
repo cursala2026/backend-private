@@ -4,6 +4,7 @@
 dist/.env*
 .env-b-private
 node_modules
+dist
 .git
 .gitignore
 npm-debug.log

@@ -8,13 +8,15 @@ WORKDIR /app
 # Install common build tools
 RUN apk add --no-cache python3 make g++
 
-# Copy metadata and install dev deps for building
+# Copy metadata and install ALL deps (including dev) for building
 COPY package*.json ./
 COPY package-lock.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
-# Copy source and build
+# Copy source files
 COPY . .
+
+# Build the project (runs build.ts then tsc)
 RUN npm run build
 
 FROM node:24-alpine AS runner
@@ -23,7 +25,8 @@ WORKDIR /app
 # Do not copy secrets or .env to the image; expect env vars from the host or secret manager
 # Copy only package metadata and install production deps
 COPY package*.json ./
-RUN npm ci
+COPY package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copy built assets only
 COPY --from=builder /app/dist ./dist
