@@ -153,8 +153,7 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
         installments: 12,
       },
       back_urls: backUrls,
-      // Remover auto_return temporalmente para evitar el error
-      // auto_return: 'approved',
+      auto_return: data.auto_return || 'approved',
       external_reference: data.external_reference,
       notification_url: data.notification_url || `${backendApiUrl}/payments/webhook`,
       statement_descriptor: 'CURSALA',
@@ -184,8 +183,8 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
 
     return {
       id: response.id,
-      init_point: response.init_point,
-      sandbox_init_point: response.sandbox_init_point,
+      initPoint: response.init_point,
+      sandboxInitPoint: response.sandbox_init_point,
     };
   } catch (error: unknown) {
     const err = error as { message?: string; cause?: unknown; apiResponse?: unknown; status?: number; details?: unknown; stack?: string };

@@ -500,6 +500,7 @@ export default class MercadoPagoPaymentService {
    * Asigna un curso automáticamente al usuario cuando realiza un pago exitoso
    * Fecha de inicio: fecha del pago
    * Fecha de fin: fecha del pago + 3 meses
+   * También agrega al usuario a la lista de students del curso
    */
   private async assignCourseToUser(studentEmail: string, courseId: string, paymentDate: Date): Promise<void> {
     try {
@@ -517,7 +518,7 @@ export default class MercadoPagoPaymentService {
       const endDate = new Date(paymentDate);
       endDate.setMonth(endDate.getMonth() + 3);
 
-      // Asignar curso al usuario
+      // Asignar curso al usuario (assignedCourses con fechas)
       const updatedUser = await this.userRepository.assignCourseToUser(
         user._id.toString(),
         courseId,
@@ -526,7 +527,7 @@ export default class MercadoPagoPaymentService {
       );
 
       if (updatedUser) {
-        logger.info('Course assigned successfully to user', maskSensitiveFields({
+        logger.info('Course assigned successfully to user assignedCourses', maskSensitiveFields({
           userId: user._id,
           studentEmail,
           courseId,
@@ -535,11 +536,36 @@ export default class MercadoPagoPaymentService {
           accessDuration: '3 months',
         }));
       } else {
-        logger.warn('Course assignment failed - course may already be assigned', maskSensitiveFields({
+        logger.warn('Course assignment to assignedCourses failed - course may already be assigned', maskSensitiveFields({
           userId: user._id,
           studentEmail,
           courseId,
         }));
+      }
+
+      // Agregar al usuario a la lista de students del curso
+      try {
+        await this.courseRepository.enrollStudent(user._id.toString(), courseId, 'MANUAL', startDate, endDate);
+        logger.info('User enrolled in course students list successfully', maskSensitiveFields({
+          userId: user._id,
+          studentEmail,
+          courseId,
+        }));
+      } catch (enrollError) {
+        const err = enrollError as Error;
+        // Si el error es que ya está inscrito, es aceptable
+        if (err.message.includes('already enrolled')) {
+          logger.info('User already enrolled in course students list', maskSensitiveFields({
+            userId: user._id,
+            studentEmail,
+            courseId,
+          }));
+        } else {
+          logger.error('Error enrolling user in course students list', {
+            error: err.message,
+            details: maskSensitiveFields({ studentEmail, courseId }),
+          });
+        }
       }
     } catch (error) {
       logger.error('Error assigning course to user', {

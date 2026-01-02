@@ -303,8 +303,10 @@ class AuthService {
     if (userFound) {
       throw errors.register.users.already_exists;
     }
-    // Check username uniqueness as well
-    const userByUsername = await this.userRepository.findOne(user.username as string);
+
+    // Set username to the full email by default and check uniqueness
+    const usernameValue = user.email ? String(user.email) : (user.firstName ? String(user.firstName) : '');
+    const userByUsername = usernameValue ? await this.userRepository.findOneByUsername(usernameValue) : null;
     if (userByUsername) {
       throw errors.register.users.already_exists;
     }
@@ -323,12 +325,11 @@ class AuthService {
     // Roles válidos: UserRoles.ADMIN | UserRoles.PROFESOR | UserRoles.ALUMNO
     let userRoles = user.roles && Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [UserRoles.ALUMNO];
 
-    const usernameValue = user.firstName
-      ? String(user.firstName)
-      : (user.email ? String(user.email).split('@')[0] : '');
+    // Force username to be the full email at registration (if provided)
+    const usernameFinal = user.email ? String(user.email) : (user.firstName ? String(user.firstName) : '');
 
     const newUser = {
-      username: usernameValue,
+      username: usernameFinal,
       password: await this.hashPassword(user.password as string),
       email: user.email as string,
       phone: user.phone as string,

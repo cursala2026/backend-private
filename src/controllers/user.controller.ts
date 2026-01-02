@@ -350,7 +350,11 @@ export default class UserController {
       logger.info(`✅ User ${userId} updated successfully`);
       return res.json(prepareResponse(200, 'User updated successfully', resp));
     } catch (error) {
-      logger.error(`❌ Error updating user: ${(error as Error).message}`, { stack: (error as Error).stack });
+      const err = error as Error;
+      logger.error(`❌ Error updating user: ${err.message}`, { stack: err.stack });
+      if (err.message === 'USERNAME_TAKEN') {
+        return res.status(400).json(prepareResponse(400, 'El nombre de usuario ya está en uso', null));
+      }
       return next(error);
     }
   };
@@ -415,6 +419,7 @@ export default class UserController {
           if (req.body.firstName) updateData.firstName = req.body.firstName;
           if (req.body.lastName) updateData.lastName = req.body.lastName;
           if (req.body.email) updateData.email = req.body.email;
+          if (req.body.username) updateData.username = req.body.username;
           if (req.body.phone) updateData.phone = req.body.phone;
           if (req.body.dni) updateData.dni = req.body.dni;
           if (req.body.birthDate) updateData.birthDate = new Date(req.body.birthDate);
@@ -543,8 +548,12 @@ export default class UserController {
 
           return res.json(prepareResponse(200, 'Usuario actualizado correctamente', finalUser));
         } catch (serviceError) {
-          const errorMessage = serviceError instanceof Error ? serviceError.message : 'Error interno del servidor';
+          const err = serviceError as Error;
+          const errorMessage = err instanceof Error ? err.message : 'Error interno del servidor';
           logger.error(`❌ Error en updateUserData: ${errorMessage}`);
+          if (errorMessage === 'USERNAME_TAKEN') {
+            return res.status(400).json(prepareResponse(400, 'El nombre de usuario ya está en uso', null));
+          }
           return res.status(500).json(prepareResponse(500, errorMessage, null));
         }
       });

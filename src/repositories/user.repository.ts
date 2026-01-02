@@ -24,6 +24,16 @@ class UserRepository {
   }
 
   /**
+   * Finds a single user by exact username.
+   * @param username - The user's username.
+   * @returns A promise that resolves to the user object if found, or null.
+   */
+  async findOneByUsername(username: string): Promise<IUser | null> {
+    const res = await this.model.findOne({ username }).exec();
+    return res as unknown as IUser | null;
+  }
+
+  /**
    * Finds a single user by ID.
    * @param id - The user's unique identifier.
    * @returns A promise that resolves to the user object if found, or null.

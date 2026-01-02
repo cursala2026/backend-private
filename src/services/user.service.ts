@@ -252,6 +252,14 @@ export default class UserService {
   }
 
   async updateUser(userId: string, userData: Partial<IUser>) {
+    // If username is being updated, ensure it's unique (not used by another user)
+    if (userData.username) {
+      const existing = await this.userRepository.findOneByUsername(String(userData.username));
+      if (existing && String(existing._id) !== String(userId)) {
+        throw new Error('USERNAME_TAKEN');
+      }
+    }
+
     return this.userRepository.updateUser(userId, userData);
   }
 
