@@ -76,6 +76,48 @@ export default class MercadoPagoRepository {
   }
 
   /**
+   * Busca un pago por cualquier ID (paymentId o _id de MongoDB)
+   * Útil para operaciones donde el cliente puede enviar cualquier formato de ID
+   */
+  async findPaymentByAnyId(id: string): Promise<IMercadoPagoPayment | null> {
+    try {
+      // Primero intentar por paymentId
+      let res = await this.model.findOne({ paymentId: id }).exec();
+      
+      if (res) {
+        logger.info('Payment found by paymentId', { id });
+        return res as unknown as IMercadoPagoPayment | null;
+      }
+
+      // Si no se encuentra, intentar por _id (MongoDB ObjectId)
+      try {
+        // Verificar que sea un ObjectId válido (24 caracteres hexadecimales)
+        if (id.match(/^[0-9a-fA-F]{24}$/)) {
+          logger.debug('Attempting to find payment by _id', { id });
+          res = await this.model.findById(id).exec();
+          
+          if (res) {
+            logger.info('Payment found by _id', { id });
+            return res as unknown as IMercadoPagoPayment | null;
+          }
+        }
+      } catch (error) {
+        // Si no es un ObjectId válido o falla la búsqueda, continuar
+        logger.debug('Error searching by _id', { id, error: (error as Error).message });
+      }
+
+      logger.warn('Payment not found by any ID', { id });
+      return null;
+    } catch (error) {
+      logger.error('Error finding payment by any ID', {
+        id,
+        error: (error as Error).message,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Actualiza el estado de un pago
    */
   async updatePaymentStatus(
@@ -321,15 +363,27 @@ export default class MercadoPagoRepository {
 
   /**
    * Elimina un pago específico por ID
+   * Acepta tanto el paymentId (ID de MercadoPago) como el _id de MongoDB (ObjectId)
    */
   async deletePayment(paymentId: string): Promise<{ deletedCount: number }> {
     try {
-      const result = await this.model.deleteOne({ paymentId });
+      logger.info('Attempting to delete payment', { paymentId });
+
+      // Primero verificar que el pago existe
+      const existingPayment = await this.findPaymentByAnyId(paymentId);
+      
+      if (!existingPayment) {
+        logger.warn('Payment not found for deletion', { paymentId });
+        return { deletedCount: 0 };
+      }
+
+      // Si encontramos el pago, eliminarlo por su _id real (el más seguro)
+      const result = await this.model.deleteOne({ _id: existingPayment._id });
 
       if (result.deletedCount > 0) {
-        logger.info('Payment deleted', { paymentId });
+        logger.info('Payment deleted successfully', { paymentId, mongoId: existingPayment._id });
       } else {
-        logger.warn('Payment not found for deletion', { paymentId });
+        logger.warn('Payment deletion returned 0 deletedCount', { paymentId, mongoId: existingPayment._id });
       }
 
       return { deletedCount: result.deletedCount };

@@ -36,6 +36,7 @@ export interface IMercadoPagoPayment {
   courseName: string;
 
   // Información del estudiante
+  studentId?: ObjectId | string; // ID del usuario en el sistema
   studentEmail: string;
   studentFirstName?: string;
   studentLastName?: string;
@@ -61,6 +62,8 @@ export interface IMercadoPagoPayment {
   isProcessed: boolean; // Si ya fue procesado por webhook
   accessGranted: boolean; // Si ya se otorgó acceso al curso
   accessGrantedAt?: Date;
+  accessStartDate?: Date; // Fecha de inicio de acceso al curso
+  accessEndDate?: Date; // Fecha de fin de acceso al curso
 
   // Webhook data
   webhookReceived?: boolean;
@@ -133,6 +136,11 @@ export const MercadoPagoPaymentSchema: Schema<MercadoPagoPaymentModel> = new Sch
     },
 
     // Información del estudiante
+    studentId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+    },
     studentEmail: {
       type: String,
       required: true,
@@ -195,6 +203,12 @@ export const MercadoPagoPaymentSchema: Schema<MercadoPagoPaymentModel> = new Sch
       index: true,
     },
     accessGrantedAt: {
+      type: Date,
+    },
+    accessStartDate: {
+      type: Date,
+    },
+    accessEndDate: {
       type: Date,
     },
 

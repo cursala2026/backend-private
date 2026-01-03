@@ -124,8 +124,10 @@ export default class UserService {
   }
 
   async assignCourseToUser(userId: string, courseId: string, startDate: Date, endDate: Date) {
-    const result = await this.userRepository.assignCourseToUser(userId, courseId, startDate, endDate);
-    // fetch user data
+    // Usar enrollStudent del courseRepository (único método de asociación)
+    const result = await this.courseRepository.enrollStudent(courseId, userId, 'MANUAL', startDate, endDate);
+    
+    // fetch user data para enviar email
     const user = await this.userRepository.getUserById(userId);
     // fetch course data (may return object or [])
     const course =
@@ -170,15 +172,32 @@ export default class UserService {
   }
 
   async removeCourseFromUser(userId: string, courseId: string) {
-    return this.userRepository.removeCourseFromUser(userId, courseId);
+    // Usar unenrollStudent del courseRepository (único método de asociación)
+    return this.courseRepository.unenrollStudent(courseId, userId);
   }
 
+  // Obtener cursos del usuario desde course.students (no desde user.assignedCourses)
   async getAssignedCourses(userId: string) {
-    return this.userRepository.getAssignedCourses(userId);
+    return this.courseRepository.getStudentCourses(userId);
   }
 
+  // Obtener cursos que NO tiene el usuario desde course.students
   async getUnassignedCourses(userId: string) {
-    return this.userRepository.getUnassignedCourses(userId);
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new Error('El userId proporcionado no es válido.');
+    }
+    
+    // Obtener todos los cursos publicados
+    const allCourses = await this.courseRepository.findPublishedCourses();
+    
+    // Obtener cursos del usuario
+    const userCourses = await this.courseRepository.getStudentCourses(userId);
+    const userCourseIds = new Set(userCourses.map((c: any) => c._id?.toString()));
+    
+    // Retornar cursos que NO están en la lista del usuario
+    return allCourses
+      .filter((c: any) => !userCourseIds.has(c._id?.toString()))
+      .map((c: any) => ({ courseId: c._id?.toString(), name: c.name }));
   }
 
   async isCourseAccessibleForUser(userId: string, courseId: string) {
@@ -197,8 +216,11 @@ export default class UserService {
     return this.userRepository.getUserById(userId);
   }
 
+  // DEPRECATED: assignedCoursesEdit ya no se usa - usar students en Course en su lugar
   async assignCourseToUserEdit(userId: string, courseId: string) {
-    const result = await this.userRepository.assignCourseToUserEdit(userId, courseId);
+    // Usar enrollStudent del courseRepository
+    const result = await this.courseRepository.enrollStudent(courseId, userId, 'MANUAL');
+    
     // traer datos de usuario
     const user = await this.userRepository.getUserById(userId);
     // traer datos de curso (puede devolver objeto o [])
@@ -235,16 +257,33 @@ export default class UserService {
     return result;
   }
 
+  // Obtener cursos del usuario desde course.students (no desde user.assignedCoursesEdit)
   async getAssignedCoursesEdit(userId: string) {
-    return this.userRepository.getAssignedCoursesEdit(userId);
+    return this.courseRepository.getStudentCourses(userId);
   }
 
+  // Obtener cursos que NO tiene el usuario desde course.students
   async getUnassignedCoursesEdit(userId: string) {
-    return this.userRepository.getUnassignedCoursesEdit(userId);
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new Error('El userId proporcionado no es válido.');
+    }
+    
+    // Obtener todos los cursos
+    const allCourses = await this.courseRepository.findAll();
+    
+    // Obtener cursos del usuario
+    const userCourses = await this.courseRepository.getStudentCourses(userId);
+    const userCourseIds = new Set(userCourses.map((c: any) => c._id?.toString()));
+    
+    // Retornar cursos que NO están en la lista del usuario
+    return allCourses
+      .filter((c: any) => !userCourseIds.has(c._id?.toString()))
+      .map((c: any) => ({ courseId: c._id?.toString(), name: c.name }));
   }
 
+  // Usar unenrollStudent del courseRepository
   async removeCourseFromUserEdit(userId: string, courseId: string) {
-    return this.userRepository.removeCourseFromUserEdit(userId, courseId);
+    return this.courseRepository.unenrollStudent(courseId, userId);
   }
 
   async updateLastConnection(userId: string) {

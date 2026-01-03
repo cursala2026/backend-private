@@ -72,6 +72,14 @@ export default class MercadoPagoPaymentService {
         dateApproved = new Date();
       }
 
+      // Buscar usuario para obtener su ID
+      const user = await this.userRepository.findOneByEmail(paymentData.studentEmail);
+
+      // Calcular fechas de acceso: inicio = ahora, fin = +3 meses
+      const accessStart = new Date();
+      const accessEnd = new Date();
+      accessEnd.setMonth(accessEnd.getMonth() + 3);
+
       // Crear registro en la base de datos
       const paymentRecord = await this.mercadoPagoRepository.createPayment({
         paymentId: paymentData.paymentId,
@@ -82,6 +90,7 @@ export default class MercadoPagoPaymentService {
         currencyId: paymentInfo.currency_id || 'ARS',
         courseId,
         courseName,
+        studentId: user?._id?.toString(), // ID del usuario en el sistema
         studentEmail: paymentData.studentEmail,
         studentFirstName: paymentInfo.payer?.first_name,
         studentLastName: paymentInfo.payer?.last_name,
@@ -96,13 +105,19 @@ export default class MercadoPagoPaymentService {
         isProcessed: true,
         accessGranted: true,
         accessGrantedAt: new Date(),
+        accessStartDate: accessStart,
+        accessEndDate: accessEnd,
       });
 
       // Asignar curso automáticamente al usuario
       await this.assignCourseToUser(paymentData.studentEmail, courseId, new Date());
 
-      // Enviar emails de confirmación
-      await this.sendPaymentConfirmationEmails(paymentRecord);
+      // Enviar emails de confirmación solo en producción
+      if (process.env.NODE_ENV === 'production') {
+        await this.sendPaymentConfirmationEmails(paymentRecord);
+      } else {
+        logger.info('Skipping email notifications in development environment');
+      }
 
       logger.info('MercadoPago payment registered successfully', {
         paymentId: paymentData.paymentId,
@@ -161,9 +176,10 @@ export default class MercadoPagoPaymentService {
 
       // Crear nuevo registro si es un pago aprobado
       if (paymentInfo.status === 'approved' && paymentInfo.external_reference) {
-        // Extraer información del external_reference
+        // Extraer información del external_reference: course_{courseId}_{email}_{timestamp}
         const externalRefParts = paymentInfo.external_reference.split('_');
         const courseId = externalRefParts[1];
+        const studentEmail = externalRefParts[2] || paymentInfo.payer?.email || 'unknown@email.com';
 
         // Obtener el nombre real del curso
         let courseName = `Curso ID: ${courseId}`; // Fallback por defecto
@@ -188,6 +204,14 @@ export default class MercadoPagoPaymentService {
           dateApproved = new Date();
         }
 
+        // Buscar usuario para obtener su ID
+        const user = await this.userRepository.findOneByEmail(studentEmail);
+
+        // Calcular fechas de acceso: inicio = ahora, fin = +3 meses
+        const accessStart = new Date();
+        const accessEnd = new Date();
+        accessEnd.setMonth(accessEnd.getMonth() + 3);
+
         paymentRecord = await this.mercadoPagoRepository.createPayment({
           paymentId,
           externalReference: paymentInfo.external_reference,
@@ -197,10 +221,11 @@ export default class MercadoPagoPaymentService {
           currencyId: paymentInfo.currency_id || 'ARS',
           courseId,
           courseName,
-          studentEmail: paymentInfo.payer?.email || 'unknown@email.com',
+          studentId: user?._id?.toString(), // ID del usuario en el sistema
+          studentEmail: studentEmail, // Usar el email real del external_reference
           studentFirstName: paymentInfo.payer?.first_name,
           studentLastName: paymentInfo.payer?.last_name,
-          payerEmail: paymentInfo.payer?.email,
+          payerEmail: paymentInfo.payer?.email, // Email de prueba de MercadoPago
           payerId: paymentInfo.payer?.id,
           paymentMethodId: paymentInfo.payment_method_id,
           paymentTypeId: paymentInfo.payment_type_id,
@@ -211,15 +236,21 @@ export default class MercadoPagoPaymentService {
           isProcessed: true,
           accessGranted: true,
           accessGrantedAt: new Date(),
+          accessStartDate: accessStart,
+          accessEndDate: accessEnd,
           webhookReceived: true,
           webhookProcessedAt: new Date(),
         });
 
-        // Asignar curso automáticamente al usuario
-        await this.assignCourseToUser(paymentInfo.payer?.email || 'unknown@email.com', courseId, new Date());
+        // Asignar curso automáticamente al usuario (usar email real)
+        await this.assignCourseToUser(studentEmail, courseId, new Date());
 
-        // Enviar emails de confirmación solo para pagos nuevos aprobados
-        await this.sendPaymentConfirmationEmails(paymentRecord);
+        // Enviar emails de confirmación solo para pagos nuevos aprobados y solo en producción
+        if (process.env.NODE_ENV === 'production') {
+          await this.sendPaymentConfirmationEmails(paymentRecord);
+        } else {
+          logger.info('Skipping email notifications in development environment (webhook)');
+        }
         return paymentRecord;
       }
 
@@ -497,10 +528,15 @@ export default class MercadoPagoPaymentService {
   }
 
   /**
+   * Obtiene un pago por cualquier ID (paymentId o _id de MongoDB)
+   */
+  async getPaymentByAnyId(paymentId: string): Promise<IMercadoPagoPayment | null> {
+    return this.mercadoPagoRepository.findPaymentByAnyId(paymentId);
+  }
+
+  /**
    * Asigna un curso automáticamente al usuario cuando realiza un pago exitoso
-   * Fecha de inicio: fecha del pago
-   * Fecha de fin: fecha del pago + 3 meses
-   * También agrega al usuario a la lista de students del curso
+   * Solo utiliza el método enrollStudent del curso (array students)
    */
   private async assignCourseToUser(studentEmail: string, courseId: string, paymentDate: Date): Promise<void> {
     try {
@@ -509,7 +545,7 @@ export default class MercadoPagoPaymentService {
       // Buscar usuario por email
       const user = await this.userRepository.findOneByEmail(studentEmail);
       if (!user) {
-  logger.warn('User not found for course assignment', maskSensitiveFields({ studentEmail }));
+        logger.warn('User not found for course assignment', maskSensitiveFields({ studentEmail }));
         return;
       }
 
@@ -518,34 +554,9 @@ export default class MercadoPagoPaymentService {
       const endDate = new Date(paymentDate);
       endDate.setMonth(endDate.getMonth() + 3);
 
-      // Asignar curso al usuario (assignedCourses con fechas)
-      const updatedUser = await this.userRepository.assignCourseToUser(
-        user._id.toString(),
-        courseId,
-        startDate,
-        endDate
-      );
-
-      if (updatedUser) {
-        logger.info('Course assigned successfully to user assignedCourses', maskSensitiveFields({
-          userId: user._id,
-          studentEmail,
-          courseId,
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          accessDuration: '3 months',
-        }));
-      } else {
-        logger.warn('Course assignment to assignedCourses failed - course may already be assigned', maskSensitiveFields({
-          userId: user._id,
-          studentEmail,
-          courseId,
-        }));
-      }
-
-      // Agregar al usuario a la lista de students del curso
+      // Inscribir al usuario en el curso usando enrollStudent
       try {
-        await this.courseRepository.enrollStudent(user._id.toString(), courseId, 'MANUAL', startDate, endDate);
+        await this.courseRepository.enrollStudent(courseId, user._id.toString(), 'MANUAL', startDate, endDate);
         logger.info('User enrolled in course students list successfully', maskSensitiveFields({
           userId: user._id,
           studentEmail,

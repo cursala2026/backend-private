@@ -125,15 +125,24 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
     });
 
     // Configurar URLs con valores por defecto
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8081';
+    // Usar WEBHOOK_URL (ngrok) si está disponible, sino usar BACKEND_URL
+    const webhookBaseUrl = process.env.WEBHOOK_URL || backendUrl;
     const backendApiUrl = `${backendUrl}/api/v1`;
+    const webhookApiUrl = `${webhookBaseUrl}/api/v1`;
 
-    // Ensure all back_urls are properly defined when auto_return is used
+    logger.info('Webhook configuration', {
+      webhookBaseUrl: webhookBaseUrl,
+      webhookUrl: `${webhookApiUrl}/payment/webhook`,
+      isNgrok: !!process.env.WEBHOOK_URL,
+    });
+
+    // Definir back_urls simples sin query parameters para evitar problemas con auto_return
     const backUrls = {
-      success: data.back_urls?.success || `${frontendUrl}/payment/success`,
-      failure: data.back_urls?.failure || `${frontendUrl}/payment/failure`,
-      pending: data.back_urls?.pending || `${frontendUrl}/payment/pending`,
+      success: data.back_urls?.success || `${frontendUrl}/alumno/payment/success`,
+      failure: data.back_urls?.failure || `${frontendUrl}/alumno/payment/failure`,
+      pending: data.back_urls?.pending || `${frontendUrl}/alumno/payment/pending`,
     };
 
     // Preparar datos base de la preferencia (campos requeridos por el tipo)
@@ -153,11 +162,9 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
         installments: 12,
       },
       back_urls: backUrls,
-      auto_return: data.auto_return || 'approved',
       external_reference: data.external_reference,
-      notification_url: data.notification_url || `${backendApiUrl}/payments/webhook`,
+      notification_url: data.notification_url || `${webhookApiUrl}/payment/webhook`,
       statement_descriptor: 'CURSALA',
-      binary_mode: false,
     };
 
     // Agregar campos opcionales si están disponibles
@@ -173,18 +180,53 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
       preferenceData: JSON.stringify(maskSensitiveFields(preferenceData), null, 2),
     });
 
-    const response = await preference.create({ body: preferenceData } as unknown as Parameters<typeof preference.create>[0]);
+    // Estructurar la petición de forma explícita
+    // NOTA: auto_return requiere que back_urls también sean HTTPS (no solo el webhook)
+    // En desarrollo local con frontend en http://localhost:4200, no podemos usar auto_return
+    // El usuario debe hacer clic en "Volver al sitio" manualmente
+    const createBody: any = {
+      body: {
+        items: preferenceData.items,
+        payer: preferenceData.payer,
+        payment_methods: preferenceData.payment_methods,
+        back_urls: {
+          success: backUrls.success,
+          failure: backUrls.failure,
+          pending: backUrls.pending,
+        },
+        external_reference: preferenceData.external_reference,
+        notification_url: preferenceData.notification_url,
+        statement_descriptor: preferenceData.statement_descriptor,
+      }
+    };
+
+    // Agregar campos opcionales solo si existen
+    if (preferenceData.additional_info) {
+      createBody.body.additional_info = preferenceData.additional_info;
+    }
+    if (preferenceData.metadata) {
+      createBody.body.metadata = preferenceData.metadata;
+    }
+
+    const response = await preference.create(createBody as unknown as Parameters<typeof preference.create>[0]);
+
+    // Determinar qué URL usar según el modo de MercadoPago
+    const mode = process.env.MERCADOPAGO_MODE || 'sandbox';
+    const preferredInitPoint = mode === 'sandbox' ? response.sandbox_init_point : response.init_point;
 
     logger.info('Payment preference created successfully', {
       preferenceId: response.id,
+      mode: mode,
       initPoint: response.init_point,
       sandboxInitPoint: response.sandbox_init_point,
+      preferredInitPoint: preferredInitPoint,
     });
 
     return {
       id: response.id,
-      initPoint: response.init_point,
+      initPoint: preferredInitPoint || response.init_point || response.sandbox_init_point,
       sandboxInitPoint: response.sandbox_init_point,
+      mode: mode,
     };
   } catch (error: unknown) {
     const err = error as { message?: string; cause?: unknown; apiResponse?: unknown; status?: number; details?: unknown; stack?: string };

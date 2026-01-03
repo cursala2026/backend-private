@@ -4,16 +4,17 @@ import { paymentController } from '@/controllers';
 const router = Router();
 
 // Rutas para pagos tradicionales
-router.post('/payment/submit-form', paymentController.submitPaymentFormData);
+router.post('/submit-form', paymentController.submitPaymentFormData);
 
 // Rutas para MercadoPago
-router.post('/payments/create-preference', paymentController.createPaymentPreference);
-router.get('/payments/status/:paymentId', paymentController.getPaymentStatus);
-router.get('/payments/details/:paymentId', paymentController.getPaymentDetails);
-router.post('/payments/webhook', paymentController.handleWebhook);
-router.post('/payments/register-success', paymentController.registerSuccessfulPayment);
-router.get('/payments/stats', paymentController.getPaymentStats);
-router.get('/payments/all', paymentController.getAllPayments);
-router.delete('/payments/:paymentId', paymentController.deletePayment);
+router.post('/create-preference', paymentController.createPaymentPreference);
+router.get('/status/:paymentId', paymentController.getPaymentStatus);
+router.get('/details/:paymentId', paymentController.getPaymentDetails);
+router.get('/check/:paymentId', paymentController.checkPaymentExists);
+router.post('/webhook', paymentController.handleWebhook);
+router.post('/register-success', paymentController.registerSuccessfulPayment);
+router.get('/stats', paymentController.getPaymentStats);
+router.get('/all', paymentController.getAllPayments);
+router.delete('/:paymentId', paymentController.deletePayment);
 
 export default router;

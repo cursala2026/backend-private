@@ -318,6 +318,44 @@ export default class PaymentController {
     }
   };
 
+  // Endpoint para verificar si un pago existe
+  checkPaymentExists = async (req: Request, res: Response) => {
+    try {
+      const { paymentId } = req.params;
+
+      if (!paymentId) {
+        return res.status(400).json(prepareResponse(400, 'Payment ID is required'));
+      }
+
+      const payment = await this.mercadoPagoPaymentService.getPaymentByAnyId(paymentId);
+
+      if (!payment) {
+        return res
+          .status(404)
+          .json(prepareResponse(404, 'Payment not found', { exists: false }));
+      }
+
+      return res.json(
+        prepareResponse(200, 'Payment exists', {
+          exists: true,
+          payment: {
+            _id: payment._id,
+            paymentId: payment.paymentId,
+            studentEmail: payment.studentEmail,
+            amount: payment.transactionAmount,
+            status: payment.status,
+            courseId: payment.courseId,
+          },
+        })
+      );
+    } catch (error) {
+      logger.error(`Error checking payment: ${(error as Error).message}`);
+      return res
+        .status(500)
+        .json(prepareResponse(500, 'Error checking payment', { error: (error as Error).message }));
+    }
+  };
+
   // Endpoint para eliminar pagos antiguos
   // bulk delete endpoint removed; keep single delete only
 
@@ -327,21 +365,32 @@ export default class PaymentController {
       const { paymentId } = req.params;
 
       if (!paymentId) {
-        return res.status(400).json(prepareResponse(400, 'Payment ID is required'));
+        return res.status(400).json(prepareResponse(400, 'ID de pago requerido'));
       }
+
+      logger.info('Intentando eliminar pago', { paymentId });
 
       const result = await this.mercadoPagoPaymentService.deletePayment(paymentId);
 
       if (result.deletedCount === 0) {
-        return res.status(404).json(prepareResponse(404, 'Payment not found'));
+        logger.warn('Pago no encontrado para eliminar', { paymentId });
+        return res
+          .status(404)
+          .json(
+            prepareResponse(
+              404,
+              'Pago no encontrado. El ID de pago puede ser incorrecto o el pago ya fue eliminado.'
+            )
+          );
       }
 
-      return res.json(prepareResponse(200, 'Payment deleted successfully', result));
+      logger.info('Pago eliminado exitosamente', { paymentId });
+      return res.json(prepareResponse(200, 'Pago eliminado exitosamente', { deletedCount: result.deletedCount }));
     } catch (error) {
-      logger.error(`Error deleting payment: ${(error as Error).message}`);
+      logger.error(`Error al eliminar pago: ${(error as Error).message}`);
       return res
         .status(500)
-        .json(prepareResponse(500, 'Error deleting payment', { error: (error as Error).message }));
+        .json(prepareResponse(500, 'Error al eliminar pago', { error: (error as Error).message }));
     }
   };
 }
