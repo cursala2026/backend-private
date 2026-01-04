@@ -124,12 +124,11 @@ export default class CertificateService {
   /**
    * Genera un certificado para un estudiante
    */
-  async generateCertificate(studentId: string, courseId: string, teacherId: string, generatedBy: string) {
-    // Validar que todos los usuarios existan
-    const [student, course, teacher] = await Promise.all([
+  async generateCertificate(studentId: string, courseId: string, generatedBy: string) {
+    // Obtener información del estudiante y curso
+    const [student, course] = await Promise.all([
       this.userRepository.getUserById(studentId),
       this.courseRepository.findById(courseId),
-      this.userRepository.getUserById(teacherId),
     ]);
 
     if (!student) {
@@ -140,24 +139,25 @@ export default class CertificateService {
       throw new Error('Curso no encontrado');
     }
 
+    // Obtener el teacherId del curso (primer profesor del array)
+    const courseSafe = course as unknown as { teachers?: any[] };
+    const teacherId = courseSafe.teachers && courseSafe.teachers.length > 0 ? courseSafe.teachers[0].toString() : null;
+    
+    if (!teacherId) {
+      throw new Error('El curso no tiene profesor asignado');
+    }
+
+    // Obtener información del profesor
+    const teacher = await this.userRepository.getUserById(teacherId);
+
     if (!teacher) {
       throw new Error('Profesor no encontrado');
     }
 
     // Normalizear shapes locales para evitar `as any` repetidos
     const studentSafe = student as unknown as { dni?: string; company?: string; companyName?: string; firstName?: string; lastName?: string; email?: string };
-    const courseSafe = course as unknown as { endDate?: Date; location?: string; duration?: number; startDate?: Date };
+    const courseTyped = course as unknown as { endDate?: Date; location?: string; duration?: number; startDate?: Date };
     const teacherSafe = teacher as unknown as { profilePhotoUrl?: string; professionalSignatureUrl?: string; professionalDescription?: string; firstName?: string; lastName?: string; email?: string; _id?: unknown };
-
-    // DEBUG: Log teacher data
-    logger.info('DEBUG GENERATE CERT: Teacher from getUserById:', {
-      teacherId: teacher._id,
-      firstName: teacher.firstName,
-      lastName: teacher.lastName,
-      profilePhotoUrl: teacherSafe.profilePhotoUrl,
-      professionalSignatureUrl: teacherSafe.professionalSignatureUrl,
-      hasProfessionalSignatureUrl: !!teacherSafe.professionalSignatureUrl,
-    });
 
     // Verificar que el estudiante esté inscrito en el curso
     const isEnrolled = await this.userRepository.isUserEnrolledInCourse(studentId, courseId);
@@ -355,16 +355,21 @@ export default class CertificateService {
       },
     ];
 
-    try {
-      await sendEmail({
-        email: studentEmail,
-        subject,
-        html,
-        attachments,
-      });
-    } catch (emailError) {
-      console.error(`Error enviando email a ${studentEmail}:`, emailError);
-      throw emailError; // Re-lanzar el error para que se capture en regenerateCertificate
+    // Solo enviar email en producción
+    if (config.NODE_ENV === 'production') {
+      try {
+        await sendEmail({
+          email: studentEmail,
+          subject,
+          html,
+          attachments,
+        });
+      } catch (emailError) {
+        console.error(`Error enviando email a ${studentEmail}:`, emailError);
+        throw emailError; // Re-lanzar el error para que se capture en regenerateCertificate
+      }
+    } else {
+      logger.info(`Email omitido en ${config.NODE_ENV}: ${studentEmail}`);
     }
   }
 
@@ -517,16 +522,6 @@ export default class CertificateService {
     const courseSafe = course as unknown as { endDate?: Date; location?: string; duration?: number; startDate?: Date };
     const teacherSafe = teacher as unknown as { profilePhotoUrl?: string; professionalSignatureUrl?: string; professionalDescription?: string; firstName?: string; lastName?: string; email?: string; _id?: unknown };
 
-    // DEBUG: Log teacher data
-    logger.info('DEBUG REGENERATE CERT: Teacher from getUserById:', {
-      teacherId: teacher._id,
-      firstName: teacher.firstName,
-      lastName: teacher.lastName,
-      profilePhotoUrl: teacherSafe.profilePhotoUrl,
-      professionalSignatureUrl: teacherSafe.professionalSignatureUrl,
-      hasProfessionalSignatureUrl: !!teacherSafe.professionalSignatureUrl,
-    });
-
     // Preparar datos para el PDF
     const certificateForPdf = {
       certificateId: updatedCertificate.certificateId,
@@ -564,9 +559,7 @@ export default class CertificateService {
 
     try {
       // Reenviar por email
-      console.log(`Enviando certificado regenerado por email a: ${student.email}`);
       await this.sendCertificateByEmail(student.email, certificateForPdf, pdfBuffer);
-      console.log(`Certificado regenerado enviado exitosamente a: ${student.email}`);
     } catch (emailError) {
       console.error('Error al enviar certificado por email:', emailError);
       // No lanzamos error aquí para que la regeneración sea exitosa aunque falle el email

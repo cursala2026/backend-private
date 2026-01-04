@@ -270,7 +270,7 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
         return next();
       }
 
-      // No es admin, verificar si es el profesor propietario del curso
+      // No es admin, verificar si es uno de los profesores del curso
       const courseId = req.params.id || req.params.courseId;
       if (!courseId) {
         return res.status(400).json({ success: false, message: 'ID de curso no especificado' });
@@ -282,15 +282,25 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
       }
 
       const userId = String((user as any)._id);
-      const mainTeacherId = course.mainTeacher ? String(course.mainTeacher) : null;
+      const teachers = course.teachers || [];
+      const teacherIds = teachers.map((t: any) => String(t));
+      const isTeacher = teacherIds.includes(userId);
 
-      if (mainTeacherId === userId) {
+      logger.info('requireAdminOrCourseOwner - Verification:', {
+        userId,
+        teacherIds,
+        courseId,
+        isTeacher
+      });
+
+      if (isTeacher) {
         return next();
       }
 
       return res.status(403).json({ 
         success: false, 
-        message: 'Acceso denegado. Solo el administrador o el profesor del curso pueden realizar esta acción.' 
+        message: 'Acceso denegado. Solo el administrador o uno de los profesores del curso pueden realizar esta acción.',
+        debug: { userId, teacherIds, courseId }
       });
     } catch (err) {
       logger.error('Error en requireAdminOrCourseOwner:', err);

@@ -11,13 +11,13 @@ export default class CertificateController {
    */
   generateCertificate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { studentId, courseId, teacherId } = req.body;
+      const { studentId, courseId } = req.body;
       const authUser = (req as Request & { user?: { id?: string; _id?: string } }).user;
       const generatedBy = authUser?.id || authUser?._id;
 
       // Validar datos requeridos
-      if (!studentId || !courseId || !teacherId) {
-        return res.status(400).json(prepareResponse(400, 'Faltan datos requeridos: studentId, courseId, teacherId'));
+      if (!studentId || !courseId) {
+        return res.status(400).json(prepareResponse(400, 'Faltan datos requeridos: studentId, courseId'));
       }
 
       if (!generatedBy) {
@@ -27,7 +27,6 @@ export default class CertificateController {
       const certificate = await this.certificateService.generateCertificate(
         studentId,
         courseId,
-        teacherId,
         generatedBy
       );
 

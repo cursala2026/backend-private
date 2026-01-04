@@ -1,7 +1,7 @@
 import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 import QuestionnaireSubmissionRepository, { GradeReportEntry } from '@/repositories/questionnaireSubmission.repository';
 import { courseProgressRepository } from '@/repositories/courseProgress.repository';
-import { userRepository } from '@/repositories/user.repository';
+import { userRepository } from '@/repositories';
 import { IQuestionnaireSubmission, IAnswer, QuestionnaireSubmissionDoc } from '@/models/mongo/questionnaireSubmission.model';
 import { IQuestion } from '@/models/mongo/questionnaire.model';
 import { Types, Schema } from 'mongoose';

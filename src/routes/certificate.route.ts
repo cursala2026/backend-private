@@ -4,6 +4,16 @@ import { certificateController } from '@/controllers';
 
 const router = Router();
 
+// POST routes first (to avoid conflicts with parameterized GET routes)
+/**
+ * @route POST /generate
+ * @desc Genera un nuevo certificado para un estudiante
+ * @access Private (requiere autenticación)
+ * @body { studentId: string, courseId: string }
+ */
+router.post('/generate', authorize, certificateController.generateCertificate);
+
+// GET routes
 /**
  * @route GET /validate/:verificationCode
  * @desc Valida un certificado usando el código de verificación (público)
@@ -45,15 +55,6 @@ router.get('/student/:studentId', authorize, certificateController.getCertificat
  * @access Private (requiere autenticación)
  */
 router.get('/download/:verificationCode', authorize, certificateController.downloadCertificate);
-
-// POST routes
-/**
- * @route POST /generate
- * @desc Genera un nuevo certificado para un estudiante
- * @access Private (requiere autenticación)
- * @body { studentId: string, courseId: string, teacherId: string }
- */
-router.post('/generate', authorize, certificateController.generateCertificate);
 
 // PATCH routes
 /**

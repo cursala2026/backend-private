@@ -34,15 +34,15 @@ export default async function registerRoutes() {
       // Extraer el nombre del archivo sin extensión y sin sufijo .route
       let prefix = file.replace(/\.(ts|js)$/, '').replace(/.route$/, '').replace(/^a-/, '');
       
-      // Crear un router wrapper que incluya el prefijo
-      const wrappedRouter = Router();
+      // Registrar directamente con el prefijo apropiado
       if (prefix !== 'auth' && prefix !== 'role' && prefix !== 'category' && prefix !== 'files') {
+        const wrappedRouter = Router();
         wrappedRouter.use(`/${prefix}`, router);
+        routers.push(wrappedRouter);
       } else {
-        wrappedRouter.use(router);
+        routers.push(router);
       }
       
-      routers.push(wrappedRouter);
       logger.info(`📍 Registered route: /${prefix}`);
     } catch (error: any) {
       logger.error(`❌ Error loading route file ${file}:`);

@@ -3,7 +3,28 @@ import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
+import http from 'http';
 import { logger } from '../utils';
+
+/**
+ * Descarga una imagen desde una URL y retorna un Buffer
+ */
+async function downloadImage(url: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        const protocol = url.startsWith('https') ? https : http;
+        protocol.get(url, (response) => {
+            if (response.statusCode !== 200) {
+                reject(new Error(`Failed to download image: ${response.statusCode}`));
+                return;
+            }
+            const chunks: Buffer[] = [];
+            response.on('data', (chunk) => chunks.push(chunk));
+            response.on('end', () => resolve(Buffer.concat(chunks)));
+            response.on('error', reject);
+        }).on('error', reject);
+    });
+}
 
 /**
  * Interfaz para los datos del certificado
@@ -31,6 +52,36 @@ export interface CertificatePdfData {
  */
 export async function generateCertificatePDF(certificateData?: CertificatePdfData): Promise<Buffer> {
     logger.info('Generando PDF del certificado');
+    
+    // Pre-cargar la firma del profesor si es una URL remota
+    let signatureBuffer: Buffer | null = null;
+    const teacherSignatureUrl = certificateData?.teacher?.professionalSignatureUrl;
+    
+    if (teacherSignatureUrl) {
+        try {
+            if (teacherSignatureUrl.startsWith('http://') || teacherSignatureUrl.startsWith('https://')) {
+                logger.info('Descargando firma desde URL:', teacherSignatureUrl);
+                signatureBuffer = await downloadImage(teacherSignatureUrl);
+                logger.info('Firma descargada exitosamente');
+            } else {
+                // Es una ruta local, leer archivo
+                const staticBaseDir = path.resolve(__dirname, '../../src/static');
+                let signaturePath = path.join(staticBaseDir, 'signatures', teacherSignatureUrl);
+                
+                if (!fs.existsSync(signaturePath)) {
+                    signaturePath = path.join(staticBaseDir, 'profile-images', teacherSignatureUrl);
+                }
+
+                if (fs.existsSync(signaturePath)) {
+                    signatureBuffer = fs.readFileSync(signaturePath);
+                    logger.info('Firma local cargada desde:', signaturePath);
+                }
+            }
+        } catch (error) {
+            logger.warn('Error al cargar firma del profesor:', error);
+        }
+    }
+    
     return new Promise((resolve, reject) => {
         try {
             const doc = new PDFDocument({
@@ -222,29 +273,22 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
             if (teacherName) {
                 const sigY = qrY + qrSize + 25;
                 const sigX = qrX + qrSize / 2;
-                const teacherSignatureUrl = certificateData?.teacher?.professionalSignatureUrl;
                 let signatureImageHeight = 0;
 
-                if (teacherSignatureUrl) {
+                if (signatureBuffer) {
                     try {
-                        let signaturePath = path.join('/app/dist/src/static/signatures', teacherSignatureUrl);
-                        if (!fs.existsSync(signaturePath)) {
-                            signaturePath = path.join('/app/dist/src/static/profile-images', teacherSignatureUrl);
-                        }
-
-                        if (fs.existsSync(signaturePath)) {
-                            const signatureWidth = 100;
-                            const signatureHeight = 50;
-                            doc.image(signaturePath, sigX - signatureWidth / 2, sigY, {
-                                width: signatureWidth,
-                                height: signatureHeight,
-                                align: 'center',
-                                fit: [signatureWidth, signatureHeight],
-                            });
-                            signatureImageHeight = signatureHeight + 2;
-                        }
+                        logger.info('Agregando firma al PDF');
+                        const signatureWidth = 100;
+                        const signatureHeight = 50;
+                        doc.image(signatureBuffer, sigX - signatureWidth / 2, sigY, {
+                            width: signatureWidth,
+                            height: signatureHeight,
+                            align: 'center',
+                            fit: [signatureWidth, signatureHeight],
+                        });
+                        signatureImageHeight = signatureHeight + 2;
                     } catch (error) {
-                        logger.warn('No se pudo cargar la firma profesional', error);
+                        logger.warn('Error al agregar firma al PDF', error);
                     }
                 }
 
