@@ -128,7 +128,7 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8081';
     // Usar WEBHOOK_URL (ngrok) si está disponible, sino usar BACKEND_URL
-    const webhookBaseUrl = process.env.WEBHOOK_URL || backendUrl;
+    const webhookBaseUrl = (process.env.WEBHOOK_URL || backendUrl).replace(/\/$/, '');
     const backendApiUrl = `${backendUrl}/api/v1`;
     const webhookApiUrl = `${webhookBaseUrl}/api/v1`;
 

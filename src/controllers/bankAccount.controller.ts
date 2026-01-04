@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { IUser } from '../models/user.model';
 import prepareResponse from '../utils/api-response';
 import BankAccountService from '@/services/bankAccount.service';
 
@@ -10,6 +11,23 @@ export default class BankAccountController {
    */
   getAllBankAccounts = async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const bankAccounts = await this.bankAccountService.getAllBankAccounts();
+      return res.json(prepareResponse(200, 'Bank accounts fetched successfully', bankAccounts));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * Get bank accounts for student users
+   */
+  getBankAccountsForStudent = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = req.user as IUser;
+      if (!user || !user.roles || !user.roles.includes('ALUMNO')) {
+        return res.status(403).json(prepareResponse(403, 'Access denied. Only students can access this resource.'));
+      }
+
       const bankAccounts = await this.bankAccountService.getAllBankAccounts();
       return res.json(prepareResponse(200, 'Bank accounts fetched successfully', bankAccounts));
     } catch (error) {

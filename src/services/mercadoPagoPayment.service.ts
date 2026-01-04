@@ -243,6 +243,11 @@ export default class MercadoPagoPaymentService {
         });
 
         // Asignar curso automáticamente al usuario (usar email real)
+        logger.info('About to assign course to user from webhook', {
+          courseId,
+          studentEmail,
+          externalReference: paymentInfo.external_reference,
+        });
         await this.assignCourseToUser(studentEmail, courseId, new Date());
 
         // Enviar emails de confirmación solo para pagos nuevos aprobados y solo en producción
