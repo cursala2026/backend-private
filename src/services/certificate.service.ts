@@ -140,7 +140,7 @@ export default class CertificateService {
     }
 
     // Obtener el teacherId del curso (primer profesor del array)
-    const courseSafe = course as unknown as { teachers?: any[] };
+    const courseSafe = course as unknown as { teachers?: any[]; endDate?: Date; location?: string };
     const teacherId = courseSafe.teachers && courseSafe.teachers.length > 0 ? courseSafe.teachers[0].toString() : null;
     
     if (!teacherId) {

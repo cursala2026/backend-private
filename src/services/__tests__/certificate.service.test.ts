@@ -64,7 +64,7 @@ describe('CertificateService', () => {
       // Mock the internal PDF generation method on the service prototype
       jest.spyOn(CertificateService.prototype as any, 'generateCertificatePDFInternal').mockResolvedValue(Buffer.from('mock-pdf'));
       (sendEmail as jest.Mock).mockResolvedValue({});
-      const result = await certificateService.generateCertificate('student-id', 'course-id', 'teacher-id', 'generated-by');
+      const result = await certificateService.generateCertificate('student-id', 'course-id', 'generated-by');
       expect(result).toHaveProperty('certificateId');
       expect(result).toHaveProperty('verificationCode');
       expect(mockCertificateRepository.create).toHaveBeenCalled();
@@ -72,29 +72,29 @@ describe('CertificateService', () => {
     });
     test('throws error if student not found', async () => {
       mockUserRepository.getUserById.mockResolvedValue(null);
-      await expect(certificateService.generateCertificate('student-id', 'course-id', 'teacher-id', 'generated-by')).rejects.toThrow('Estudiante no encontrado');
+      await expect(certificateService.generateCertificate('student-id', 'course-id', 'generated-by')).rejects.toThrow('Estudiante no encontrado');
     });
     test('throws error if course not found', async () => {
       const student = { firstName: 'John', lastName: 'Doe' };
       mockUserRepository.getUserById.mockResolvedValueOnce(student);
       mockCourseRepository.findById.mockResolvedValue(null);
-      await expect(certificateService.generateCertificate('student-id', 'course-id', 'teacher-id', 'generated-by')).rejects.toThrow('Curso no encontrado');
+      await expect(certificateService.generateCertificate('student-id', 'course-id', 'generated-by')).rejects.toThrow('Curso no encontrado');
     });
     test('throws error if teacher not found', async () => {
       const student = { firstName: 'John', lastName: 'Doe' };
-      const course = { name: 'Test Course' };
+      const course = { name: 'Test Course', teachers: ['teacher-id'] };
       mockUserRepository.getUserById.mockResolvedValueOnce(student).mockResolvedValueOnce(null);
       mockCourseRepository.findById.mockResolvedValue(course);
-      await expect(certificateService.generateCertificate('student-id', 'course-id', 'teacher-id', 'generated-by')).rejects.toThrow('Profesor no encontrado');
+      await expect(certificateService.generateCertificate('student-id', 'course-id', 'generated-by')).rejects.toThrow('Profesor no encontrado');
     });
     test('throws error if student not enrolled', async () => {
       const student = { firstName: 'John', lastName: 'Doe' };
-      const course = { name: 'Test Course' };
+      const course = { name: 'Test Course', teachers: ['teacher-id'] };
       const teacher = { firstName: 'Teacher', lastName: 'One' };
       mockUserRepository.getUserById.mockResolvedValueOnce(student).mockResolvedValueOnce(teacher);
       mockCourseRepository.findById.mockResolvedValue(course);
       mockUserRepository.isUserEnrolledInCourse.mockResolvedValue(false);
-      await expect(certificateService.generateCertificate('student-id', 'course-id', 'teacher-id', 'generated-by')).rejects.toThrow('El estudiante no está inscrito en este curso');
+      await expect(certificateService.generateCertificate('student-id', 'course-id', 'generated-by')).rejects.toThrow('El estudiante no está inscrito en este curso');
     });
   });
   describe('validateCertificate', () => {

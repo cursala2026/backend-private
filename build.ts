@@ -57,7 +57,6 @@ async function executeCommand(command: string, path: string) {
     // Copy config files after compilation
     await copy('./src/config/errors/error.yml', './dist/src/config/errors/error.yml');
     await copy('./src/static/password-recovery-email.html', './dist/src/static/password-recovery-email.html');
-    await copy('./src/static/clase', './dist/src/static/clase');
     await copy('./package.json', './dist/package.json');
 
     logger.info('✔️ Build completed successfully!');
