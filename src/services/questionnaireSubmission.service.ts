@@ -1,6 +1,7 @@
 import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 import QuestionnaireSubmissionRepository, { GradeReportEntry } from '@/repositories/questionnaireSubmission.repository';
 import { courseProgressRepository } from '@/repositories/courseProgress.repository';
+import { userRepository } from '@/repositories/user.repository';
 import { IQuestionnaireSubmission, IAnswer, QuestionnaireSubmissionDoc } from '@/models/mongo/questionnaireSubmission.model';
 import { IQuestion } from '@/models/mongo/questionnaire.model';
 import { Types, Schema } from 'mongoose';
@@ -38,11 +39,20 @@ class QuestionnaireSubmissionService {
     // Get next attempt number
     const attemptNumber = await this.submissionRepository.getNextAttemptNumber(studentId, questionnaireId);
 
+    // Get student data for denormalization
+    const student = await userRepository.getUserById(studentId);
+    if (!student) {
+      throw new Error('Student not found');
+    }
+
     // Create new submission
     return await this.submissionRepository.create({
       questionnaireId: questionnaire._id,
       courseId: questionnaire.courseId,
       studentId: new Types.ObjectId(studentId),
+      studentName: `${student.firstName} ${student.lastName}`,
+      studentEmail: student.email,
+      profilePhotoUrl: student.profilePhotoUrl,
       attemptNumber,
       answers: [],
       status: 'IN_PROGRESS',
@@ -285,29 +295,15 @@ class QuestionnaireSubmissionService {
   /**
    * Obtener reporte de calificaciones
    */
-  async getGradeReport(questionnaireId: string): Promise<GradeReportEntry[]> {
+  async getGradeReport(questionnaireId: string): Promise<QuestionnaireSubmissionDoc[]> {
     return await this.submissionRepository.getGradeReport(questionnaireId);
-  }
-
-  /**
-   * Obtener envíos pendientes de calificación
-   */
-  async getPendingGrading(questionnaireId: string): Promise<QuestionnaireSubmissionDoc[]> {
-    return await this.submissionRepository.findPendingGrading(questionnaireId);
-  }
-
-  /**
-   * Obtener todos los exámenes pendientes de calificar para un profesor
-   */
-  async getPendingGradingByTeacher(teacherId: string): Promise<any[]> {
-    return await this.submissionRepository.findPendingGradingByTeacher(teacherId);
   }
 
   /**
    * Obtener un envío por ID
    */
   async getSubmissionById(id: string): Promise<QuestionnaireSubmissionDoc | null> {
-    return await this.submissionRepository.findById(id);
+    return await this.submissionRepository.findByIdWithStudent(id);
   }
 
   /**

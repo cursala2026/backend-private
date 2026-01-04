@@ -392,6 +392,8 @@ export default class UserController {
 
   updateUserData = async (req: Request, res: Response, next: NextFunction) => {
     console.log('🚀 DEBUG: updateUserData endpoint called with userId:', req.params.userId);
+    console.log('📋 DEBUG: Files received:', Object.keys(req.files || {}));
+    console.log('📋 DEBUG: Body fields:', Object.keys(req.body || {}));
     try {
       uploadFiles.fields([
         { name: 'photo', maxCount: 1 },

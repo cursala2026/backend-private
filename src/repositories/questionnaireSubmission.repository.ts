@@ -51,6 +51,22 @@ class QuestionnaireSubmissionRepository {
   }
 
   /**
+   * Encuentra un envío por su ID con información del estudiante poblada
+   * @param id - ID del envío
+   * @returns El envío encontrado con studentName y studentEmail o null si no existe
+   */
+  async findByIdWithStudent(id: string): Promise<QuestionnaireSubmissionDoc | null> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error('El ID del envío proporcionado no es válido.');
+    }
+    const res = await this.model
+      .findById(id)
+      .populate('studentId', 'firstName lastName email')
+      .exec();
+    return res as unknown as QuestionnaireSubmissionDoc | null;
+  }
+
+  /**
    * Actualiza un envío existente
    * @param id - ID del envío
    * @param data - Datos a actualizar
@@ -145,22 +161,6 @@ class QuestionnaireSubmissionRepository {
    * @param questionnaireId - ID del cuestionario
    * @returns Lista de envíos pendientes de calificación
    */
-  async findPendingGrading(questionnaireId: string): Promise<QuestionnaireSubmissionDoc[]> {
-    if (!Types.ObjectId.isValid(questionnaireId)) {
-      throw new Error('El ID del cuestionario proporcionado no es válido.');
-    }
-
-    const submissions = await this.model
-      .find({
-        questionnaireId: questionnaireId as any,
-        status: 'SUBMITTED', // Not yet fully graded
-      })
-      .sort({ submittedAt: 1 })
-      .exec();
-
-    return submissions as unknown as QuestionnaireSubmissionDoc[];
-  }
-
   /**
    * Encuentra todos los envíos de un cuestionario
    * @param questionnaireId - ID del cuestionario
@@ -185,54 +185,40 @@ class QuestionnaireSubmissionRepository {
    * @param questionnaireId - ID del cuestionario
    * @returns Reporte de calificaciones por estudiante
    */
-  async getGradeReport(questionnaireId: string): Promise<GradeReportEntry[]> {
+  async getGradeReport(questionnaireId: string): Promise<QuestionnaireSubmissionDoc[]> {
     if (!Types.ObjectId.isValid(questionnaireId)) {
       throw new Error('El ID del cuestionario proporcionado no es válido.');
     }
 
-    const report = await this.model
-      .aggregate([
-        { 
-          $match: { 
-            questionnaireId: new Types.ObjectId(questionnaireId),
-            status: 'GRADED' // Solo incluir submissions que ya fueron calificados
-          } 
-        },
-        {
-          $group: {
-            _id: '$studentId',
-            attemptCount: { $sum: 1 },
-            bestScore: { $max: '$finalScore' },
-            lastAttempt: { $max: '$submittedAt' },
-            submissions: { $push: '$$ROOT' },
-          },
-        },
-        {
-          $lookup: {
-            from: 'users',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'student',
-          },
-        },
-        { $unwind: '$student' },
-        {
-          $project: {
-            studentId: '$_id',
-            studentName: { $concat: ['$student.firstName', ' ', '$student.lastName'] },
-            studentEmail: '$student.email',
-            profilePhotoUrl: '$student.profilePhotoUrl',
-            attemptCount: 1,
-            bestScore: 1,
-            lastAttempt: 1,
-            allSubmissions: '$submissions',
-          },
-        },
-        { $sort: { studentName: 1 } },
-      ])
+    const submissions = await this.model
+      .find({
+        questionnaireId: questionnaireId as any,
+        status: { $in: ['SUBMITTED', 'GRADED'] },
+      })
+      .populate('studentId', 'firstName lastName email profilePhotoUrl')
+      .sort({ submittedAt: 1 })
       .exec();
 
-    return report as GradeReportEntry[];
+    // Asegurar que studentName, studentEmail y profilePhotoUrl estén presentes
+    const result = submissions.map((sub: any) => {
+      const plainSub = sub.toObject ? sub.toObject() : sub;
+      
+      if (!plainSub.studentName && plainSub.studentId?.firstName) {
+        plainSub.studentName = `${plainSub.studentId.firstName} ${plainSub.studentId.lastName}`;
+      }
+      
+      if (!plainSub.studentEmail && plainSub.studentId?.email) {
+        plainSub.studentEmail = plainSub.studentId.email;
+      }
+      
+      if (!plainSub.profilePhotoUrl && plainSub.studentId?.profilePhotoUrl) {
+        plainSub.profilePhotoUrl = plainSub.studentId.profilePhotoUrl;
+      }
+      
+      return plainSub;
+    });
+
+    return result as QuestionnaireSubmissionDoc[];
   }
 
   /**
@@ -300,85 +286,6 @@ class QuestionnaireSubmissionRepository {
     return result.deletedCount || 0;
   }
 
-  /**
-   * Obtiene todos los exámenes pendientes de calificar para un profesor
-   * @param teacherId - ID del profesor
-   * @returns Lista de exámenes pendientes con información del estudiante y cuestionario
-   */
-  async findPendingGradingByTeacher(teacherId: string): Promise<any[]> {
-    if (!Types.ObjectId.isValid(teacherId)) {
-      throw new Error('El ID del profesor proporcionado no es válido.');
-    }
-
-    const pendingSubmissions = await this.model
-      .aggregate([
-        {
-          $match: {
-            status: 'SUBMITTED', // Solo exámenes pendientes de calificación
-          },
-        },
-        {
-          $lookup: {
-            from: 'questionnaires',
-            localField: 'questionnaireId',
-            foreignField: '_id',
-            as: 'questionnaire',
-          },
-        },
-        {
-          $unwind: '$questionnaire',
-        },
-        {
-          $match: {
-            'questionnaire.createdBy': new Types.ObjectId(teacherId),
-          },
-        },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'studentId',
-            foreignField: '_id',
-            as: 'student',
-          },
-        },
-        {
-          $unwind: '$student',
-        },
-        {
-          $lookup: {
-            from: 'courses',
-            localField: 'courseId',
-            foreignField: '_id',
-            as: 'course',
-          },
-        },
-        {
-          $unwind: '$course',
-        },
-        {
-          $project: {
-            _id: 1,
-            submissionId: '$_id',
-            questionnaireId: '$questionnaire._id',
-            questionnaireTitle: '$questionnaire.title',
-            courseId: '$course._id',
-            courseName: '$course.name',
-            studentId: '$student._id',
-            studentName: { $concat: ['$student.firstName', ' ', '$student.lastName'] },
-            studentEmail: '$student.email',
-            attemptNumber: 1,
-            submittedAt: 1,
-            autoGradedScore: 1,
-          },
-        },
-        {
-          $sort: { submittedAt: 1 }, // Más antiguos primero
-        },
-      ])
-      .exec();
-
-    return pendingSubmissions;
-  }
 }
 
 export default QuestionnaireSubmissionRepository;

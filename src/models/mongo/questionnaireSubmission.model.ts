@@ -18,6 +18,9 @@ export interface IQuestionnaireSubmission {
   questionnaireId: ObjectId;
   courseId: ObjectId; // Denormalized for easier queries
   studentId: ObjectId;
+  studentName?: string; // Denormalized for easier queries
+  studentEmail?: string; // Denormalized for easier queries
+  profilePhotoUrl?: string; // Denormalized for easier queries
   attemptNumber: number;
   answers: IAnswer[];
 
@@ -97,6 +100,18 @@ export const QuestionnaireSubmissionSchema: Schema<QuestionnaireSubmissionModel>
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    studentName: {
+      type: String,
+      required: false,
+    },
+    studentEmail: {
+      type: String,
+      required: false,
+    },
+    profilePhotoUrl: {
+      type: String,
+      required: false,
     },
     attemptNumber: {
       type: Number,

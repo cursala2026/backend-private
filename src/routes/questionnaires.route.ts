@@ -77,16 +77,6 @@ router.get('/submissions/:submissionId', authorize, (req, res, next) =>
   questionnaireSubmissionController.getSubmissionById(req, res, next)
 );
 
-// Get pending grading (professors/admins)
-router.get('/:questionnaireId/pending-grading', authorize, (req, res, next) =>
-  questionnaireSubmissionController.getPendingGrading(req, res, next)
-);
-
-// Get all pending grading for a teacher (professors/admins)
-router.get('/submissions/pending-grading/teacher', authorize, (req, res, next) =>
-  questionnaireSubmissionController.getPendingGradingByTeacher(req, res, next)
-);
-
 // Reset student attempts (professors/admins)
 router.delete('/:questionnaireId/submissions/student/:studentId', authorize, (req, res, next) =>
   questionnaireSubmissionController.resetStudentAttempts(req, res, next)

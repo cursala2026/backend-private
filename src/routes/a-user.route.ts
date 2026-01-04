@@ -14,6 +14,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // 🟠 ALTO: Consultas administrativas de usuarios
 router.get('/getUserById/:userId', authorize, requireAdmin, userController.getUserById);
+router.get('/:userId', authorize, requireAdminOrSelf, userController.getUserById);
 router.get('/getAllUsers', authorize, requireAdmin, userController.getAllUsers);
 router.get('/getTeachers', authorize, requireAdmin, userController.getTeachers);
 router.get('/', authorize, requireAdmin, userController.getUsersPaginated);
