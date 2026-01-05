@@ -156,6 +156,7 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
         ...(data.payer.identification && { identification: data.payer.identification }),
         ...(data.payer.address && { address: data.payer.address }),
       },
+      purpose: 'wallet_purchase', // Fuerza el contexto de compra vía billetera (permite dinero en cuenta)
       payment_methods: data.payment_methods || {
         excluded_payment_types: [],
         excluded_payment_methods: [],
