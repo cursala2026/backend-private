@@ -903,26 +903,29 @@ class CourseRepository {
     const classIdMapping: { [oldId: string]: Types.ObjectId } = {}; // Para mapear IDs viejos a nuevos
     
     for (const originalClass of classes) {
+      // Cast a any para acceder a todas las propiedades del documento de clase completo
+      const classData = originalClass as any;
+      
       const newClassData = {
-        name: originalClass.name,
-        description: originalClass.description,
-        status: originalClass.status,
-        order: originalClass.order,
+        name: classData.name,
+        description: classData.description,
+        status: classData.status,
+        order: classData.order,
         courseId: newCourseId,
         // Mantener los mismos enlaces de archivos (no duplicar en Bunny)
-        imageUrl: originalClass.imageUrl,
-        videoUrl: originalClass.videoUrl,
-        videoStatus: originalClass.videoStatus,
-        supportMaterials: originalClass.supportMaterials, // Arrays de URLs
-        meta: originalClass.meta,
-        linkLive: originalClass.linkLive,
-        examConfig: originalClass.examConfig,
+        imageUrl: classData.imageUrl,
+        videoUrl: classData.videoUrl,
+        videoStatus: classData.videoStatus,
+        supportMaterials: classData.supportMaterials, // Arrays de URLs
+        meta: classData.meta,
+        linkLive: classData.linkLive,
+        examConfig: classData.examConfig,
       };
 
       const newClass = await ClassModel.create(newClassData);
       
       // Guardar mapeo de ID viejo a nuevo (para los cuestionarios)
-      const oldClassId = String(originalClass._id);
+      const oldClassId = String(classData._id);
       classIdMapping[oldClassId] = newClass._id;
     }
 
