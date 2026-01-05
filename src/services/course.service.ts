@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ICourse, Types } from '@/models';
+import { logger } from '@/utils';
 import CourseRepository from '@/repositories/course.repository';
 import UserRepository from '@/repositories/user.repository';
 import { courseProgressRepository, questionnaireSubmissionRepository, certificateRepository } from '@/repositories';
@@ -16,19 +17,9 @@ export default class CourseService {
     const course = await this.courseRepository.findOneById(id);
     
     if (course) {
-      console.log('Course data structure:', {
-        hasClasses: !!course.classes,
-        classesCount: course.classes?.length,
-        hasQuestionnaires: !!course.questionnaires,
-        questionnairesCount: course.questionnaires?.length
-      });
-      
       if (course.classes && course.questionnaires) {
         // Generar el array ordenado de contenido
         course.orderedContent = this.buildOrderedContent(course.classes, course.questionnaires);
-        console.log('Generated orderedContent:', course.orderedContent?.length, 'items');
-      } else {
-        console.log('Missing data for orderedContent generation');
       }
     }
     

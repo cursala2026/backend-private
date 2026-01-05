@@ -23,6 +23,7 @@ if (config.NODE_ENV === 'production') {
     exitOnError: true,
   });
 } else {
+  // En desarrollo, mantener nivel global en 'debug' pero limitar la salida a consola a 'info'
   logger = winston.createLogger({
     exitOnError: false,
     format: winston.format.combine(winston.format.colorize(), winston.format.timestamp(), winston.format.simple()),
@@ -30,12 +31,14 @@ if (config.NODE_ENV === 'production') {
     handleExceptions: true,
     transports: [
       new winston.transports.Console({
+        // Mostrar en consola solo mensajes info+ para reducir verbosity local
         format: winston.format.combine(winston.format.timestamp(), winston.format.splat(), winston.format.colorize()),
-        level: 'debug',
+        level: 'info',
         handleExceptions: true,
       }),
       new winston.transports.Http(),
       new winston.transports.File({
+        // Persistir todo (incluyendo debug) en archivo para auditoría
         level: 'debug',
         handleExceptions: true,
         format: winston.format.combine(winston.format.timestamp(), winston.format.json()),

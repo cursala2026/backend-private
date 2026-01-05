@@ -38,122 +38,132 @@ export default class CourseController {
 
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Usamos multer para manejar múltiples campos de archivos
-      courseUploadFiles.fields([
-        { name: 'imageFile', maxCount: 1 },
-        { name: 'programFile', maxCount: 1 },
-      ])(req, res, async (err: unknown) => {
-        if (err) {
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          return res.status(400).json({ message: errorMessage });
+      // Log básico de entrada
+      const incomingContentType = String(req.headers['content-type'] || 'unknown');
+      logger.info('Create course request received', { contentType: incomingContentType });
+
+      // Helper para procesar la creación (comparte lógica entre multipart y JSON)
+      const processCreate = async (body: any, files: Record<string, Express.Multer.File[]> | undefined) => {
+        // Extraemos los datos del body
+        const {
+          name,
+          description,
+          longDescription,
+          order,
+          days,
+          time,
+          startDate,
+          registrationOpenDate,
+          modality,
+          price,
+          maxInstallments,
+          interestFree,
+          isPublished,
+          teachers,
+        } = body;
+
+        // Procesar teachers: puede venir como array o string separado por comas
+        let teachersArray: string[] = [];
+        if (teachers) {
+          if (Array.isArray(teachers)) {
+            teachersArray = teachers.filter((t: string) => t && t.trim() !== '');
+          } else if (typeof teachers === 'string') {
+            teachersArray = teachers.split(',').map((t: string) => t.trim()).filter((t: string) => t !== '');
+          }
         }
 
+        // Nota: Se elimina la restricción de cantidad de profesores (antes 1-3).
+        // Ahora se permite cualquier cantidad (incluyendo 0) para facilitar creación.
+
+        // Convertir a ObjectIds
+        const { Types } = require('mongoose');
+        const teachersObjectIds = teachersArray.map((id: string) => {
+          if (!Types.ObjectId.isValid(id)) {
+            throw new Error(`ID de profesor inválido: ${id}`);
+          }
+          return new Types.ObjectId(id);
+        });
+
+        // Construir el objeto de datos del curso
+        const courseData = {
+          name,
+          description,
+          longDescription,
+          status: 'ACTIVE', // Siempre crear cursos con estado activo
+          order: order ? Number(order) : 0,
+          days: typeof days === 'string' ? days.split(',').map((day: string) => day.trim()) : days,
+          time,
+          startDate: startDate ? new Date(startDate) : undefined,
+          registrationOpenDate: registrationOpenDate ? new Date(registrationOpenDate) : undefined,
+          modality,
+          price: price ? Number(price) : undefined,
+          maxInstallments: maxInstallments ? Number(maxInstallments) : 1,
+          interestFree: interestFree === 'true' || interestFree === true,
+          isPublished: (() => {
+            if (isPublished === undefined) return true;
+            if (typeof isPublished === 'string') return isPublished.toLowerCase() === 'true';
+            return Boolean(isPublished);
+          })(),
+          teachers: teachersObjectIds,
+        };
+
+        // Obtener archivos (si vienen)
+        const imageFile = files?.imageFile?.[0];
+        const programFile = files?.programFile?.[0];
+
+        // Crear curso con archivos usando el servicio
+        const course = await this.courseService.createCourseWithFiles(courseData, imageFile, programFile);
+        return res.json(prepareResponse(201, 'Course created successfully', course));
+      };
+
+      // Si la petición es multipart/form-data, usar multer para parsear archivos
+      const contentType = req.headers['content-type'] || '';
+      if (typeof contentType === 'string' && contentType.includes('multipart/form-data')) {
+        courseUploadFiles.fields([
+          { name: 'imageFile', maxCount: 1 },
+          { name: 'programFile', maxCount: 1 },
+        ])(req, res, async (err: unknown) => {
+          if (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+            logger.error('Multer error parsing multipart request', { error: err });
+            return res.status(400).json({ message: errorMessage });
+          }
+          try {
+            await processCreate(req.body, req.files as Record<string, Express.Multer.File[]>);
+          } catch (error) {
+            logger.error('Error creating course (multipart)', { message: (error as Error).message, stack: (error as any)?.stack });
+            if (error && typeof error === 'object' && 'code' in error) {
+              if ((error as any).code === 11000) {
+                return res.status(400).json({ message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' });
+              }
+            }
+            if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ValidationError') {
+              logger.error('Mongoose validation error creating course (multipart)', { error });
+              return res.status(400).json({ message: 'Error de validación: ' + (error as Error).message });
+            }
+            logger.error('Unexpected error creating course (multipart)', { error });
+            return res.status(500).json({ message: 'Error inesperado al crear el curso', error: (error as Error).message });
+          }
+        });
+      } else {
+        // Petición JSON normal (sin archivos)
         try {
-          // El campo imageFile es obligatorio
-          if (!req.files || !(req.files as Record<string, Express.Multer.File[]>).imageFile) {
-            return res.status(400).json({ message: 'Image is required' });
-          }
-
-          // Extraemos los datos del body
-          const {
-            name,
-            description,
-            longDescription,
-            order,
-            days,
-            time,
-            startDate,
-            registrationOpenDate,
-            modality,
-            price,
-            maxInstallments,
-            interestFree,
-            isPublished,
-            teachers,
-          } = req.body;
-
-          // Procesar teachers: puede venir como array o string separado por comas
-          let teachersArray: string[] = [];
-          if (teachers) {
-            if (Array.isArray(teachers)) {
-              teachersArray = teachers.filter(t => t && t.trim() !== '');
-            } else if (typeof teachers === 'string') {
-              teachersArray = teachers.split(',').map(t => t.trim()).filter(t => t !== '');
-            }
-          }
-
-          // Validar que haya entre 1 y 3 profesores
-          if (teachersArray.length < 1 || teachersArray.length > 3) {
-            return res.status(400).json({ 
-              message: 'El curso debe tener entre 1 y 3 profesores asignados' 
-            });
-          }
-
-          // Convertir a ObjectIds
-          const { Types } = require('mongoose');
-          const teachersObjectIds = teachersArray.map(id => {
-            if (!Types.ObjectId.isValid(id)) {
-              throw new Error(`ID de profesor inválido: ${id}`);
-            }
-            return new Types.ObjectId(id);
-          });
-
-          // Construir el objeto de datos del curso
-          const courseData = {
-            name,
-            description,
-            longDescription,
-            status: 'ACTIVE', // Siempre crear cursos con estado activo
-            order: order ? Number(order) : 0,
-            days: typeof days === 'string' ? days.split(',').map((day) => day.trim()) : days,
-            time,
-            startDate: startDate ? new Date(startDate) : undefined,
-            registrationOpenDate: registrationOpenDate ? new Date(registrationOpenDate) : undefined,
-            modality,
-            price: price ? Number(price) : undefined,
-            maxInstallments: maxInstallments ? Number(maxInstallments) : 1,
-            interestFree: interestFree === 'true' || interestFree === true,
-            isPublished: (() => {
-              if (isPublished === undefined) return true;
-              if (typeof isPublished === 'string') return isPublished.toLowerCase() === 'true';
-              return Boolean(isPublished);
-            })(),
-            teachers: teachersObjectIds,
-          };
-
-          // Obtener archivos
-          const files = req.files as Record<string, Express.Multer.File[]>;
-          const imageFile = files.imageFile?.[0];
-          const programFile = files.programFile?.[0];
-
-          // Crear curso con archivos usando el servicio
-          const course = await this.courseService.createCourseWithFiles(courseData, imageFile, programFile);
-          
-          return res.json(prepareResponse(201, 'Course created successfully', course));
+          await processCreate(req.body, undefined);
         } catch (error) {
-          // Manejar errores de MongoDB específicos
+          logger.error('Error creating course (json)', { message: (error as Error).message, stack: (error as any)?.stack });
           if (error && typeof error === 'object' && 'code' in error) {
-            if (error.code === 11000) {
-              return res.status(400).json({ 
-                message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' 
-              });
+            if ((error as any).code === 11000) {
+              return res.status(400).json({ message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' });
             }
           }
-
-          // Error de validación de Mongoose
-          if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
-            return res.status(400).json({ 
-              message: 'Error de validación: ' + (error as Error).message 
-            });
+          if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ValidationError') {
+            logger.error('Mongoose validation error creating course (json)', { error });
+            return res.status(400).json({ message: 'Error de validación: ' + (error as Error).message });
           }
-
-          // Error genérico
-          return res.status(500).json({ 
-            message: 'Error inesperado al crear el curso', 
-            error: (error as Error).message 
-          });
+          logger.error('Unexpected error creating course (json)', { error });
+          return res.status(500).json({ message: 'Error inesperado al crear el curso', error: (error as Error).message });
         }
-      });
+      }
     } catch (error) {
       return next(error);
     }
@@ -501,9 +511,7 @@ export default class CourseController {
       const { courseId } = req.params;
       const { isPublished } = req.body;
 
-      logger.info('=== ENDPOINT changePublishedStatus ===');
-      logger.info(`courseId: ${courseId}`);
-      logger.info(`isPublished recibido: ${isPublished}, tipo: ${typeof isPublished}`);
+      
 
       // Validar que courseId existe
       if (!courseId) {
@@ -524,7 +532,7 @@ export default class CourseController {
       // Actualizar solo el campo isPublished
       const updatedCourse = await this.courseService.update(courseId, { isPublished }, []);
 
-      logger.info(`Curso actualizado - isPublished: ${updatedCourse.isPublished}`);
+      
 
       return res.json(prepareResponse(200, 'Course published status updated successfully', updatedCourse));
     } catch (error) {

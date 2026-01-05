@@ -20,11 +20,7 @@ const isRemoteMounted = fs.existsSync(remoteStaticDir);
 // Directorios base para archivos estáticos
 const staticBaseDir = isRemoteMounted ? remoteStaticDir : '/app/dist/src/static';
 
-console.log('🔧 User service static directories:', {
-  isRemoteMounted,
-  remoteStaticDir,
-  staticBaseDir
-});
+// User service static directories (logged only when needed)
 
 export default class UserService {
   constructor(
@@ -338,12 +334,7 @@ export default class UserService {
     profilePhotoUrl?: string,
     professionalSignatureUrl?: string
   ): Promise<IUserExtended | null> {
-    console.log('DEBUG SERVICE: updateUserData called with:', {
-      userId,
-      professionalDescription: professionalDescription.substring(0, 50) + '...',
-      profilePhotoUrl,
-      professionalSignatureUrl
-    });
+    
 
     if (!professionalDescription || professionalDescription.trim().length < 100) {
       throw new Error('La descripción profesional debe tener al menos 100 caracteres.');
@@ -351,11 +342,7 @@ export default class UserService {
 
     // Obtener usuario existente para guardar archivos anteriores
     const existingUser = await this.userRepository.getUserById(userId);
-    console.log('DEBUG SERVICE: Usuario existente:', {
-      _id: existingUser?._id,
-      profilePhotoUrl: existingUser?.profilePhotoUrl,
-      professionalSignatureUrl: existingUser?.professionalSignatureUrl
-    });
+    
 
     // Si se proporciona una nueva imagen, obtener la imagen anterior para eliminarla
     let oldImageToDelete: string | null = null;
@@ -369,10 +356,7 @@ export default class UserService {
       oldSignatureToDelete = existingUser.professionalSignatureUrl || null;
     }
 
-    console.log('DEBUG SERVICE: Archivos a eliminar:', {
-      oldImageToDelete,
-      oldSignatureToDelete
-    });
+    
 
     // Actualizar los datos del usuario
     const updatedUser = await this.userRepository.updateUserProfessionalData(
@@ -382,11 +366,7 @@ export default class UserService {
       professionalSignatureUrl
     );
 
-    console.log('DEBUG SERVICE: Usuario actualizado por repositorio:', {
-      _id: updatedUser?._id,
-      profilePhotoUrl: updatedUser?.profilePhotoUrl,
-      professionalSignatureUrl: updatedUser?.professionalSignatureUrl
-    });
+    
 
     // Eliminar la imagen anterior solo después de que la actualización sea exitosa
     if (oldImageToDelete && profilePhotoUrl && updatedUser) {
@@ -440,18 +420,7 @@ export default class UserService {
       let filePath: string;
       if (sanitizedFileName.startsWith('signature-')) {
         filePath = path.resolve(staticBaseDir, 'signatures', sanitizedFileName);
-        console.log('DEBUG SERVICE: Buscando firma en:', filePath);
-        console.log('DEBUG SERVICE: Archivo existe:', fs.existsSync(filePath));
-        console.log('DEBUG SERVICE: Directorio existe:', fs.existsSync(path.dirname(filePath)));
-        try {
-          console.log('DEBUG SERVICE: Contenido del directorio:', fs.readdirSync(path.dirname(filePath)));
-        } catch (dirError) {
-          console.log('DEBUG SERVICE: Error leyendo directorio:', dirError);
-        }
-        console.log('DEBUG SERVICE: Permisos del directorio:', fs.statSync(path.dirname(filePath)).mode);
-        if (fs.existsSync(filePath)) {
-          console.log('DEBUG SERVICE: Tamaño del archivo:', fs.statSync(filePath).size);
-        }
+        
       } else {
         filePath = path.resolve(staticBaseDir, 'profile-images', sanitizedFileName);
       }

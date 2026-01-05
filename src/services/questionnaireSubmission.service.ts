@@ -5,6 +5,7 @@ import { userRepository } from '@/repositories';
 import { IQuestionnaireSubmission, IAnswer, QuestionnaireSubmissionDoc } from '@/models/mongo/questionnaireSubmission.model';
 import { IQuestion } from '@/models/mongo/questionnaire.model';
 import { Types, Schema } from 'mongoose';
+import { logger } from '@/utils';
 
 class QuestionnaireSubmissionService {
   constructor(
@@ -130,13 +131,13 @@ class QuestionnaireSubmissionService {
     professorId: string,
     overallFeedback?: string
   ): Promise<QuestionnaireSubmissionDoc> {
-    console.log('[gradeTextQuestions] Starting...', { submissionId, gradedAnswers, professorId });
+    
 
     const submission = await this.submissionRepository.findById(submissionId);
     if (!submission) {
       throw new Error('Submission not found');
     }
-    console.log('[gradeTextQuestions] Submission found:', { status: submission.status });
+    
 
     // Allow grading of both SUBMITTED and GRADED submissions (for re-grading)
     if (submission.status !== 'SUBMITTED' && submission.status !== 'GRADED') {
@@ -147,7 +148,7 @@ class QuestionnaireSubmissionService {
     if (!questionnaire) {
       throw new Error('Questionnaire not found');
     }
-    console.log('[gradeTextQuestions] Questionnaire found');
+    
 
     // Update text answers with grades
     const updatedAnswers = submission.answers.map((answer) => {
@@ -180,10 +181,8 @@ class QuestionnaireSubmissionService {
 
     // Calculate final score
     const finalScore = this.calculateFinalScore(questionnaire.questions, updatedAnswers);
-    console.log('[gradeTextQuestions] Final score calculated:', finalScore);
 
     // Update submission
-    console.log('[gradeTextQuestions] Updating submission...');
     const updated = await this.submissionRepository.update(submissionId, {
       answers: updatedAnswers,
       status: 'GRADED',
@@ -192,17 +191,16 @@ class QuestionnaireSubmissionService {
       gradedAt: new Date(),
       feedback: overallFeedback,
     });
-    console.log('[gradeTextQuestions] Submission updated');
+    
 
     // Update course progress
-    console.log('[gradeTextQuestions] Updating course progress...');
     await courseProgressRepository.updateQuestionnaireProgress(
       submission.studentId.toString(),
       submission.courseId.toString(),
       submission.questionnaireId.toString(),
       finalScore
     );
-    console.log('[gradeTextQuestions] Course progress updated');
+    
 
     return updated;
   }

@@ -125,12 +125,8 @@ export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
       type: [Schema.Types.ObjectId],
       ref: 'User',
       default: [],
-      validate: {
-        validator: function(teachers: ObjectId[]) {
-          return teachers.length >= 1 && teachers.length <= 3;
-        },
-        message: 'El curso debe tener entre 1 y 3 profesores asignados'
-      }
+      // Nota: Se removió la validación que obligaba entre 1 y 3 profesores
+      // para permitir crear cursos sin profesores o con cualquier cantidad.
     },
     numberOfClasses: { type: Number, min: 1 },
     duration: { type: Number, min: 0.5 }, // Duración del curso en horas

@@ -229,11 +229,11 @@ export default class FileController {
         return res.status(400).json(prepareResponse(400, 'Path parameter is required'));
       }
 
-      logger.debug(`📥 Direct file request - Raw path: ${filePath}`);
+      
 
       // Parsear el path: /file/{fileName}/{action} o /user/{fileName}/image
       const pathParts = filePath.split('/');
-      logger.debug(`📋 Path parts (${pathParts.length}): ${JSON.stringify(pathParts)}`);
+      
 
       if (pathParts.length < 4) {
         logger.warn(`❌ Invalid path format - expected at least 4 parts, got ${pathParts.length}`);
@@ -243,7 +243,7 @@ export default class FileController {
       const [, fileType, rawFileName, action] = pathParts;
       const fileName = decodeURIComponent(rawFileName);
 
-      logger.debug(`📝 Extracted - Type: "${fileType}", Raw: "${rawFileName}", Decoded: "${fileName}", Action: "${action}"`);
+      
 
       // Validar autenticación para acciones protegidas
       if (['video', 'download'].includes(action)) {
@@ -269,7 +269,7 @@ export default class FileController {
       }
 
       // Enrutar según la acción y tipo de archivo
-      logger.debug(`🔀 Routing to handler for action: ${action}, fileType: ${fileType}`);
+      
       switch (action) {
         case 'video':
           await this.handleDirectVideo(fileName, req, res);
@@ -383,7 +383,7 @@ export default class FileController {
 
   private handleDirectUserProfileImage = async (fileName: string, req: Request, res: Response) => {
     try {
-      logger.debug(`👤 handleDirectUserProfileImage called with fileName: "${fileName}"`);
+      
 
       // Determinar el subdirectorio según el prefijo del archivo
       const isSignature = fileName.startsWith('signature-');
@@ -393,16 +393,14 @@ export default class FileController {
       let filePath = path.join(__dirname, '../static-remote', subDir, fileName);
       let isRemote = true;
 
-      if (!fs.existsSync(filePath)) {
+        if (!fs.existsSync(filePath)) {
         // Si no existe en remoto, intentar local
         filePath = path.join(__dirname, '../static', subDir, fileName);
         isRemote = false;
-        logger.debug(`🔄 Remote ${subDir} file not found, trying local: "${filePath}"`);
       } else {
-        logger.debug(`🌐 Using remote ${subDir} file: "${filePath}"`);
       }
 
-      logger.debug(`📍 ${isSignature ? 'Signature' : 'Profile image'} path: "${filePath}"`);
+      
 
       // Validar que el archivo no intente path traversal
       if (filePath.includes('..') || (!filePath.includes('profile-images') && !filePath.includes('signatures') && !filePath.includes('static-remote'))) {
@@ -452,7 +450,7 @@ export default class FileController {
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.send(fileBuffer);
 
-      logger.debug(`📤 Profile image sent to client: "${fileName}" from ${isRemote ? 'remote' : 'local'}`);
+      
     } catch (error) {
       logger.error(`❌ Error in handleDirectUserProfileImage for "${fileName}":`, error);
       throw error;

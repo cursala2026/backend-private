@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import type { Request } from 'express';
+import { logger } from '@/utils';
 
 type FileLike = { originalname?: string; fieldname?: string; mimetype?: string };
 
@@ -27,13 +28,7 @@ export const uploadDirMaterials = isRemoteMounted
   ? path.join(remoteStaticDir, 'materials')
   : path.join('/app/dist/src/static/materials');
 
-// Log de configuración de directorios
-console.log('🔧 File upload configuration:', {
-  isRemoteMounted,
-  remoteStaticDir,
-  uploadDirSignatures,
-  uploadDirProfileImages
-});
+// Log de configuración de directorios (no se muestra por defecto)
 
 // Crear directorios si no existen
 if (!fs.existsSync(uploadDirImages)) {

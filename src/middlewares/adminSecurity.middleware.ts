@@ -125,7 +125,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
       userIdString = String(userId);
     }
     
-    logger.debug('requireAdmin: attempting to fetch full user', { userIdString });
+    
     
     const fullUser = await userRepository.getUserById(userIdString);
     if (fullUser && (await hasAdminRole(fullUser as IUser))) {

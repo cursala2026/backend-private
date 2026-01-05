@@ -107,49 +107,15 @@ class QuestionnaireService {
 
     // Separate questions from other fields
     const { questions, ...otherFields } = data;
-    console.log('Update request received:', {
-      hasQuestions: !!questions,
-      questionsCount: questions?.length,
-      otherFieldsKeys: Object.keys(otherFields),
-      otherFields: otherFields
-    });
     const hasSubmissions = await this.submissionRepository.hasSubmissions(id);
-    console.log('Has submissions:', hasSubmissions);
 
     // Only prevent modifying questions if there are submissions
     if (questions && hasSubmissions) {
       // Log what we're comparing
-      console.log('Comparing questions:', {
-        existingQuestions: existingQuestionnaire.questions.map((q, i) => ({
-          index: i,
-          type: q.type,
-          correctOptionId: q.correctOptionId?.toString(),
-          options: q.options?.map((opt: any, idx: number) => ({
-            index: idx,
-            _id: opt._id?.toString(),
-            text: opt.text
-          }))
-        })),
-        newQuestions: questions.map((q, i) => ({
-          index: i,
-          type: q.type,
-          correctOptionId: q.correctOptionId?.toString(),
-          correctOptionIdType: typeof q.correctOptionId,
-          options: q.options?.map((opt: any, idx: number) => ({
-            index: idx,
-            _id: opt._id?.toString(),
-            text: opt.text
-          }))
-        }))
-      });
-      
       // Check if only correctOptionId changed (allow this even with submissions)
       const onlyCorrectOptionIdChanged = this.onlyCorrectOptionIdChanged(existingQuestionnaire.questions, questions);
-      console.log('Only correctOptionId changed?', onlyCorrectOptionIdChanged);
       
       if (onlyCorrectOptionIdChanged) {
-        // Allow updating only correctOptionId - update the questionnaire with new correctOptionIds
-        console.log('Only correctOptionId changed, allowing update');
         
         // Process questions to update only correctOptionId
         const updateData = { ...data };
@@ -195,63 +161,22 @@ class QuestionnaireService {
         }
         
         const updated = await this.questionnaireRepository.update(id, updateData);
-        console.log('Update completed (correctOptionId only)', {
-          updatedId: updated._id?.toString(),
-          updatedTitle: updated.title
-        });
+        
+        
         return updated;
       }
       
       // Check if questions actually changed by comparing structure (excluding correctOptionId)
       const questionsChanged = this.haveQuestionsChanged(existingQuestionnaire.questions, questions);
-      console.log('Questions changed (excluding correctOptionId)?', questionsChanged);
-      
+
       if (questionsChanged) {
-        // Log for debugging - show all questions
-        console.log('Questions changed detected (excluding correctOptionId):', {
-          existingCount: existingQuestionnaire.questions.length,
-          newCount: questions.length,
-          existingQuestions: existingQuestionnaire.questions.map((q, i) => ({
-            index: i,
-            type: q.type,
-            text: q.questionText,
-            correctOptionId: q.correctOptionId?.toString(),
-            optionsCount: q.options?.length || 0,
-            options: q.options?.map((opt: any, idx: number) => ({
-              index: idx,
-              text: opt.text,
-              _id: opt._id?.toString()
-            }))
-          })),
-          newQuestions: questions.map((q, i) => ({
-            index: i,
-            type: q.type,
-            text: q.questionText,
-            correctOptionId: q.correctOptionId?.toString(),
-            optionsCount: q.options?.length || 0,
-            options: q.options?.map((opt: any, idx: number) => ({
-              index: idx,
-              text: opt.text,
-              _id: opt._id?.toString()
-            }))
-          }))
-        });
         throw new Error(
           'Cannot modify questions after students have submitted. Create a new version of this questionnaire instead.'
         );
       }
+
       // If questions haven't changed, allow update of other fields only
-      // Remove questions from updateData since they haven't changed
-      console.log('Questions unchanged, updating other fields only', {
-        otherFields: Object.keys(otherFields),
-        hasQuestions: !!questions,
-        questionsLength: questions?.length
-      });
       const updated = await this.questionnaireRepository.update(id, otherFields);
-      console.log('Update completed, returning updated questionnaire', {
-        updatedId: updated._id?.toString(),
-        updatedTitle: updated.title
-      });
       return updated;
     }
 

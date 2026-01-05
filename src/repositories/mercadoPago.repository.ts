@@ -93,7 +93,6 @@ export default class MercadoPagoRepository {
       try {
         // Verificar que sea un ObjectId válido (24 caracteres hexadecimales)
         if (id.match(/^[0-9a-fA-F]{24}$/)) {
-          logger.debug('Attempting to find payment by _id', { id });
           res = await this.model.findById(id).exec();
           
           if (res) {
@@ -103,7 +102,6 @@ export default class MercadoPagoRepository {
         }
       } catch (error) {
         // Si no es un ObjectId válido o falla la búsqueda, continuar
-        logger.debug('Error searching by _id', { id, error: (error as Error).message });
       }
 
       logger.warn('Payment not found by any ID', { id });
