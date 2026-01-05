@@ -2,12 +2,16 @@ import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 import QuestionnaireSubmissionRepository from '@/repositories/questionnaireSubmission.repository';
 import { IQuestionnaire, QuestionnaireDoc, IQuestion } from '@/models/mongo/questionnaire.model';
 import { Types, Schema, ObjectId } from 'mongoose';
+import QuestionMediaService from '@/services/questionMedia.service';
+import { logger } from '@/utils';
 
 class QuestionnaireService {
   constructor(
     private readonly questionnaireRepository: QuestionnaireRepository,
     private readonly submissionRepository: QuestionnaireSubmissionRepository
   ) {}
+
+  private readonly questionMediaService = new QuestionMediaService();
 
   /**
    * Crear un nuevo cuestionario
@@ -16,6 +20,17 @@ class QuestionnaireService {
     // Validate questions structure
     if (!data.questions || data.questions.length === 0) {
       throw new Error('At least one question is required');
+    }
+
+    // Validate position
+    if (data.position) {
+      if (data.position.type === 'BETWEEN_CLASSES' && !data.position.afterClassId) {
+        throw new Error('afterClassId is required when position type is BETWEEN_CLASSES');
+      }
+      // Si el tipo es FINAL_EXAM, no debe tener afterClassId
+      if (data.position.type === 'FINAL_EXAM' && data.position.afterClassId) {
+        delete data.position.afterClassId;
+      }
     }
 
     // Store correct option indices temporarily
@@ -77,6 +92,17 @@ class QuestionnaireService {
     const existingQuestionnaire = await this.questionnaireRepository.findById(id);
     if (!existingQuestionnaire) {
       throw new Error('Questionnaire not found');
+    }
+
+    // Validate position if being updated
+    if (data.position) {
+      if (data.position.type === 'BETWEEN_CLASSES' && !data.position.afterClassId) {
+        throw new Error('afterClassId is required when position type is BETWEEN_CLASSES');
+      }
+      // Si el tipo es FINAL_EXAM, no debe tener afterClassId
+      if (data.position.type === 'FINAL_EXAM' && data.position.afterClassId) {
+        delete data.position.afterClassId;
+      }
     }
 
     // Separate questions from other fields
@@ -645,9 +671,12 @@ class QuestionnaireService {
     const hasSubmissions = await this.submissionRepository.hasSubmissions(id);
 
     if (hasSubmissions) {
-      throw new Error(
-        'Cannot delete questionnaire with student submissions. Delete all submissions first or archive this questionnaire.'
-      );
+      // Eliminar todas las submissions del cuestionario en cascada
+      const deletedCount = await this.submissionRepository.deleteByQuestionnaire(id);
+      logger.info('Deleted questionnaire submissions in cascade', { 
+        questionnaireId: id, 
+        deletedSubmissions: deletedCount 
+      });
     }
 
     await this.questionnaireRepository.delete(id);
@@ -711,6 +740,56 @@ class QuestionnaireService {
    */
   async findByProfessorId(professorId: string): Promise<QuestionnaireDoc[]> {
     return await this.questionnaireRepository.findByProfessorId(professorId);
+  }
+
+  /**
+   * Subir o reemplazar media de una pregunta (imagen/video).
+   * - Elimina el media antiguo si existe y es manejado por Bunny
+   * - Sube el nuevo media a Bunny (carpetas question-images/question-videos)
+   * - Actualiza `question.promptType`, `promptMediaUrl`, `promptMediaProvider` y guarda el cuestionario
+   */
+  async updateQuestionMedia(
+    questionnaireId: string,
+    questionId: string,
+    buffer: Buffer,
+    originalName: string,
+    promptType: 'IMAGE' | 'VIDEO'
+  ): Promise<QuestionnaireDoc> {
+    const questionnaire = await this.questionnaireRepository.findById(questionnaireId);
+    if (!questionnaire) throw new Error('Questionnaire not found');
+
+    const q = questionnaire.questions.find((qq) => qq._id?.toString() === questionId.toString());
+    if (!q) throw new Error('Question not found');
+
+    // If existing media is a Bunny URL, try to delete it
+    if (q.promptMediaUrl && this.questionMediaService) {
+      try {
+        await this.questionMediaService.deleteMedia(q.promptMediaUrl as string);
+      } catch (err) {
+        // Log error but continue
+        console.warn('Failed to delete old media:', (err as Error).message);
+      }
+    }
+
+    // Upload new media
+    let cdnUrl: string;
+    if (promptType === 'IMAGE') {
+      cdnUrl = await this.questionMediaService.uploadImage(buffer, originalName);
+    } else {
+      // VIDEO
+      cdnUrl = await this.questionMediaService.uploadVideo(buffer, originalName);
+    }
+
+    // Prepare partial update for repository
+    const partialQuestion: Partial<any> = {
+      promptType,
+      promptMediaUrl: cdnUrl,
+      promptMediaProvider: 'BUNNY',
+    };
+
+    // Persist change using repository method that updates a single question
+    const updated = await this.questionnaireRepository.updateQuestion(questionnaireId, q._id!.toString(), partialQuestion);
+    return updated;
   }
 }
 

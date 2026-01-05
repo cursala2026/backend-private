@@ -32,10 +32,13 @@ const mockRoleRepository: any = {
 const mockCourseRepository: any = {
   findById: jest.fn(),
 };
+const mockCertificateRepository: any = {
+  deleteByStudentAndCourse: jest.fn(),
+};
 let userService: UserService;
 beforeEach(() => {
   jest.clearAllMocks();
-  userService = new UserService(mockUserRepository, mockCourseRepository);
+  userService = new UserService(mockUserRepository, mockCourseRepository, mockCertificateRepository);
 });
 describe('UserService - getUserProfileImage Security Tests', () => {
   describe('Path Traversal Prevention', () => {

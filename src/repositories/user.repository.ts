@@ -518,6 +518,12 @@ class UserRepository {
 
   async getUserById(userId: string): Promise<IUser | null> {
     if (!Types.ObjectId.isValid(userId)) {
+      logger.error('getUserById: Invalid userId received', { 
+        userId, 
+        type: typeof userId,
+        length: userId?.length,
+        value: userId 
+      });
       throw new Error('El userId proporcionado no es válido.');
     }
 

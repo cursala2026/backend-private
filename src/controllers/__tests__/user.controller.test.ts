@@ -23,7 +23,7 @@ describe('UserController', () => {
     beforeEach(() => {
         jest.clearAllMocks();
 
-        mockUserService = new UserService({} as any, {} as any) as jest.Mocked<UserService>;
+        mockUserService = new UserService({} as any, {} as any, {} as any) as jest.Mocked<UserService>;
         userController = new UserController(mockUserService);
 
         req = {

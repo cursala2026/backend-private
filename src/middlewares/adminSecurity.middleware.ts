@@ -99,7 +99,35 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     }
 
     // Intentar obtener la versión completa desde la base de datos y reintentar
-    const fullUser = await userRepository.getUserById(String((user as any)._id));
+    // Extraer el _id de forma segura, manejando tanto ObjectId como strings
+    const userId = (user as any)._id;
+    let userIdString: string;
+    
+    logger.info('requireAdmin: raw user._id inspection', { 
+      userId, 
+      type: typeof userId,
+      hasToHexString: userId && typeof userId.toHexString === 'function',
+      hasToString: userId && typeof userId.toString === 'function',
+      stringValue: userId ? String(userId) : 'null/undefined'
+    });
+    
+    if (!userId) {
+      logger.warn('requireAdmin: user._id is undefined or null', { user });
+      return res.status(403).json({ success: false, message: 'Acceso denegado. Usuario no válido.' });
+    }
+    
+    // Si es un ObjectId de Mongoose, convertirlo a string usando toHexString
+    if (typeof userId === 'object' && userId !== null && typeof userId.toHexString === 'function') {
+      userIdString = userId.toHexString();
+    } else if (typeof userId === 'object' && userId !== null && typeof userId.toString === 'function') {
+      userIdString = userId.toString();
+    } else {
+      userIdString = String(userId);
+    }
+    
+    logger.debug('requireAdmin: attempting to fetch full user', { userIdString });
+    
+    const fullUser = await userRepository.getUserById(userIdString);
     if (fullUser && (await hasAdminRole(fullUser as IUser))) {
       // reemplazar req.user con la versión completa para middlewares posteriores
       req.user = fullUser as any;
@@ -211,7 +239,25 @@ export function requireAdminOrSelf(req: Request, res: Response, next: NextFuncti
       }
 
       // Intentar obtener la versión completa del usuario
-      const fullUser = await userRepository.getUserById(String((user as any)._id));
+      // Extraer el _id de forma segura, manejando tanto ObjectId como strings
+      const userId = (user as any)._id;
+      let userIdString: string;
+      
+      if (!userId) {
+        logger.warn('requireAdminOrSelf: user._id is undefined or null', { user });
+        return res.status(403).json({ success: false, message: 'Acceso denegado. Usuario no válido.' });
+      }
+      
+      // Si es un ObjectId de Mongoose, convertirlo a string usando toHexString
+      if (typeof userId === 'object' && userId !== null && typeof userId.toHexString === 'function') {
+        userIdString = userId.toHexString();
+      } else if (typeof userId === 'object' && userId !== null && typeof userId.toString === 'function') {
+        userIdString = userId.toString();
+      } else {
+        userIdString = String(userId);
+      }
+      
+      const fullUser = await userRepository.getUserById(userIdString);
       if (fullUser && (await hasAdminRole(fullUser as IUser))) {
         req.user = fullUser as any;
         return next();
@@ -223,10 +269,9 @@ export function requireAdminOrSelf(req: Request, res: Response, next: NextFuncti
         return res.status(400).json({ success: false, message: 'ID de usuario no especificado' });
       }
 
-      const currentUserId = String((user as any)._id);
       const targetUserIdString = String(targetUserId);
 
-      if (currentUserId === targetUserIdString) {
+      if (userIdString === targetUserIdString) {
         return next();
       }
 
@@ -264,7 +309,25 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
       }
 
       // Intentar obtener la versión completa del usuario
-      const fullUser = await userRepository.getUserById(String((user as any)._id));
+      // Extraer el _id de forma segura, manejando tanto ObjectId como strings
+      const userIdObj = (user as any)._id;
+      let userIdString: string;
+      
+      if (!userIdObj) {
+        logger.warn('requireAdminOrCourseOwner: user._id is undefined or null', { user });
+        return res.status(403).json({ success: false, message: 'Acceso denegado. Usuario no válido.' });
+      }
+      
+      // Si es un ObjectId de Mongoose, convertirlo a string usando toHexString
+      if (typeof userIdObj === 'object' && userIdObj !== null && typeof userIdObj.toHexString === 'function') {
+        userIdString = userIdObj.toHexString();
+      } else if (typeof userIdObj === 'object' && userIdObj !== null && typeof userIdObj.toString === 'function') {
+        userIdString = userIdObj.toString();
+      } else {
+        userIdString = String(userIdObj);
+      }
+      
+      const fullUser = await userRepository.getUserById(userIdString);
       if (fullUser && (await hasAdminRole(fullUser as IUser))) {
         req.user = fullUser as any;
         return next();
@@ -281,7 +344,7 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
         return res.status(404).json({ success: false, message: 'Curso no encontrado' });
       }
 
-      const userId = String((user as any)._id);
+      const userId = userIdString;
       const teachers = course.teachers || [];
       const teacherIds = teachers.map((t: any) => String(t));
       const isTeacher = teacherIds.includes(userId);

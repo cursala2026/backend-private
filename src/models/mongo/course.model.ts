@@ -25,6 +25,8 @@ export interface ICourse {
   order: number;
   imageUrl?: string;
   classes: IClass[];
+  questionnaires?: any[]; // Cuestionarios del curso (populated via lookup)
+  orderedContent?: any[]; // Array ordenado de clases y cuestionarios intercalados
   students?: IEnrolledStudent[]; // Array de estudiantes inscritos con metadata
   meta?: {
     totalClasses: number;

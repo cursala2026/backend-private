@@ -10,6 +10,7 @@ import { Types, UserStatus } from '@/models';
 import { deleteOldFile } from '@/utils/fileUpload.util';
 import UserRepository from '@/repositories/user.repository';
 import CourseRepository from '@/repositories/course.repository';
+import CertificateRepository from '@/repositories/certificate.repository';
 import logger from '@/utils/logger';
 
 // Directorio remoto (desarrollo) - verificar si está montado
@@ -28,7 +29,8 @@ console.log('🔧 User service static directories:', {
 export default class UserService {
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly courseRepository: CourseRepository
+    private readonly courseRepository: CourseRepository,
+    private readonly certificateRepository: CertificateRepository
   ) { }
 
   async addCountriesToUser(userId: string, newCountries: string[] | []) {
@@ -172,6 +174,18 @@ export default class UserService {
   }
 
   async removeCourseFromUser(userId: string, courseId: string) {
+    // Eliminar certificados del alumno para este curso
+    try {
+      const deleteResult = await this.certificateRepository.deleteByStudentAndCourse(userId, courseId);
+      logger.info('Certificates deleted on course removal', { 
+        userId, 
+        courseId, 
+        deletedCount: deleteResult.deletedCount 
+      });
+    } catch (error) {
+      logger.error('Error deleting certificates on course removal', { userId, courseId, error });
+    }
+    
     // Usar unenrollStudent del courseRepository (único método de asociación)
     return this.courseRepository.unenrollStudent(courseId, userId);
   }
@@ -283,6 +297,18 @@ export default class UserService {
 
   // Usar unenrollStudent del courseRepository
   async removeCourseFromUserEdit(userId: string, courseId: string) {
+    // Eliminar certificados del alumno para este curso
+    try {
+      const deleteResult = await this.certificateRepository.deleteByStudentAndCourse(userId, courseId);
+      logger.info('Certificates deleted on course removal (edit)', { 
+        userId, 
+        courseId, 
+        deletedCount: deleteResult.deletedCount 
+      });
+    } catch (error) {
+      logger.error('Error deleting certificates on course removal (edit)', { userId, courseId, error });
+    }
+    
     return this.courseRepository.unenrollStudent(courseId, userId);
   }
 

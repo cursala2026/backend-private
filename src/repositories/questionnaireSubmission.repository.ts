@@ -286,6 +286,25 @@ class QuestionnaireSubmissionRepository {
     return result.deletedCount || 0;
   }
 
+  /**
+   * Elimina todas las submissions de un cuestionario específico
+   * @param questionnaireId - ID del cuestionario
+   * @returns Número de submissions eliminadas
+   */
+  async deleteByQuestionnaire(questionnaireId: string): Promise<number> {
+    if (!Types.ObjectId.isValid(questionnaireId)) {
+      throw new Error('El ID del cuestionario no es válido.');
+    }
+
+    const result = await this.model
+      .deleteMany({
+        questionnaireId: new Types.ObjectId(questionnaireId),
+      } as any)
+      .exec();
+
+    return result.deletedCount || 0;
+  }
+
 }
 
 export default QuestionnaireSubmissionRepository;

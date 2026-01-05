@@ -11,7 +11,14 @@ export interface IQuestionOption {
 export interface IQuestion {
   _id?: Types.ObjectId;
   type: 'MULTIPLE_CHOICE' | 'TEXT';
+  // Texto breve del enunciado (para `promptType: 'TEXT'`) — se mantiene por compatibilidad
   questionText: string;
+  // Tipo de enunciado/prompt: texto, imagen o video (imágenes/videos gestionados por Bunny)
+  promptType?: 'TEXT' | 'IMAGE' | 'VIDEO';
+  // URL del media cuando `promptType` es IMAGE o VIDEO (p. ej. URL de Bunny)
+  promptMediaUrl?: string;
+  // Proveedor de media (opcional). Actualmente soportado: 'BUNNY'
+  promptMediaProvider?: 'BUNNY';
   order: number;
   points: number;
   required: boolean;
@@ -74,6 +81,24 @@ const QuestionSchema = new Schema<IQuestion>(
       required: true,
       trim: true,
       maxlength: 1000,
+    },
+    // Prompt type and media URL for image/video prompts
+    promptType: {
+      type: String,
+      required: false,
+      enum: ['TEXT', 'IMAGE', 'VIDEO'],
+      default: 'TEXT',
+    },
+    promptMediaUrl: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 2000,
+    },
+    promptMediaProvider: {
+      type: String,
+      required: false,
+      enum: ['BUNNY'],
     },
     order: {
       type: Number,

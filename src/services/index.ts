@@ -17,6 +17,7 @@ import CertificateService from './certificate.service';
 import PromotionalCodeService from './promotionalCode.service';
 import QuestionnaireService from './questionnaire.service';
 import QuestionnaireSubmissionService from './questionnaireSubmission.service';
+import QuestionMediaService from './questionMedia.service';
 import NotificationService from './notification.service';
 import SupportTicketService from './supportTicket.service';
 
@@ -40,7 +41,7 @@ import {
 } from '@/repositories';
 
 export const authService = new AuthService(userRepository);
-export const userService = new UserService(userRepository, courseRepository);
+export const userService = new UserService(userRepository, courseRepository, certificateRepository);
 export const categoryService = new CategoryService(categoryRepository);
 export const courseService = new CourseService(courseRepository, userRepository);
 export const classService = new ClassService(classRepository);
@@ -61,5 +62,6 @@ export const questionnaireSubmissionService = new QuestionnaireSubmissionService
   questionnaireSubmissionRepository,
   questionnaireRepository
 );
+export const questionMediaService = new QuestionMediaService();
 export const notificationService = new NotificationService(notificationRepository);
 export const supportTicketService = new SupportTicketService(supportTicketRepository);

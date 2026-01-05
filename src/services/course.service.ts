@@ -13,7 +13,81 @@ export default class CourseService {
   ) {}
 
   async findOneById(id: string) {
-    return this.courseRepository.findOneById(id);
+    const course = await this.courseRepository.findOneById(id);
+    
+    if (course) {
+      console.log('Course data structure:', {
+        hasClasses: !!course.classes,
+        classesCount: course.classes?.length,
+        hasQuestionnaires: !!course.questionnaires,
+        questionnairesCount: course.questionnaires?.length
+      });
+      
+      if (course.classes && course.questionnaires) {
+        // Generar el array ordenado de contenido
+        course.orderedContent = this.buildOrderedContent(course.classes, course.questionnaires);
+        console.log('Generated orderedContent:', course.orderedContent?.length, 'items');
+      } else {
+        console.log('Missing data for orderedContent generation');
+      }
+    }
+    
+    return course;
+  }
+
+  /**
+   * Construye un array ordenado de contenido del curso (clases + cuestionarios)
+   * @param classes - Array de clases del curso
+   * @param questionnaires - Array de cuestionarios del curso
+   * @returns Array ordenado con clases y cuestionarios intercalados
+   */
+  private buildOrderedContent(classes: any[], questionnaires: any[]): any[] {
+    const orderedContent: any[] = [];
+    
+    // Ordenar clases por su campo order
+    const sortedClasses = [...classes].sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    // Separar cuestionarios por tipo
+    const betweenClassesQuestions = questionnaires.filter(
+      q => q.position?.type === 'BETWEEN_CLASSES' && q.status === 'ACTIVE'
+    );
+    const finalExams = questionnaires.filter(
+      q => q.position?.type === 'FINAL_EXAM' && q.status === 'ACTIVE'
+    );
+    
+    // Insertar clases y cuestionarios intercalados
+    sortedClasses.forEach((classItem, index) => {
+      // Agregar la clase
+      orderedContent.push({
+        type: 'CLASS',
+        data: classItem,
+        order: index
+      });
+      
+      // Buscar cuestionarios que van después de esta clase
+      const classId = String(classItem._id);
+      const questionsAfterThisClass = betweenClassesQuestions.filter(
+        q => String(q.position?.afterClassId) === classId
+      );
+      
+      // Agregar cuestionarios que van después de esta clase
+      questionsAfterThisClass.forEach(q => {
+        orderedContent.push({
+          type: 'QUESTIONNAIRE',
+          data: q
+        });
+      });
+    });
+    
+    // Agregar exámenes finales al final
+    finalExams.forEach(q => {
+      orderedContent.push({
+        type: 'QUESTIONNAIRE',
+        data: q
+      });
+    });
+    
+    return orderedContent;
   }
 
   async findById(id: string): Promise<ICourse | null> {

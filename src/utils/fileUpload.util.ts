@@ -81,6 +81,9 @@ export function multerDestination(req: Request | null, file: FileLike | Express.
     const field = f.fieldname ?? '';
     if (field === 'imageFile') {
       cb(null, uploadDirImages); // Directorio de imágenes
+    } else if (field === 'mediaFile') {
+      // Archivos temporales para uploads de media (se suben a Bunny luego)
+      cb(null, uploadDirMaterials);
     } else if (field === 'cvFile' || field === 'programFile') {
       cb(null, uploadDirFilesPublic); // Directorio de PDFs
     } else if (field === 'photo') {
@@ -162,6 +165,22 @@ export function multerFileFilter(req: Request | null, file: FileLike | Express.M
         return cb(null, true);
       }
       return cb(new Error('Tipo de archivo no permitido. Solo imágenes.'));
+    }
+    if (field === 'mediaFile') {
+      const allowedTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'video/mp4',
+        'video/webm',
+        'video/ogg',
+        'video/avi',
+        'video/mov',
+      ];
+      if (allowedTypes.includes(mimetype)) {
+        return cb(null, true);
+      }
+      return cb(new Error('Tipo de archivo no permitido. Solo imágenes o videos.'));
     }
     if (field === 'cvFile' || field === 'programFile') {
       if (mimetype === 'application/pdf') {

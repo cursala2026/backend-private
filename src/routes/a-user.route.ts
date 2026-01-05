@@ -13,8 +13,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // 🟠 ALTO: Consultas administrativas de usuarios
-router.get('/getUserById/:userId', authorize, requireAdmin, userController.getUserById);
-router.get('/:userId', authorize, requireAdminOrSelf, userController.getUserById);
+// IMPORTANTE: Las rutas estáticas deben estar ANTES de las rutas con parámetros dinámicos
 router.get('/getAllUsers', authorize, requireAdmin, userController.getAllUsers);
 router.get('/getTeachers', authorize, requireAdmin, userController.getTeachers);
 router.get('/', authorize, requireAdmin, userController.getUsersPaginated);
@@ -29,6 +28,10 @@ router.get('/getUnassignedCoursesEdit/:userId', authorize, requireAdmin, userCon
 // 🟢 BAJO: Accesibilidad de cursos (cualquier usuario autenticado)
 router.get('/isCourseAccessible/:courseId', authorize, userController.isCourseAccessibleForUser);
 router.get('/course-access-info/:courseId', authorize, userController.getCourseAccessInfo);
+
+// Rutas con parámetros dinámicos - DEBEN estar al FINAL para evitar capturar rutas estáticas
+router.get('/getUserById/:userId', authorize, requireAdmin, userController.getUserById);
+router.get('/:userId', authorize, requireAdminOrSelf, userController.getUserById);
 
 // POST routes (ordered by importance)
 // 🔴 CRÍTICO: Modificar roles requiere verificación de email

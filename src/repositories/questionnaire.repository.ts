@@ -1,4 +1,4 @@
-import { QuestionnaireSchema, IQuestionnaire, QuestionnaireDoc } from '@/models/mongo/questionnaire.model';
+import { QuestionnaireSchema, IQuestionnaire, QuestionnaireDoc, IQuestion } from '@/models/mongo/questionnaire.model';
 import { Connection, Model, Types } from '@/models';
 
 class QuestionnaireRepository {
@@ -72,9 +72,17 @@ class QuestionnaireRepository {
     }
     const questionnaires = await this.model
       .find({ courseId: courseId as any })
-      .sort({ 'position.type': 1, createdAt: 1 })
+      .sort({ 
+        'position.type': -1,  // FINAL_EXAM (desc) va primero que BETWEEN_CLASSES, luego invertimos
+        createdAt: 1 
+      })
       .exec();
-    return questionnaires as unknown as QuestionnaireDoc[];
+    
+    // Separar y reordenar: BETWEEN_CLASSES primero, FINAL_EXAM al final
+    const betweenClasses = questionnaires.filter((q: any) => q.position?.type === 'BETWEEN_CLASSES');
+    const finalExams = questionnaires.filter((q: any) => q.position?.type === 'FINAL_EXAM');
+    
+    return [...betweenClasses, ...finalExams] as unknown as QuestionnaireDoc[];
   }
 
   /**
@@ -169,6 +177,35 @@ class QuestionnaireRepository {
       .exec();
 
     return questionnaire as unknown as QuestionnaireDoc | null;
+  }
+
+  /**
+   * Actualiza campos de una pregunta específica dentro de un cuestionario
+   * @param questionnaireId - ID del cuestionario
+   * @param questionId - ID de la pregunta dentro del array
+   * @param partialQuestion - Campos a actualizar en la pregunta
+   * @returns El cuestionario actualizado
+   */
+  async updateQuestion(questionnaireId: string, questionId: string, partialQuestion: Partial<IQuestion>): Promise<QuestionnaireDoc> {
+    if (!Types.ObjectId.isValid(questionnaireId) || !Types.ObjectId.isValid(questionId)) {
+      throw new Error('Invalid IDs provided');
+    }
+
+    // Construir objeto $set con prefijo 'questions.$.'
+    const setObj: any = {};
+    for (const [k, v] of Object.entries(partialQuestion)) {
+      setObj[`questions.$.${k}`] = v as any;
+    }
+
+    const updated = await this.model
+      .findOneAndUpdate({ _id: questionnaireId as any, 'questions._id': questionId as any }, { $set: setObj }, { new: true })
+      .exec();
+
+    if (!updated) {
+      throw new Error('Questionnaire or question not found');
+    }
+
+    return updated as unknown as QuestionnaireDoc;
   }
 
   /**

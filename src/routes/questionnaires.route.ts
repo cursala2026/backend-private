@@ -4,8 +4,24 @@ import { requireAdmin } from '@/middlewares/adminSecurity.middleware';
 import { requireAdminOrQuestionnaireOwner } from '@/middlewares/questionnaire.middleware';
 import { questionnaireController, questionnaireSubmissionController } from '@/controllers';
 import { questionnaireRepository } from '@/repositories';
+import { uploadFiles } from '@/utils/fileUpload.util';
+import QuestionnaireController from '@/controllers/questionnaire.controller';
+import QuestionnaireService from '@/services/questionnaire.service';
+import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 
 const router = Router();
+
+// Endpoint para subir/actualizar media de una pregunta
+router.post(
+  '/:questionnaireId/questions/:questionId/media',
+  authorize,
+  (req, res, next) => {
+    const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
+    return middleware(req, res, next);
+  },
+  uploadFiles.single('mediaFile'),
+  (req, res, next) => questionnaireController.uploadQuestionMedia(req, res, next)
+);
 
 // ==================== QUESTIONNAIRE ROUTES ====================
 

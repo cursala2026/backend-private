@@ -31,6 +31,24 @@ class CourseRepository {
           localField: '_id',
           foreignField: 'courseId',
           as: 'classes',
+          pipeline: [
+            {
+              $sort: { order: 1, createdAt: 1 }
+            }
+          ]
+        },
+      },
+      {
+        $lookup: {
+          from: 'questionnaires',
+          localField: '_id',
+          foreignField: 'courseId',
+          as: 'questionnaires',
+          pipeline: [
+            {
+              $sort: { 'position.type': 1, createdAt: 1 }
+            }
+          ]
         },
       },
       {
