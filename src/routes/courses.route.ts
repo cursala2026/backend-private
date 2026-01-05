@@ -27,7 +27,8 @@ router.post('/:courseId/unenroll', authorize, courseController.unenrollStudent);
 // 🔴 ADMIN: Gestión manual de estudiantes (asociar/desasociar)
 router.post('/:courseId/enroll/:userId', authorize, requireAdmin, courseController.enrollStudentByAdmin); // Asociar estudiante manualmente
 router.delete('/:courseId/unenroll/:userId', authorize, requireAdmin, courseController.unenrollStudentByAdmin); // Desasociar estudiante completamente
-
+// 🔴 ADMIN: Duplicar curso con todas sus clases y cuestionarios
+router.post('/:courseId/duplicate', authorize, requireAdmin, courseController.duplicateCourse);
 // �🟠 ALTO: Administración de cursos requiere admin
 router.post('/course', authorize, requireAdmin, courseController.create);
 router.patch('/:id', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);

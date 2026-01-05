@@ -725,4 +725,34 @@ export default class CourseController {
       return next(error);
     }
   };
+
+  duplicateCourse = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { courseId } = req.params;
+
+      if (!courseId) {
+        return res.status(400).json(prepareResponse(400, 'Course ID is required'));
+      }
+
+      // Verificar que el curso existe
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
+
+      // Duplicar el curso con todas sus clases y cuestionarios
+      const duplicatedCourse = await this.courseService.duplicateCourse(courseId);
+
+      return res.json(prepareResponse(201, 'Course duplicated successfully', duplicatedCourse));
+    } catch (error) {
+      logger.error('Error duplicating course:', error);
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as Error).message;
+        if (message.includes('not found')) {
+          return res.status(404).json(prepareResponse(404, message));
+        }
+      }
+      return next(error);
+    }
+  };
 }

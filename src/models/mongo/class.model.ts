@@ -47,11 +47,25 @@ export const ClassSchema: Schema<IClassData> = new Schema<IClassData>(
     },
     imageUrl: {
       type: String,
-      match: /\.(jpg|jpeg|png|webp)$/i,
+      validate: {
+        validator(v: string) {
+          if (!v) return true;
+          // Aceptar URLs de Bunny CDN o archivos con extensiones de imagen
+          return /^https?:\/\/.+/.test(v) || /\.(jpg|jpeg|png|webp)$/i.test(v);
+        },
+        message: 'Image URL must be a valid URL or end with a valid image extension',
+      },
     },
     videoUrl: {
       type: String,
-      match: /\.(mp4|mov|avi|mkv)$/i,
+      validate: {
+        validator(v: string) {
+          if (!v) return true;
+          // Aceptar cualquier URL válida (incluyendo Bunny CDN) o archivos con extensiones de video
+          return /^https?:\/\/.+/.test(v) || /\.(mp4|mov|avi|mkv)$/i.test(v);
+        },
+        message: 'Video URL must be a valid URL or end with a valid video extension',
+      },
     },
     videoStatus: {
       type: String,

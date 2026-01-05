@@ -211,7 +211,7 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
     const response = await preference.create(createBody as unknown as Parameters<typeof preference.create>[0]);
 
     // Determinar qué URL usar según el modo de MercadoPago
-    const mode = process.env.MERCADOPAGO_MODE || 'sandbox';
+    const mode = process.env.MERCADOPAGO_MODE || 'production';
     const preferredInitPoint = mode === 'sandbox' ? response.sandbox_init_point : response.init_point;
 
     logger.info('Payment preference created successfully', {

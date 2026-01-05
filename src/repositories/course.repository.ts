@@ -836,6 +836,153 @@ class CourseRepository {
 
     return updatedCourse as unknown as ICourse;
   }
+
+  /**
+   * Duplica un curso completo con todas sus clases y cuestionarios.
+   * Los archivos (imágenes, videos, PDFs) mantienen los mismos enlaces (no se duplican en Bunny).
+   * @param courseId - ID del curso a duplicar
+   * @returns El nuevo curso duplicado con sus clases y cuestionarios
+   */
+  async duplicateCourse(courseId: string): Promise<ICourse> {
+    if (!Types.ObjectId.isValid(courseId)) {
+      throw new Error('El ID del curso proporcionado no es válido.');
+    }
+
+    // 1. Obtener el curso original completo con sus clases y cuestionarios
+    const originalCourse = await this.findOneById(courseId);
+    if (!originalCourse) {
+      throw new Error('Course not found');
+    }
+
+    // 2. Generar un nombre único para el curso duplicado
+    let newCourseName = `${originalCourse.name} (Copia)`;
+    let copyNumber = 2;
+    
+    // Verificar si ya existe un curso con ese nombre
+    while (await this.model.findOne({ name: newCourseName }).exec()) {
+      newCourseName = `${originalCourse.name} (Copia ${copyNumber})`;
+      copyNumber++;
+    }
+
+    // 3. Preparar datos del nuevo curso (sin _id, sin estudiantes, con nuevo nombre único)
+    const newCourseData: Partial<ICourse> = {
+      name: newCourseName,
+      description: originalCourse.description,
+      longDescription: originalCourse.longDescription,
+      status: 'ACTIVE',
+      days: originalCourse.days,
+      time: originalCourse.time,
+      startDate: originalCourse.startDate,
+      registrationOpenDate: originalCourse.registrationOpenDate,
+      modality: originalCourse.modality,
+      price: originalCourse.price,
+      maxInstallments: originalCourse.maxInstallments,
+      interestFree: originalCourse.interestFree,
+      isPublished: false, // No publicar automáticamente
+      showOnHome: false,
+      numberOfClasses: originalCourse.numberOfClasses,
+      duration: originalCourse.duration,
+      // Mantener los mismos enlaces de archivos (no duplicar en Bunny)
+      imageUrl: originalCourse.imageUrl,
+      programUrl: originalCourse.programUrl,
+      // Copiar profesores si existen
+      teachers: originalCourse.teachers,
+      mainTeacher: originalCourse.mainTeacher,
+      // NO copiar estudiantes
+      students: [],
+    };
+
+    // 4. Crear el nuevo curso
+    const newCourse = await this.create(newCourseData);
+    const newCourseId = newCourse._id;
+
+    // 5. Duplicar todas las clases del curso
+    const ClassModel = this.connection.model('Class');
+    const classes = originalCourse.classes || [];
+    
+    const classIdMapping: { [oldId: string]: Types.ObjectId } = {}; // Para mapear IDs viejos a nuevos
+    
+    for (const originalClass of classes) {
+      const newClassData = {
+        name: originalClass.name,
+        description: originalClass.description,
+        status: originalClass.status,
+        order: originalClass.order,
+        courseId: newCourseId,
+        // Mantener los mismos enlaces de archivos (no duplicar en Bunny)
+        imageUrl: originalClass.imageUrl,
+        videoUrl: originalClass.videoUrl,
+        videoStatus: originalClass.videoStatus,
+        supportMaterials: originalClass.supportMaterials, // Arrays de URLs
+        meta: originalClass.meta,
+        linkLive: originalClass.linkLive,
+        examConfig: originalClass.examConfig,
+      };
+
+      const newClass = await ClassModel.create(newClassData);
+      
+      // Guardar mapeo de ID viejo a nuevo (para los cuestionarios)
+      const oldClassId = String(originalClass._id);
+      classIdMapping[oldClassId] = newClass._id;
+    }
+
+    // 6. Duplicar todos los cuestionarios del curso
+    const QuestionnaireModel = this.connection.model('Questionnaire');
+    const questionnaires = originalCourse.questionnaires || [];
+
+    for (const originalQuestionnaire of questionnaires) {
+      // Actualizar la referencia de afterClassId si aplica
+      let newPosition = { ...originalQuestionnaire.position };
+      if (newPosition.type === 'BETWEEN_CLASSES' && newPosition.afterClassId) {
+        const oldClassId = String(newPosition.afterClassId);
+        if (classIdMapping[oldClassId]) {
+          newPosition.afterClassId = classIdMapping[oldClassId];
+        }
+      }
+
+      // Duplicar las preguntas manteniendo URLs de media
+      const newQuestions = (originalQuestionnaire.questions || []).map((q: any) => ({
+        type: q.type,
+        questionText: q.questionText,
+        promptType: q.promptType,
+        promptMediaUrl: q.promptMediaUrl, // Mantener URL del media (no duplicar en Bunny)
+        promptMediaProvider: q.promptMediaProvider,
+        order: q.order,
+        points: q.points,
+        required: q.required,
+        options: q.options?.map((opt: any) => ({
+          text: opt.text,
+          order: opt.order,
+        })),
+        correctOptionId: q.correctOptionId,
+      }));
+
+      const newQuestionnaireData = {
+        courseId: newCourseId,
+        title: originalQuestionnaire.title,
+        description: originalQuestionnaire.description,
+        status: originalQuestionnaire.status,
+        position: newPosition,
+        questions: newQuestions,
+        passingScore: originalQuestionnaire.passingScore,
+        allowRetries: originalQuestionnaire.allowRetries,
+        maxRetries: originalQuestionnaire.maxRetries,
+        showCorrectAnswers: originalQuestionnaire.showCorrectAnswers,
+        timeLimitMinutes: originalQuestionnaire.timeLimitMinutes,
+        createdBy: originalQuestionnaire.createdBy,
+      };
+
+      await QuestionnaireModel.create(newQuestionnaireData);
+    }
+
+    // 7. Obtener el curso duplicado completo con sus clases y cuestionarios
+    const duplicatedCourse = await this.findOneById(newCourseId.toString());
+    if (!duplicatedCourse) {
+      throw new Error('Error retrieving duplicated course');
+    }
+
+    return duplicatedCourse;
+  }
 }
 
 export default CourseRepository;

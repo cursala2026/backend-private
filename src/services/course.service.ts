@@ -423,4 +423,30 @@ export default class CourseService {
     // 4. Remover el estudiante del array de estudiantes del curso
     return this.courseRepository.unenrollStudent(courseId, studentId);
   }
+
+  /**
+   * Duplica un curso completo con todas sus clases y cuestionarios.
+   * Los archivos (imágenes, videos, PDFs) mantienen los mismos enlaces (no se duplican en Bunny).
+   * @param courseId - ID del curso a duplicar
+   * @returns El nuevo curso duplicado con sus clases y cuestionarios
+   */
+  async duplicateCourse(courseId: string): Promise<ICourse> {
+    // Verificar que el curso existe
+    const originalCourse = await this.courseRepository.findOneById(courseId);
+    if (!originalCourse) {
+      throw new Error('Course not found');
+    }
+
+    // Duplicar el curso con todas sus clases y cuestionarios
+    const duplicatedCourse = await this.courseRepository.duplicateCourse(courseId);
+
+    logger.info(`Course duplicated successfully: ${courseId} -> ${duplicatedCourse._id}`, {
+      originalCourseId: courseId,
+      newCourseId: duplicatedCourse._id,
+      classesCount: duplicatedCourse.classes?.length || 0,
+      questionnairesCount: duplicatedCourse.questionnaires?.length || 0,
+    });
+
+    return duplicatedCourse;
+  }
 }
