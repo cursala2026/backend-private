@@ -20,6 +20,11 @@ export interface IEnrolledStudent {
 export interface ICourse {
   _id: ObjectId;
   name: string;
+  /**
+   * Campo `category` almacenado como string JSON con los campos { id, name, description }
+   * Ejemplo: '{"id":"603...","name":"Marketing","description":"Cursos de marketing"}'
+   */
+  category?: string | null;
   description?: string;
   longDescription?: string;
   status: string;
@@ -97,6 +102,8 @@ const EnrolledStudentSchema = new Schema<IEnrolledStudent>(
 export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
   {
     name: { type: String, required: true, unique: true, trim: true },
+    // Category stored as JSON string with only id, name and description
+    category: { type: String },
     description: { type: String },
     longDescription: { type: String },
     status: { type: String, enum: Object.values(UserStatus), default: UserStatus.ACTIVE },

@@ -50,6 +50,7 @@ export default class QuestionnaireController {
             'required',
             'options',
             'correctOptionId',
+            'correctOptionIds',
           ];
           const out: any = {};
           for (const f of allowedQuestionFields) {
@@ -105,6 +106,7 @@ export default class QuestionnaireController {
             'required',
             'options',
             'correctOptionId',
+            'correctOptionIds',
           ];
           const out: any = {};
           for (const f of allowedQuestionFields) {

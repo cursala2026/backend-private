@@ -5,7 +5,9 @@ import { ObjectId } from '@/models';
 export interface IAnswer {
   questionId: ObjectId;
   questionType: 'MULTIPLE_CHOICE' | 'TEXT';
-  selectedOptionId?: ObjectId; // For multiple choice
+  // Soportar selección múltiple en frontend/backend
+  selectedOptionIds?: ObjectId[];
+  selectedOptionId?: ObjectId; // For backward compatibility (single selection)
   textAnswer?: string; // For text questions
   isCorrect?: boolean; // Auto-graded for MC
   pointsAwarded?: number; // Graded points
@@ -56,6 +58,10 @@ const AnswerSchema = new Schema<IAnswer>(
     },
     selectedOptionId: {
       type: Schema.Types.ObjectId,
+      required: false,
+    },
+    selectedOptionIds: {
+      type: [Schema.Types.ObjectId],
       required: false,
     },
     textAnswer: {

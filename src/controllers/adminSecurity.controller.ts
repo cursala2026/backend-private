@@ -379,13 +379,11 @@ export const getSystemStatsPublic = async (req: Request, res: Response) => {
     const [
       totalUsers,
       totalCourses,
-      totalCategories,
       totalPromotionalCodes,
       activePromotionalCodes,
     ] = await Promise.all([
       userRepository.countUsers(),
       courseRepository.countCourses(),
-      categoryRepository.countCategories(),
       PromotionalCode.countDocuments({ status: { $ne: 'DELETED' } }),
       PromotionalCode.countDocuments({ status: 'ACTIVE' }),
     ]);
@@ -395,7 +393,6 @@ export const getSystemStatsPublic = async (req: Request, res: Response) => {
       data: {
         totalUsers,
         totalCourses,
-        totalCategories,
         totalPromotionalCodes,
         activePromotionalCodes,
       },
@@ -433,7 +430,6 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
       totalTeachers,
       totalAdmins,
       totalCourses,
-      totalCategories,
       totalPromotionalCodes,
       activePromotionalCodes,
       recentUsers,
@@ -444,7 +440,6 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
       userRepository.countTeachers(),
       userRepository.countAdmins(),
       courseRepository.countCourses(),
-      categoryRepository.countCategories(),
       PromotionalCode.countDocuments({ status: { $ne: 'DELETED' } }),
       PromotionalCode.countDocuments({ status: 'ACTIVE' }),
       userRepository.getRecentUsers(3),
@@ -459,7 +454,6 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
         totalTeachers,
         totalAdmins,
         totalCourses,
-        totalCategories,
         totalPromotionalCodes,
         activePromotionalCodes,
         recentUsers,

@@ -24,6 +24,9 @@ export interface IQuestion {
   required: boolean;
   // Solo para MULTIPLE_CHOICE
   options?: IQuestionOption[];
+  // Nota: soportamos múltiples respuestas correctas
+  // `correctOptionIds` es preferible; `correctOptionId` queda por compatibilidad
+  correctOptionIds?: Types.ObjectId[];
   correctOptionId?: Types.ObjectId;
 }
 
@@ -118,6 +121,10 @@ const QuestionSchema = new Schema<IQuestion>(
     // Only for MULTIPLE_CHOICE
     options: {
       type: [QuestionOptionSchema],
+      required: false,
+    },
+    correctOptionIds: {
+      type: [Schema.Types.ObjectId],
       required: false,
     },
     correctOptionId: {

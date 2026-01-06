@@ -19,6 +19,9 @@ router.get('/me/courses', authorize, courseController.getStudentCourses); // Obt
 // 🟡 AUTENTICADO: Listar todos (solo admin)
 router.get('/', authorize, requireAdmin, courseController.findAll); // Todos los cursos (solo admin)
 
+// 🟠 Administración: listado de categorías para selects (debe ir antes de /:courseId)
+router.get('/categories', authorize, requireAdmin, courseController.getCategoriesForSelect);
+
 // 🟡 AUTENTICADO: Rutas específicas por courseId
 router.get('/:courseId', authorize, courseController.findOneById); // Ver detalles del curso
 router.post('/:courseId/enroll', authorize, courseController.enrollStudent); // Inscribirse en un curso gratis
@@ -29,7 +32,6 @@ router.post('/:courseId/enroll/:userId', authorize, requireAdmin, courseControll
 router.delete('/:courseId/unenroll/:userId', authorize, requireAdmin, courseController.unenrollStudentByAdmin); // Desasociar estudiante completamente
 // 🔴 ADMIN: Duplicar curso con todas sus clases y cuestionarios
 router.post('/:courseId/duplicate', authorize, requireAdmin, courseController.duplicateCourse);
-// �🟠 ALTO: Administración de cursos requiere admin
 router.post('/course', authorize, requireAdmin, courseController.create);
 router.patch('/:id', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);
 router.delete('/:courseId/delete', authorize, requireAdmin, courseController.delete);

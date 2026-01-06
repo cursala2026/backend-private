@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { logger, prepareResponse } from '../utils';
 import CourseService from '@/services/course.service';
+import { categoryService } from '@/services';
 import { ICourse } from '@/models';
 import { courseUploadFiles } from '@/services/course-upload.service';
 
@@ -48,6 +49,7 @@ export default class CourseController {
         const {
           name,
           description,
+          category,
           longDescription,
           order,
           days,
@@ -88,6 +90,10 @@ export default class CourseController {
         const courseData = {
           name,
           description,
+          // category can be sent as object or string; store as JSON string with only id,name,description
+          ...(category
+            ? { category: typeof category === 'string' ? category : JSON.stringify({ id: category.id, name: category.name, description: category.description }) }
+            : {}),
           longDescription,
           status: 'ACTIVE', // Siempre crear cursos con estado activo
           order: order ? Number(order) : 0,
@@ -208,6 +214,7 @@ export default class CourseController {
             name,
             description,
             longDescription,
+            category,
             days,
             time,
             startDate,
@@ -226,6 +233,14 @@ export default class CourseController {
           // Solo actualizar campos si están presentes en req.body
           if (name !== undefined) updateData.name = name;
           if (description !== undefined) updateData.description = description;
+          // Manejar category: aceptar string o objeto; permitir limpiar con '' o null
+          if (category !== undefined) {
+            if (category === '' || category === null) {
+              unsetFields.push('category');
+            } else {
+              updateData.category = typeof category === 'string' ? category : JSON.stringify({ id: category.id, name: category.name, description: category.description });
+            }
+          }
           if (longDescription !== undefined) updateData.longDescription = longDescription;
           if (days !== undefined) {
             if (typeof days === 'string') {
@@ -393,8 +408,36 @@ export default class CourseController {
 
   findAll = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const courses = await this.courseService.findAll();
+      const categoryId = req.query.categoryId as string | undefined;
+      let courses = await this.courseService.findAll();
+
+      if (categoryId) {
+        courses = courses.filter((c: any) => {
+          if (!c || !c.category) return false;
+          try {
+            const parsed = JSON.parse(c.category);
+            return String(parsed.id) === categoryId;
+          } catch (_err) {
+            // Si category no es JSON, comparar directamente
+            return c.category === categoryId || c.category.includes(categoryId);
+          }
+        });
+      }
+
       return res.json(prepareResponse(200, 'Courses fetched successfully', courses));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * Devuelve las categorías (id, name, description) para poblar selects en el frontend
+   */
+  getCategoriesForSelect = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cats = await categoryService.findAll();
+      const mapped = (cats || []).map((c: any) => ({ id: String((c as any)._id), name: c.name, description: c.description }));
+      return res.json(prepareResponse(200, 'Categories fetched successfully', mapped));
     } catch (error) {
       return next(error);
     }

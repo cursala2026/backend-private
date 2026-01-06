@@ -958,6 +958,7 @@ class CourseRepository {
           order: opt.order,
         })),
         correctOptionId: q.correctOptionId,
+        correctOptionIds: q.correctOptionIds,
       }));
 
       const newQuestionnaireData = {

@@ -316,6 +316,7 @@ class QuestionnaireSubmissionService {
           questionType: answer.questionType,
           textAnswer: answer.textAnswer,
           selectedOptionId: answer.selectedOptionId,
+          selectedOptionIds: (answer as any).selectedOptionIds,
           isCorrect: answer.isCorrect,
           pointsAwarded: answer.pointsAwarded,
           feedback: answer.feedback,
@@ -324,7 +325,32 @@ class QuestionnaireSubmissionService {
 
       if (question.type === 'MULTIPLE_CHOICE') {
         totalMCPoints += question.points;
-        const isCorrect = answer.selectedOptionId?.toString() === question.correctOptionId?.toString();
+        // Support multiple correct options and multiple selected options
+        const correctIds: string[] = [];
+        if ((question as any).correctOptionIds && Array.isArray((question as any).correctOptionIds)) {
+          for (const cid of (question as any).correctOptionIds) {
+            if (cid) correctIds.push(cid.toString());
+          }
+        } else if ((question as any).correctOptionId) {
+          correctIds.push((question as any).correctOptionId.toString());
+        }
+
+        const selectedIds: string[] = [];
+        if ((answer as any).selectedOptionIds && Array.isArray((answer as any).selectedOptionIds)) {
+          for (const sid of (answer as any).selectedOptionIds) {
+            if (sid) selectedIds.push(sid.toString());
+          }
+        } else if (answer.selectedOptionId) {
+          selectedIds.push(answer.selectedOptionId.toString());
+        }
+
+        // Exact-match scoring: full points only if selected set equals correct set
+        const correctSet = new Set(correctIds);
+        const selectedSet = new Set(selectedIds);
+        let isCorrect = false;
+        if (correctSet.size === selectedSet.size) {
+          isCorrect = [...correctSet].every((v) => selectedSet.has(v));
+        }
         const pointsAwarded = isCorrect ? question.points : 0;
         earnedMCPoints += pointsAwarded;
 
@@ -334,6 +360,7 @@ class QuestionnaireSubmissionService {
           questionType: answer.questionType,
           textAnswer: answer.textAnswer,
           selectedOptionId: answer.selectedOptionId,
+          selectedOptionIds: (answer as any).selectedOptionIds,
           isCorrect,
           pointsAwarded,
           feedback: answer.feedback,
@@ -346,6 +373,7 @@ class QuestionnaireSubmissionService {
         questionType: answer.questionType,
         textAnswer: answer.textAnswer,
         selectedOptionId: answer.selectedOptionId,
+        selectedOptionIds: (answer as any).selectedOptionIds,
         isCorrect: answer.isCorrect,
         pointsAwarded: answer.pointsAwarded,
         feedback: answer.feedback,
