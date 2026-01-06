@@ -41,6 +41,49 @@ class QuestionnaireRepository {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error('El ID del cuestionario proporcionado no es válido.');
     }
+    // Normalizar possible payloads donde `questions[].correctOptionIds` venga como índices
+    // (números o strings numéricos) y asegurar que cada opción tenga `_id` para que
+    // Mongoose pueda castear a ObjectId correctamente.
+    if (data.questions && Array.isArray(data.questions)) {
+      for (let qi = 0; qi < data.questions.length; qi++) {
+        const q: any = data.questions[qi] as any;
+        // Asegurar que existan options y que cada option tenga _id (generar uno si falta)
+        if (q.options && Array.isArray(q.options)) {
+          for (let oi = 0; oi < q.options.length; oi++) {
+            const opt = q.options[oi] as any;
+            if (!opt._id) {
+              opt._id = new Types.ObjectId();
+            }
+          }
+        }
+
+        // Mapear índices numéricos a los _id correspondientes
+        if (q.correctOptionIds && Array.isArray(q.correctOptionIds)) {
+          const idxs = q.correctOptionIds as any[];
+          const needsMapping = idxs.some((x: any) => typeof x === 'number' || (typeof x === 'string' && /^\d+$/.test(x)));
+          if (needsMapping) {
+            if (!q.options || !Array.isArray(q.options)) {
+              throw {
+                status: 400,
+                key: 'validation.missing_options_for_mapping',
+                message: 'No se pueden mapear correctOptionIds por índices sin `options` en la pregunta',
+              };
+            }
+            q.correctOptionIds = idxs.map((v: any) => {
+              const i = Number(v);
+              const opt = q.options[i];
+              if (!opt) throw {
+                status: 400,
+                key: 'validation.invalid_option_index',
+                message: `Índice de opción inválido ${i} en la pregunta ${qi}`,
+              };
+              return opt._id;
+            });
+          }
+        }
+      }
+    }
+
     const updated = await this.model.findByIdAndUpdate(id, data, { new: true }).exec();
     if (!updated) {
       throw new Error('Questionnaire not found.');
@@ -189,6 +232,33 @@ class QuestionnaireRepository {
   async updateQuestion(questionnaireId: string, questionId: string, partialQuestion: Partial<IQuestion>): Promise<QuestionnaireDoc> {
     if (!Types.ObjectId.isValid(questionnaireId) || !Types.ObjectId.isValid(questionId)) {
       throw new Error('Invalid IDs provided');
+    }
+
+    // Si se recibió correctOptionIds como índices (números o strings numéricos),
+    // mapearlos a los _id de las opciones existentes para evitar CastError en Mongoose.
+    if (partialQuestion.correctOptionIds && Array.isArray(partialQuestion.correctOptionIds)) {
+      const idxs = partialQuestion.correctOptionIds;
+      const needsMapping = idxs.some((x: any) => typeof x === 'number' || (typeof x === 'string' && /^\d+$/.test(x)));
+      if (needsMapping) {
+        const found = await this.model.findOne({ _id: questionnaireId as any, 'questions._id': questionId as any }, { 'questions.$': 1 }).exec();
+        const q = (found as any)?.questions?.[0];
+        if (!q) throw {
+          status: 400,
+          key: 'validation.question_not_found_for_mapping',
+          message: 'No se encontró la pregunta para mapear los índices de correctOptionIds',
+        };
+        const mapped = idxs.map((v: any) => {
+          const i = Number(v);
+          const opt = q.options && q.options[i];
+          if (!opt) throw {
+            status: 400,
+            key: 'validation.invalid_option_index',
+            message: `Índice de opción inválido ${i} para la pregunta ${questionId}`,
+          };
+          return opt._id;
+        });
+        partialQuestion.correctOptionIds = mapped as any;
+      }
     }
 
     // Construir objeto $set con prefijo 'questions.$.'
