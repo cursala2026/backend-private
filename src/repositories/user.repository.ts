@@ -19,7 +19,9 @@ class UserRepository {
    * @returns A promise that resolves to the user object if found, or null.
    */
   async findOneByEmail(email: string): Promise<IUser | null> {
-    const res = await this.model.findOne({ email }).exec();
+    // Buscar de forma case-insensitive y escapando caracteres especiales
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const res = await this.model.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } }).exec();
     return res as unknown as IUser | null;
   }
 
@@ -672,12 +674,12 @@ class UserRepository {
       throw new Error('El userId proporcionado no es válido.');
     }
 
-    // Filtrar campos undefined, null y strings vacíos
+    // Filtrar campos undefined y strings vacíos. Permitimos `null` explícito para borrar campos.
     const cleanedData: any = {};
     Object.keys(userData).forEach(key => {
       const value = (userData as any)[key];
-      // Solo incluir valores que no sean undefined, null, o strings vacíos
-      if (value !== undefined && value !== null && value !== '') {
+      // Incluir valores que no sean undefined ni strings vacíos. `null` se conserva intencionalmente.
+      if (value !== undefined && value !== '') {
         cleanedData[key] = value;
       }
     });

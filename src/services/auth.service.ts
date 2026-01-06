@@ -135,7 +135,14 @@ class AuthService {
 
     user = await this.userRepository.updatePasswordResetToken(String(user._id), token);
 
-    const resetUrl = `${config.FRONTEND_DOMAIN}${config.RESET_PASSWORD_FRONTEND_PATH}?token=${token}`;
+    if (!user) {
+      throw new Error('Usuario no encontrado después de actualizar token');
+    }
+
+    const frontendBase = (config.FRONTEND_DOMAIN || '').split(',')[0] || '';
+    const resetUrl = `${frontendBase}${config.RESET_PASSWORD_FRONTEND_PATH}?token=${token}&email=${encodeURIComponent(
+      String(user.email || '')
+    )}`;
 
     // Leer la plantilla HTML
     let htmlTemplate = '';

@@ -6,6 +6,9 @@ import { IQuestionnaireSubmission, IAnswer, QuestionnaireSubmissionDoc } from '@
 import { IQuestion } from '@/models/mongo/questionnaire.model';
 import { Types, Schema } from 'mongoose';
 import { logger } from '@/utils';
+import { sendEmail } from '@/utils/emailer';
+import config from '@/config';
+import { NotificationType } from '@/models/mongo/notification.model';
 
 class QuestionnaireSubmissionService {
   constructor(
@@ -119,6 +122,38 @@ class QuestionnaireSubmissionService {
       );
     }
 
+    // Si quedó en SUBMITTED (pendiente de corrección manual), notificar al/los profesor(es)
+    if (status === 'SUBMITTED') {
+      try {
+        // Preferir creator del cuestionario como profesor responsable
+        const professorId = questionnaire.createdBy?.toString();
+        if (professorId) {
+          const professor = await userRepository.getUserById(professorId);
+          if (professor && professor.email) {
+            const frontendBase = (config.FRONTEND_DOMAIN || '').split(',')[0] || '';
+            const gradingUrl = `${frontendBase}/admin/questionnaires/${questionnaire._id?.toString()}/submissions`;
+            await sendEmail({
+              email: professor.email,
+              subject: `Nuevo envío pendiente de corrección: ${questionnaire.title || 'Cuestionario'}`,
+              html: `
+                <div style="font-family: Inter, Arial, Helvetica, sans-serif; max-width:680px; margin:0 auto; background:#f4f6f8; padding:24px;">
+                  <div style="background:#ffffff; border-radius:8px; padding:24px; box-shadow:0 2px 12px rgba(18,38,63,0.06);">
+                    <h2 style="margin:0 0 8px; font-size:18px; color:#0f172a;">Nuevo envío pendiente de corrección</h2>
+                    <p style="margin:0 0 12px; color:#374151;">El alumno <strong>${submission.studentName || '—'}</strong> realizó un envío para el cuestionario <strong>${questionnaire.title || ''}</strong> y requiere corrección manual.</p>
+                    <p style="margin:12px 0; color:#374151;">Intento número: <strong>${submission.attemptNumber ?? '—'}</strong></p>
+                    <p style="margin:16px 0 0;"><a href="${gradingUrl || '#'}" style="display:inline-block; background:#2563eb; color:#fff; padding:10px 14px; border-radius:6px; text-decoration:none; font-weight:600;">Ir a corregir envío</a></p>
+                    <p style="margin:18px 0 0; color:#9ca3af; font-size:12px;">Equipo Cursala</p>
+                  </div>
+                </div>
+              `,
+            });
+          }
+        }
+      } catch (notifyErr) {
+        logger.error('Error notificando a profesor sobre envío pendiente', { error: (notifyErr as Error).message });
+      }
+    }
+
     return updated;
   }
 
@@ -201,6 +236,63 @@ class QuestionnaireSubmissionService {
       finalScore
     );
     
+    // Notificar al alumno y enviar email (el transporte decide si realmente envía)
+    try {
+      try {
+        if (submission.studentEmail) {
+          const frontendBase = (config.FRONTEND_DOMAIN || '').split(',')[0] || '';
+          const questionnaireTitle = questionnaire.title || 'Tu cuestionario';
+          await sendEmail({
+            email: submission.studentEmail,
+            subject: `Corrección disponible: ${questionnaireTitle}`,
+            html: `
+              <div style="font-family: Arial, Helvetica, sans-serif; max-width:680px; margin:0 auto; background:#f4f6f8; padding:24px;">
+                <div style="background:#ffffff; border-radius:8px; padding:28px; box-shadow:0 2px 12px rgba(18,38,63,0.06);">
+                  <h1 style="font-size:20px; color:#1f2937; margin:0 0 12px;">Corrección disponible</h1>
+                  <p style="margin:0 0 18px; color:#374151; font-size:15px;">Hola <strong>${submission.studentName || ''}</strong>,</p>
+                  <p style="margin:0 0 8px; color:#374151; font-size:15px;">Tu envío para el cuestionario <strong>${questionnaireTitle}</strong> fue corregido.</p>
+                  <div style="display:flex; align-items:center; gap:12px; margin:16px 0;">
+                    <div style="background:#eef2ff; color:#3730a3; font-weight:600; padding:10px 14px; border-radius:6px;">Puntuación: ${finalScore}%</div>
+                    ${overallFeedback ? `<div style="flex:1; background:#f8fafc; padding:10px 14px; border-radius:6px; color:#374151;"><strong>Feedback:</strong> ${overallFeedback}</div>` : ''}
+                  </div>
+                  <p style="margin:18px 0 0;">
+                    <a href="${frontendBase || '#'}" style="display:inline-block; background:#2563eb; color:#ffffff; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:600;">Ver mi corrección</a>
+                  </p>
+                  <p style="margin:22px 0 0; color:#9ca3af; font-size:13px;">Si no reconoces esta acción, contacta al equipo de soporte.</p>
+                  <hr style="border:none; border-top:1px solid #eef2f6; margin:20px 0;" />
+                  <p style="margin:0; color:#9ca3af; font-size:12px;">Equipo Cursala</p>
+                </div>
+              </div>
+            `,
+          });
+        } else {
+          logger.warn('No student email available; skipping sendEmail');
+        }
+      } catch (emailErr) {
+        logger.error('Error enviando email de corrección al alumno', { error: (emailErr as Error).message });
+      }
+
+      // Enviar notificación persistente + SSE para el toast en frontend
+      try {
+        const svc = await import('./index');
+        if (svc && svc.notificationService) {
+          await svc.notificationService.sendNotification(submission.studentId.toString(), {
+            title: 'Corrección disponible',
+            message: `Tu corrección para "${questionnaire.title || 'el cuestionario'}" fue enviada. Puntuación: ${finalScore}`,
+            type: NotificationType.SUCCESS,
+            metadata: {
+              questionnaireId: submission.questionnaireId?.toString(),
+              submissionId: submissionId,
+            },
+          });
+        }
+      } catch (notifErr) {
+        logger.error('Error creando notificación de corrección', { error: (notifErr as Error).message });
+      }
+    } catch (err) {
+      logger.error('Error en post-grading notifications', { error: (err as Error).message });
+    }
+
 
     return updated;
   }

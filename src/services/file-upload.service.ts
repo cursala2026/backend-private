@@ -390,17 +390,41 @@ export class FileUploadService {
 
         // Procesar archivos de soporte por chunks
         if (supportMaterialIds) {
-            const chunkIds = Array.isArray(supportMaterialIds) ? supportMaterialIds : [supportMaterialIds];
-            chunkIds.forEach((chunkId) => {
-                const chunkFile = this.findAssembledFile(chunkId, uploadDirSupportMaterials);
-                if (chunkFile) {
-                    supportMaterials.push(chunkFile);
-                    uploadIdsToClean.push(chunkId);
-                    logger.info(`📁 Archivo soporte por chunks: ${chunkFile}`);
-                } else {
-                    logger.warn(`⚠️ Archivo soporte no encontrado: ${chunkId}`);
+                // supportMaterialIds puede venir como array, string o JSON stringified array.
+                let chunkIds: string[] = [];
+                if (Array.isArray(supportMaterialIds)) {
+                    chunkIds = supportMaterialIds as string[];
+                } else if (typeof supportMaterialIds === 'string') {
+                    // Intentar parsear JSON en caso de que el frontend haya enviado una cadena JSON
+                    try {
+                        const parsed = JSON.parse(supportMaterialIds);
+                        if (Array.isArray(parsed)) {
+                            chunkIds = parsed;
+                        } else {
+                            chunkIds = [supportMaterialIds];
+                        }
+                    } catch (e) {
+                        chunkIds = [supportMaterialIds];
+                    }
                 }
-            });
+
+                chunkIds.forEach((chunkId) => {
+                    // Si el cliente ya envía la URL (Bunny CDN), agregarla directamente
+                    if (typeof chunkId === 'string' && (chunkId.startsWith('http://') || chunkId.startsWith('https://'))) {
+                        supportMaterials.push(chunkId);
+                        logger.info(`📁 Archivo soporte provisto como URL: ${chunkId}`);
+                        return;
+                    }
+
+                    const chunkFile = this.findAssembledFile(chunkId, uploadDirSupportMaterials);
+                    if (chunkFile) {
+                        supportMaterials.push(chunkFile);
+                        uploadIdsToClean.push(chunkId);
+                        logger.info(`📁 Archivo soporte por chunks: ${chunkFile}`);
+                    } else {
+                        logger.warn(`⚠️ Archivo soporte no encontrado: ${chunkId}`);
+                    }
+                });
         }
 
         return { imageUrl, videoUrl, supportMaterials, errors, uploadIdsToClean };
@@ -476,8 +500,29 @@ export class FileUploadService {
         // Procesar eliminación de materiales de soporte
         if (deleteSupportMaterials && deleteSupportMaterials.length > 0) {
             deleteSupportMaterials.forEach((material) => {
-                filesToDelete.push({ directory: uploadDirSupportMaterials, fileName: material });
-                supportMaterials = supportMaterials.filter((m) => m !== material);
+                if (material === undefined || material === null || material === '') return;
+
+                // Si el material es una URL (Bunny CDN), remover coincidencias exactas o por basename
+                if (typeof material === 'string' && (material.startsWith('http://') || material.startsWith('https://'))) {
+                    const base = path.basename(material);
+                    supportMaterials = supportMaterials.filter((m) => m !== material && path.basename(m) !== base);
+                    return;
+                }
+
+                // Si el material es un nombre local o basename, eliminar por basename tanto URLs como nombres locales
+                const base = path.basename(String(material));
+                // Remover de la lista de supportMaterials cualquier entrada que tenga ese basename
+                supportMaterials = supportMaterials.filter((m) => path.basename(m) !== base && m !== material);
+
+                // Si existe un archivo local con ese nombre, marcarlo para borrado
+                try {
+                    const localPath = path.join(uploadDirSupportMaterials, String(material));
+                    if (fs.existsSync(localPath)) {
+                        filesToDelete.push({ directory: uploadDirSupportMaterials, fileName: String(material) });
+                    }
+                } catch (e) {
+                    // ignorar errores de fs
+                }
             });
         }
 
@@ -488,8 +533,30 @@ export class FileUploadService {
         }
 
         if (supportMaterialIds) {
-            const chunkIds = Array.isArray(supportMaterialIds) ? supportMaterialIds : [supportMaterialIds];
+            // Manejar supportMaterialIds que pueden ser array, string o JSON stringified array
+            let chunkIds: string[] = [];
+            if (Array.isArray(supportMaterialIds)) {
+                chunkIds = supportMaterialIds as string[];
+            } else if (typeof supportMaterialIds === 'string') {
+                try {
+                    const parsed = JSON.parse(supportMaterialIds);
+                    if (Array.isArray(parsed)) {
+                        chunkIds = parsed;
+                    } else {
+                        chunkIds = [supportMaterialIds];
+                    }
+                } catch (e) {
+                    chunkIds = [supportMaterialIds];
+                }
+            }
+
             chunkIds.forEach((chunkId) => {
+                if (typeof chunkId === 'string' && (chunkId.startsWith('http://') || chunkId.startsWith('https://'))) {
+                    supportMaterials.push(chunkId);
+                    uploadIdsToClean.push(chunkId);
+                    return;
+                }
+
                 const chunkFile = this.findAssembledFile(chunkId, uploadDirSupportMaterials);
                 if (chunkFile) {
                     supportMaterials.push(chunkFile);

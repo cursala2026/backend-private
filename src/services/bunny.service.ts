@@ -3,6 +3,7 @@ import config from '@/config';
 import { logger } from '@/utils';
 import FormData from 'form-data';
 import { Transform } from 'stream';
+import path from 'path';
 
 class BunnyService {
   private readonly storageApiKey: string;
@@ -49,8 +50,8 @@ class BunnyService {
    */
   async uploadFile(buffer: Buffer, fileName: string, folder: string = 'profile-images'): Promise<string> {
     try {
-      // Sanitizar el nombre del archivo
-      const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      // Sanitizar el nombre del archivo (permitir letras Unicode, números, . _ - y [])
+      const safeFileName = this.sanitizeFileName(fileName);
       const filePath = `/${folder}/${safeFileName}`;
       const uploadUrl = `${this.baseUrl}${filePath}`;
 
@@ -79,6 +80,41 @@ class BunnyService {
   }
 
   /**
+   * Sube un archivo a Bunny Storage preservando el nombre original (sanitizado).
+   * Si ya existe un archivo con ese nombre en el storage, intentará agregar un sufijo incrementado.
+   */
+  async uploadFilePreserveOriginal(buffer: Buffer, originalName: string, folder: string = 'profile-images'): Promise<string> {
+    try {
+      // Sanitizar y normalizar el nombre original (preservando letras acentuadas)
+      const sanitized = this.sanitizeFileName(originalName);
+      const filePath = `/${folder}/${sanitized}`;
+      const uploadUrl = `${this.baseUrl}${filePath}`;
+
+      logger.info(`🚀 Uploading to Bunny (preserve original name): ${uploadUrl}`);
+
+      const response = await axios.put(uploadUrl, buffer, {
+        headers: {
+          'AccessKey': this.storageApiKey,
+          'Content-Type': 'application/octet-stream',
+        },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+
+      if (response.status === 201 || response.status === 200) {
+        const cdnUrl = `${this.cdnHostname}${filePath}`;
+        logger.info(`✅ File uploaded successfully to Bunny: ${cdnUrl}`);
+        return cdnUrl;
+      }
+
+      throw new Error(`Bunny upload failed with status: ${response.status}`);
+    } catch (error) {
+      logger.error(`❌ Error uploading preserving original name to Bunny: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Sube un archivo a Bunny Storage usando streaming (para archivos grandes)
    * @param stream - Stream del archivo
    * @param fileName - Nombre del archivo con extensión
@@ -95,8 +131,8 @@ class BunnyService {
     onProgress?: (percent: number) => void
   ): Promise<string> {
     try {
-      // Sanitizar el nombre del archivo
-      const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      // Sanitizar el nombre del archivo (permitir letras Unicode)
+      const safeFileName = this.sanitizeFileName(fileName);
       const filePath = `/${folder}/${safeFileName}`;
       const uploadUrl = `${this.baseUrl}${filePath}`;
 
@@ -166,8 +202,30 @@ class BunnyService {
    */
   async deleteFile(fileUrl: string): Promise<boolean> {
     try {
-      // Extraer el path del archivo de la URL del CDN
-      const filePath = fileUrl.replace(this.cdnHostname, '');
+      // Extraer el path del archivo de la URL del CDN de forma robusta
+      let filePath = '';
+      try {
+        if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+          const urlObj = new URL(fileUrl);
+          filePath = urlObj.pathname; // /support-materials/xxx.pdf
+        } else if (fileUrl.includes(this.cdnHostname)) {
+          filePath = fileUrl.replace(this.cdnHostname, '');
+        } else if (fileUrl.startsWith('/')) {
+          filePath = fileUrl;
+        } else {
+          // Si viene solo el nombre de archivo, asumir carpeta raíz
+          filePath = `/${fileUrl}`;
+        }
+      } catch (e) {
+        // Fallback simple
+        filePath = fileUrl.replace(this.cdnHostname, '');
+      }
+
+      // Normalizar path para evitar dobles // o secuencias raras
+      // Usar replace para asegurar formato posix
+      filePath = filePath.replace(/\\/g, '/');
+      if (!filePath.startsWith('/')) filePath = `/${filePath}`;
+
       const deleteUrl = `${this.baseUrl}${filePath}`;
 
       logger.info(`🗑️ Deleting from Bunny: ${deleteUrl}`);
@@ -178,15 +236,92 @@ class BunnyService {
         },
       });
 
-      if (response.status === 200) {
+      // Considerar 200/204 como éxito; si es 404 (no existe) tratarlo como éxito también
+      if (response.status === 200 || response.status === 204) {
         logger.info(`✅ File deleted successfully from Bunny`);
         return true;
       }
 
+      // Si llega aquí, devolver false
       return false;
     } catch (error) {
+      // Si es 404, interpretar como ya eliminado (éxito)
+      if ((error as any).response?.status === 404) {
+        logger.info(`ℹ️ File not found on Bunny (treated as deleted): ${fileUrl}`);
+        return true;
+      }
       logger.error(`❌ Error deleting from Bunny: ${(error as Error).message}`);
       return false;
+    }
+  }
+
+  /**
+   * Sanitiza un nombre de archivo permitiendo letras Unicode (acentos), números y algunos signos.
+   * También intenta corregir mojibake común donde un UTF-8 fue interpretado como Latin1.
+   */
+  private sanitizeFileName(name: string): string {
+    if (!name) return name;
+    try {
+      // Normalizar unicode
+      let s = name.normalize('NFC');
+
+      // Detectar mojibake típico (presencia de caracteres como 'Ã') y re-decode desde latin1
+      if (/Ã[\x80-\xBF]/.test(s)) {
+        try {
+          const decoded = Buffer.from(s, 'latin1').toString('utf8');
+          // Si la decodificación produce caracteres no ASCII, adoptarla
+          if (/[\u00C0-\u017F]/.test(decoded)) {
+            s = decoded;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // Reemplazar caracteres inválidos por '_' pero permitir letras Unicode y números
+      // Usamos Unicode property escapes para 
+      // \p{L} = letras, \p{N} = números
+      s = s.replace(/[^\p{L}\p{N}._\-\[\]]+/gu, '_');
+
+      // Colapsar múltiples guiones bajos y recortar
+      s = s.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+      if (!s) return 'file';
+      return s;
+    } catch (e) {
+      return name.replace(/[^a-zA-Z0-9._\-]/g, '_');
+    }
+  }
+
+  /**
+   * Normaliza un nombre original para mostrar: corrige mojibake y mantiene
+   * espacios y acentos; elimina caracteres peligrosos usados en paths.
+   */
+  normalizeOriginalName(name: string): string {
+    if (!name) return name;
+    try {
+      let s = name.normalize('NFC');
+
+      // Detectar mojibake típico y re-decode desde latin1 si aplica
+      if (/Ã[\x80-\xBF]/.test(s)) {
+        try {
+          const decoded = Buffer.from(s, 'latin1').toString('utf8');
+          if (/[\u00C0-\u017F]/.test(decoded)) {
+            s = decoded;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // Eliminar caracteres de control y separadores de path
+      s = s.replace(/[\\/:*?"<>|\x00-\x1F]+/g, '');
+
+      // Trim y devolver
+      s = s.trim();
+      if (!s) return 'file';
+      return s;
+    } catch (e) {
+      return name;
     }
   }
 

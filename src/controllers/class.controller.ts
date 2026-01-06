@@ -15,6 +15,7 @@ import BunnyService from '@/services/bunny.service';
 import { courseProgressRepository } from '@/repositories/courseProgress.repository';
 import { courseRepository } from '@/repositories';
 import { videoUploadProgressService } from '@/services/video-upload-progress.service';
+import { videoUploadQueueService } from '@/services/video-upload-queue.service';
 
 // Re-exportar para mantener compatibilidad con rutas existentes
 export { uploadFiles, uploadChunkMulter } from '@/services/file-upload.service';
@@ -157,7 +158,10 @@ export default class ClassController {
       if (hasVideo && localVideoPath && fs.existsSync(localVideoPath)) {
         videoStats = fs.statSync(localVideoPath);
         videoSizeMB = videoStats.size / (1024 * 1024);
-        uniqueVideoFileName = this.bunnyService.generateUniqueFileName(videoUrl, 'class-video');
+        // Preserve original name for video uploads (remove any generated suffix like [ts-rand])
+        // Remove any bracketed suffixes to get the original filename
+        uniqueVideoFileName = videoUrl.replace(/\[.*\]/g, '').trim();
+        if (!uniqueVideoFileName) uniqueVideoFileName = path.basename(localVideoPath);
         logger.info(`📹 Video detectado (${videoSizeMB.toFixed(2)} MB): ${uniqueVideoFileName}`);
       }
 
@@ -168,10 +172,13 @@ export default class ClassController {
           try {
             const localFilePath = path.join(uploadDirSupportMaterials, materialFile);
             const fileBuffer = fs.readFileSync(localFilePath);
-            const uniqueFileName = this.bunnyService.generateUniqueFileName(materialFile, 'support');
+            // Intentar extraer nombre original si el archivo fue generado con formato "name[ts-rand].ext"
+            // Eliminar cualquier sufijo entre corchetes para obtener el nombre original
+            let originalName = materialFile.replace(/\[.*\]/g, '').trim();
+            if (!originalName) originalName = materialFile;
 
-            logger.info(`🐰 Subiendo archivo de apoyo a Bunny: ${uniqueFileName}`);
-            const bunnyUrl = await this.bunnyService.uploadFile(fileBuffer, uniqueFileName, 'support-materials');
+            logger.info(`🐰 Subiendo archivo de apoyo a Bunny: ${originalName}`);
+            const bunnyUrl = await this.bunnyService.uploadFilePreserveOriginal(fileBuffer, originalName, 'support-materials');
 
             // Eliminar archivo local después de subir a Bunny
             fs.unlinkSync(localFilePath);
@@ -199,6 +206,8 @@ export default class ClassController {
       // Si hay video, marcar como processing (se subirá en background)
       if (hasVideo) {
         classData.videoStatus = 'processing';
+        // Guardar nombre original del video para que el frontend lo pueda mostrar
+        classData.videoOriginalName = this.bunnyService.normalizeOriginalName(uniqueVideoFileName);
         // NO establecer videoUrl todavía - se establecerá cuando termine la subida
         // Esto evita problemas de validación con nombres de archivo locales
         // classData.videoUrl se establecerá en uploadVideoInBackground
@@ -246,23 +255,13 @@ export default class ClassController {
         // Enviar progreso inicial de 0% para que el frontend sepa que empezó
         videoUploadProgressService.updateProgress(classId, 0);
 
-        // Ejecutar subida en background (no await)
-        // Usar setTimeout para asegurar que la respuesta HTTP se envíe primero
-        setImmediate(() => {
-          this.uploadVideoInBackground(
-            classId,
-            localVideoPath,
-            uniqueVideoFileName,
-            videoStats.size
-          ).catch((error) => {
-            logger.error(`❌ Error en background upload para clase ${classId}: ${(error as Error).message}`);
-            videoUploadProgressService.setError(classId);
-            // Actualizar status a error
-            this.classService.update(classId, { videoStatus: 'error' }).catch((updateError) => {
-              logger.error(`Error actualizando videoStatus a error: ${(updateError as Error).message}`);
-            });
-          });
-        });
+        // Ejecutar subida en background usando la cola por classId (no await)
+        // startTracking ya fue llamado arriba
+        const job = async () => {
+          await this.uploadVideoInBackground(classId, localVideoPath, uniqueVideoFileName, videoStats.size);
+        };
+        // Encolar siempre (comportamiento B: FIFO por clase)
+        videoUploadQueueService.enqueue(classId, job);
       }
 
       return res.json(prepareResponse(201, 'Clase creada exitosamente', newClass));
@@ -296,14 +295,106 @@ export default class ClassController {
 
       logger.info('Actualizando clase');
 
-      // Parsear materiales a eliminar
+      // Parsear materiales a eliminar (desde diferentes campos que puede enviar el frontend)
       let materialsToDelete: string[] = [];
       if (deleteCurrentSupportMaterials) {
-        try {
-          materialsToDelete = JSON.parse(deleteCurrentSupportMaterials);
-        } catch (e) {
-          logger.warn('Error parseando deleteCurrentSupportMaterials');
+        // Si el frontend envía 'true' y no una lista, interpretarlo como "borrar todos los materiales actuales"
+        if (deleteCurrentSupportMaterials === 'true') {
+          materialsToDelete = existingClass.supportMaterials ? [...existingClass.supportMaterials] : [];
+        } else {
+          try {
+            materialsToDelete = JSON.parse(deleteCurrentSupportMaterials);
+          } catch (e) {
+            // Si no es JSON, tratar como un solo nombre
+            materialsToDelete = [deleteCurrentSupportMaterials];
+            logger.warn('Error parseando deleteCurrentSupportMaterials, usando valor crudo');
+          }
         }
+      }
+
+      // También aceptar `supportMaterialsToDelete` o `supportMaterialsToDelete[]` que envía el frontend
+      // Normalizar distintos formatos y deduplicar
+      const rawSm = [] as any[];
+      if (req.body && req.body.supportMaterialsToDelete !== undefined) rawSm.push(req.body.supportMaterialsToDelete);
+      if (req.body && req.body['supportMaterialsToDelete[]'] !== undefined) rawSm.push(req.body['supportMaterialsToDelete[]']);
+
+      const parsedDeletes: string[] = [];
+      rawSm.forEach((item) => {
+        if (item === undefined || item === null) return;
+        if (Array.isArray(item)) {
+          item.forEach((v) => { if (v) parsedDeletes.push(String(v)); });
+          return;
+        }
+        if (typeof item === 'string') {
+          const str = item.trim();
+          // Si es JSON stringified array
+          if (str.startsWith('[') && str.endsWith(']')) {
+            try {
+              const p = JSON.parse(str);
+              if (Array.isArray(p)) p.forEach((v) => v && parsedDeletes.push(String(v)));
+              return;
+            } catch (e) {
+              // fallthrough
+            }
+          }
+          // Si contiene comas, separar
+          if (str.includes(',')) {
+            str.split(',').map(s => s.trim()).filter(Boolean).forEach(s => parsedDeletes.push(s));
+            return;
+          }
+          // Valor individual
+          parsedDeletes.push(str);
+          return;
+        }
+        // Fallback
+        parsedDeletes.push(String(item));
+      });
+
+      // Eliminar entradas vacías y duplicadas
+      const normalizedDeletes = Array.from(new Set(parsedDeletes.filter(Boolean)));
+      if (normalizedDeletes.length > 0) {
+        materialsToDelete.push(...normalizedDeletes);
+      }
+
+      // Normalizar posibles stringified arrays dentro de materialsToDelete y deduplicar
+      const flattenedMaterials: string[] = [];
+      materialsToDelete.forEach((m) => {
+        if (m === undefined || m === null || m === '') return;
+        if (typeof m === 'string') {
+          const s = m.trim();
+          if (s.startsWith('[') && s.endsWith(']')) {
+            try {
+              const parsed = JSON.parse(s);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((p) => { if (p) flattenedMaterials.push(String(p)); });
+                return;
+              }
+            } catch (e) {
+              // fallthrough to push the raw string
+            }
+          }
+          // If contains commas, split
+          if (s.includes(',')) {
+            s.split(',').map(x => x.trim()).filter(Boolean).forEach(x => flattenedMaterials.push(x));
+            return;
+          }
+          flattenedMaterials.push(s);
+        } else {
+          flattenedMaterials.push(String(m));
+        }
+      });
+
+      // Deduplicate
+      materialsToDelete = Array.from(new Set(flattenedMaterials.filter(Boolean)));
+
+      // Determinar si se solicita eliminar el linkLive (puede venir como flag deleteLinkLive
+      // o enviando linkLive vacío/null desde el frontend)
+      let shouldDeleteLinkLive = false;
+      const deleteLinkLiveFlag = (req.body && req.body.deleteLinkLive) || undefined;
+      if (deleteLinkLiveFlag === 'true') {
+        shouldDeleteLinkLive = true;
+      } else if (linkLive !== undefined && (linkLive === '' || linkLive === null || linkLive === 'null')) {
+        shouldDeleteLinkLive = true;
       }
 
       // Resolver archivos usando el servicio
@@ -370,9 +461,9 @@ export default class ClassController {
             this.bunnyService.deleteVideoFromStream(existingClass.videoUrl).catch((error) => {
               logger.error(`Error eliminando video de Stream: ${(error as Error).message}`);
             });
-          } else {
+            } else {
             logger.info(`🗑️ Eliminando video de Bunny Storage: ${existingClass.videoUrl}`);
-            this.bunnyService.deleteFile(existingClass.videoUrl).catch((error) => {
+            this.bunnyService.deleteFile(String(existingClass.videoUrl)).catch((error) => {
               logger.error(`Error eliminando video de Storage: ${(error as Error).message}`);
             });
           }
@@ -382,7 +473,9 @@ export default class ClassController {
       if (hasNewVideo && localVideoPath && fs.existsSync(localVideoPath)) {
         videoStats = fs.statSync(localVideoPath);
         videoSizeMB = videoStats.size / (1024 * 1024);
-        uniqueVideoFileName = this.bunnyService.generateUniqueFileName(videoUrl, 'class-video');
+        // Preserve original name for video uploads (remove any generated suffix like [ts-rand])
+        uniqueVideoFileName = videoUrl.replace(/\[.*\]/g, '').trim();
+        if (!uniqueVideoFileName) uniqueVideoFileName = path.basename(localVideoPath);
         logger.info(`📹 Nuevo video detectado (${videoSizeMB.toFixed(2)} MB): ${uniqueVideoFileName}`);
 
         // Si existe un video anterior en Bunny, eliminarlo
@@ -393,9 +486,9 @@ export default class ClassController {
             this.bunnyService.deleteVideoFromStream(existingClass.videoUrl).catch((error) => {
               logger.error(`Error eliminando video anterior de Stream: ${(error as Error).message}`);
             });
-          } else {
+            } else {
             logger.info(`🗑️ Eliminando video anterior de Bunny Storage: ${existingClass.videoUrl}`);
-            this.bunnyService.deleteFile(existingClass.videoUrl).catch((error) => {
+            this.bunnyService.deleteFile(String(existingClass.videoUrl)).catch((error) => {
               logger.error(`Error eliminando video anterior de Storage: ${(error as Error).message}`);
             });
           }
@@ -406,6 +499,32 @@ export default class ClassController {
       const newSupportMaterialFiles = supportMaterials.filter(
         (material) => !material.startsWith('http://') && !material.startsWith('https://')
       );
+      // Antes de proceder, si materialsToDelete contiene basenames (no URLs),
+      // intentar eliminar las URLs correspondientes en Bunny basándonos en existingClass.supportMaterials.
+      if (materialsToDelete.length > 0 && existingClass.supportMaterials && existingClass.supportMaterials.length > 0) {
+        for (const mat of materialsToDelete) {
+          try {
+            const base = path.basename(String(mat));
+            // Buscar coincidencias completas o por basename y deduplicar
+            const rawMatches = existingClass.supportMaterials.filter((m: string) => m === mat || path.basename(m) === base);
+            const matches = Array.from(new Set(rawMatches));
+            for (const match of matches) {
+              const matchStr = String(match);
+              if (this.bunnyService.isBunnyCdnUrl(matchStr)) {
+                logger.info(`🗑️ Eliminando archivo de apoyo de Bunny (por delete request): ${matchStr}`);
+                await this.bunnyService.deleteFile(matchStr);
+              }
+            }
+          } catch (e) {
+            logger.error(`Error eliminando material de apoyo de Bunny por petición: ${(e as Error).message}`);
+          }
+        }
+      }
+
+
+      logger.info('DEBUG: materialsToDelete (mapped):', materialsToDelete);
+      logger.info('DEBUG: resolved supportMaterials:', supportMaterials);
+      logger.info('DEBUG: filesToDelete (local):', filesToDelete);
       const existingBunnyUrls = supportMaterials.filter(
         (material) => material.startsWith('http://') || material.startsWith('https://')
       );
@@ -418,10 +537,13 @@ export default class ClassController {
             const localFilePath = path.join(uploadDirSupportMaterials, materialFile);
             if (fs.existsSync(localFilePath)) {
               const fileBuffer = fs.readFileSync(localFilePath);
-              const uniqueFileName = this.bunnyService.generateUniqueFileName(materialFile, 'support');
+              // Intentar extraer nombre original si el archivo fue generado con formato "name[ts-rand].ext"
+              // Eliminar cualquier sufijo entre corchetes para obtener el nombre original
+              let originalName = materialFile.replace(/\[.*\]/g, '').trim();
+              if (!originalName) originalName = materialFile;
 
-              logger.info(`🐰 Subiendo archivo de apoyo a Bunny: ${uniqueFileName}`);
-              const bunnyUrl = await this.bunnyService.uploadFile(fileBuffer, uniqueFileName, 'support-materials');
+              logger.info(`🐰 Subiendo archivo de apoyo a Bunny: ${originalName}`);
+              const bunnyUrl = await this.bunnyService.uploadFilePreserveOriginal(fileBuffer, originalName, 'support-materials');
 
               // Eliminar archivo local después de subir a Bunny
               fs.unlinkSync(localFilePath);
@@ -443,7 +565,7 @@ export default class ClassController {
           if (this.bunnyService.isBunnyCdnUrl(materialToDelete)) {
             try {
               logger.info(`🗑️ Eliminando archivo de apoyo de Bunny: ${materialToDelete}`);
-              await this.bunnyService.deleteFile(materialToDelete);
+              await this.bunnyService.deleteFile(String(materialToDelete));
             } catch (error) {
               logger.error(`❌ Error eliminando archivo de apoyo de Bunny: ${(error as Error).message}`);
             }
@@ -544,6 +666,8 @@ export default class ClassController {
         updateData.videoStatus = 'processing';
         // Guardar temporalmente el nombre del archivo local
         updateData.videoUrl = videoUrl; // Se actualizará cuando termine la subida
+        // Guardar nombre original del video para que el frontend lo pueda mostrar
+        updateData.videoOriginalName = this.bunnyService.normalizeOriginalName(uniqueVideoFileName);
       }
       
       if (supportMaterials.join(',') !== (existingClass.supportMaterials || []).join(',')) {
@@ -562,7 +686,40 @@ export default class ClassController {
       // Eliminar archivos viejos
       fileUploadService.deleteFiles(filesToDelete);
 
-      const updatedClass = await this.classService.update(classId, updateData);
+      // Si se solicitó eliminar linkLive, usar operadores ($unset) para eliminar el campo
+      let updatedClass;
+      if (shouldDeleteLinkLive) {
+        const unsetFields: string[] = ['linkLive'];
+        const setData: Partial<any> = {};
+
+        if (name !== undefined) setData.name = name;
+        if (description !== undefined) setData.description = description;
+        if (imageUrl !== existingClass.imageUrl) setData.imageUrl = imageUrl;
+        if (hasNewVideo) setData.videoStatus = 'processing';
+        if (updateData.videoUrl) setData.videoUrl = updateData.videoUrl;
+        if (supportMaterials.join(',') !== (existingClass.supportMaterials || []).join(',')) {
+          setData.supportMaterials = supportMaterials;
+        }
+
+        const updateQuery: any = {};
+        if (Object.keys(setData).length > 0) updateQuery.$set = setData;
+        updateQuery.$unset = {};
+        unsetFields.forEach((f) => {
+          updateQuery.$unset[f] = '';
+        });
+
+        updatedClass = await this.classService.updateWithOperators(classId, updateQuery);
+      } else {
+        // Rechazar nueva subida si el cliente pidió rechazarlas cuando ya hay una en curso
+        const rejectIfActive = req.body && (req.body.rejectIfActive === 'true' || req.body.rejectIfActive === true);
+        if (hasNewVideo && rejectIfActive) {
+          if (videoUploadQueueService.isProcessing(classId) || videoUploadQueueService.hasPending(classId)) {
+            return res.status(409).json(prepareResponse(409, 'Another video upload is already in progress for this class'));
+          }
+        }
+
+        updatedClass = await this.classService.update(classId, updateData);
+      }
 
       // Si hay nuevo video, subirlo en background
       if (hasNewVideo && localVideoPath && videoStats && fs.existsSync(localVideoPath)) {
@@ -571,23 +728,11 @@ export default class ClassController {
         // Enviar progreso inicial de 0% para que el frontend sepa que empezó
         videoUploadProgressService.updateProgress(classId, 0);
 
-        // Ejecutar subida en background (no await)
-        // Usar setImmediate para asegurar que la respuesta HTTP se envíe primero
-        setImmediate(() => {
-          this.uploadVideoInBackground(
-            classId,
-            localVideoPath,
-            uniqueVideoFileName,
-            videoStats.size
-          ).catch((error) => {
-            logger.error(`❌ Error en background upload para clase ${classId}: ${(error as Error).message}`);
-            videoUploadProgressService.setError(classId);
-            // Actualizar status a error
-            this.classService.update(classId, { videoStatus: 'error' }).catch((updateError) => {
-              logger.error(`Error actualizando videoStatus a error: ${(updateError as Error).message}`);
-            });
-          });
-        });
+        // Ejecutar subida en background usando cola por classId
+        const job = async () => {
+          await this.uploadVideoInBackground(classId, localVideoPath, uniqueVideoFileName, videoStats.size);
+        };
+        videoUploadQueueService.enqueue(classId, job);
       }
 
       // Si el video cambió, resetear el progreso de esta clase para todos los usuarios
@@ -931,7 +1076,7 @@ export default class ClassController {
             // Si el video está en Bunny, eliminarlo de allí
             if (this.bunnyService.isBunnyCdnUrl(existingClass.videoUrl)) {
               logger.info(`🗑️ Eliminando video de Bunny: ${existingClass.videoUrl}`);
-              await this.bunnyService.deleteFile(existingClass.videoUrl);
+              await this.bunnyService.deleteFile(String(existingClass.videoUrl));
             } else {
               // Si es local, marcarlo para eliminación del filesystem
               filesToDelete.push({ directory: uploadDirVideos, fileName: existingClass.videoUrl });
@@ -953,7 +1098,7 @@ export default class ClassController {
               // Si el archivo está en Bunny, eliminarlo de allí
               if (this.bunnyService.isBunnyCdnUrl(materialToDelete)) {
                 logger.info(`🗑️ Eliminando archivo de apoyo de Bunny: ${materialToDelete}`);
-                await this.bunnyService.deleteFile(materialToDelete);
+                await this.bunnyService.deleteFile(String(materialToDelete));
               } else {
                 // Si es local, marcarlo para eliminación del filesystem
                 filesToDelete.push({ directory: uploadDirSupportMaterials, fileName: materialToDelete });
@@ -1038,13 +1183,22 @@ export default class ClassController {
         videoUploadProgressService.updateProgress(classId, percent);
       };
 
+      // Intentar extraer el nombre original del archivo para usarlo como título en Bunny Stream
+      let videoTitle = `Class Video - ${classId}`;
+      // Obtener un nombre legible corrigiendo mojibake y quitando sufijos entre corchetes
+      const displayNameRaw = uniqueFileName.replace(/\[.*\]/g, '').trim();
+      const displayName = this.bunnyService.normalizeOriginalName(displayNameRaw || path.basename(localVideoPath));
+      // Quitar extensión para el título
+      const ext = path.extname(displayName);
+      if (displayName) videoTitle = displayName.slice(0, -ext.length) || videoTitle;
+
       // Subir a Bunny Stream (no Storage) con tracking de progreso
       const bunnyUrl = await this.bunnyService.uploadVideoToStream(
         videoStream,
         uniqueFileName,
         fileSize,
         onProgress,
-        `Class Video - ${classId}`
+        videoTitle
       );
 
       // Eliminar archivo local después de subir
@@ -1053,10 +1207,11 @@ export default class ClassController {
         logger.info(`🗑️ Archivo local eliminado: ${localVideoPath}`);
       }
 
-      // Actualizar clase con videoUrl y status ready
+      // Actualizar clase con videoUrl, status ready y nombre original del video
       await this.classService.update(classId, {
         videoUrl: bunnyUrl,
         videoStatus: 'ready',
+        videoOriginalName: displayName,
       });
 
       // Finalizar tracking

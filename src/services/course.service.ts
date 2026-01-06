@@ -112,12 +112,14 @@ export default class CourseService {
       if (imageFile) {
         const imageUrl = await courseUploadService.uploadCourseImage(imageFile);
         updateData.imageUrl = imageUrl;
+        updateData.imageOriginalName = imageFile.originalname;
       }
 
       // Subir PDF a Bunny CDN si se proporcionó
       if (programFile) {
         const programUrl = await courseUploadService.uploadProgramFile(programFile);
         updateData.programUrl = programUrl;
+        updateData.programOriginalName = programFile.originalname;
       }
 
       // Actualizar el curso con las URLs de los archivos
@@ -152,6 +154,7 @@ export default class CourseService {
     if (imageFile) {
       // Subir nueva imagen a Bunny CDN
       updateData.imageUrl = await courseUploadService.uploadCourseImage(imageFile);
+      updateData.imageOriginalName = imageFile.originalname;
 
       // Eliminar imagen anterior
       if (existingCourse.imageUrl) {
@@ -164,6 +167,7 @@ export default class CourseService {
       // Subir el PDF a Bunny CDN
       const programUrl = await courseUploadService.uploadProgramFile(programFile);
       updateData.programUrl = programUrl;
+      updateData.programOriginalName = programFile.originalname;
 
       // Eliminar programa anterior
       if (existingCourse.programUrl) {

@@ -6,6 +6,7 @@ export interface IClass {
   title: string;
   status: string;
   imageUrl?: string;
+  imageOriginalName?: string;
 }
 
 export interface IEnrolledStudent {
@@ -24,6 +25,7 @@ export interface ICourse {
   status: string;
   order: number;
   imageUrl?: string;
+  imageOriginalName?: string; // Added original image filename
   classes: IClass[];
   questionnaires?: any[]; // Cuestionarios del curso (populated via lookup)
   orderedContent?: any[]; // Array ordenado de clases y cuestionarios intercalados
@@ -39,6 +41,7 @@ export interface ICourse {
   modality?: string;
   price?: number;
   programUrl?: string;
+  programOriginalName?: string; // Added original program PDF filename
   maxInstallments: number;
   interestFree: boolean;
   showOnHome?: boolean;
@@ -56,6 +59,7 @@ const ClassSchema = new Schema<IClass>(
     title: { type: String, required: true },
     status: { type: String, enum: Object.values(UserStatus), default: UserStatus.ACTIVE },
     imageUrl: { type: String, match: /\.(jpg|jpeg|png|webp)$/i },
+    imageOriginalName: { type: String, trim: true }, // Added schema for original image filename
   },
   { _id: false }
 );
@@ -117,6 +121,7 @@ export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
     modality: { type: String },
     price: { type: Number, min: 0 },
     programUrl: { type: String, match: /\.pdf$/i },
+    programOriginalName: { type: String, trim: true }, // Added schema for original program PDF filename
     maxInstallments: { type: Number, min: 1 },
     interestFree: { type: Boolean },
     showOnHome: { type: Boolean, default: false },

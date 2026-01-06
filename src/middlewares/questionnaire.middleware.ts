@@ -5,6 +5,7 @@ import { hasAdminRole } from '@/middlewares/adminSecurity.middleware';
 /**
  * Middleware para verificar si el usuario es admin o dueño del cuestionario
  * (profesor principal del curso al que pertenece el cuestionario)
+ * @param questionnaireRepository  Repositorio de cuestionarios
  */
 export function requireAdminOrQuestionnaireOwner(questionnaireRepository: QuestionnaireRepository) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -21,13 +22,11 @@ export function requireAdminOrQuestionnaireOwner(questionnaireRepository: Questi
         return next();
       }
 
-      // Check if course owner
       const questionnaire = await questionnaireRepository.findById(questionnaireId);
       if (!questionnaire) {
         return res.status(404).json({ success: false, message: 'Questionnaire not found' });
       }
 
-      // Check if user is the creator of the questionnaire
       const userId = String(user._id);
       const creatorId = questionnaire.createdBy ? String(questionnaire.createdBy) : null;
 

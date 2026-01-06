@@ -9,6 +9,7 @@ export interface IClassData {
   order: number;
   imageUrl?: string;
   videoUrl?: string;
+  videoOriginalName?: string;
   videoStatus?: string;
   courseId: Types.ObjectId;
   supportMaterials?: string[];
@@ -66,6 +67,10 @@ export const ClassSchema: Schema<IClassData> = new Schema<IClassData>(
         },
         message: 'Video URL must be a valid URL or end with a valid video extension',
       },
+    },
+    videoOriginalName: {
+      type: String,
+      required: false,
     },
     videoStatus: {
       type: String,

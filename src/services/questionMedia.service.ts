@@ -12,8 +12,7 @@ class QuestionMediaService {
    * Sube una imagen para una pregunta a Bunny Storage (carpeta question-images)
    */
   async uploadImage(buffer: Buffer, originalName: string): Promise<string> {
-    const fileName = this.bunnyService.generateUniqueFileName(originalName, 'question-image');
-    const cdnUrl = await this.bunnyService.uploadFile(buffer, fileName, 'question-images');
+    const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(buffer, originalName, 'question-images');
     return cdnUrl;
   }
 
@@ -22,8 +21,7 @@ class QuestionMediaService {
    * Para archivos grandes se recomienda usar `uploadVideoStream`.
    */
   async uploadVideo(buffer: Buffer, originalName: string): Promise<string> {
-    const fileName = this.bunnyService.generateUniqueFileName(originalName, 'question-video');
-    const cdnUrl = await this.bunnyService.uploadFile(buffer, fileName, 'question-videos');
+    const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(buffer, originalName, 'question-videos');
     return cdnUrl;
   }
 
@@ -31,6 +29,7 @@ class QuestionMediaService {
    * Sube un video usando stream (mejor para archivos grandes)
    */
   async uploadVideoStream(stream: Readable, originalName: string, fileSize?: number, onProgress?: (p: number) => void): Promise<string> {
+    // For stream uploads we keep behavior of uploadFileStream (sanitizes name)
     const fileName = this.bunnyService.generateUniqueFileName(originalName, 'question-video');
     const cdnUrl = await this.bunnyService.uploadFileStream(stream, fileName, 'question-videos', fileSize, onProgress);
     return cdnUrl;

@@ -124,10 +124,21 @@ export default class QuestionnaireSubmissionController {
    */
   resetStudentAttempts = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { questionnaireId, studentId } = req.params;
+      const { questionnaireId } = req.params;
+      let studentId: any = req.params.studentId;
 
-      if (!studentId) {
-        return res.status(400).json(prepareResponse(400, 'Student ID is required'));
+      // If frontend accidentally passed an object, try to recover from body or query
+      if (!studentId || String(studentId) === '[object Object]') {
+        if (req.body && typeof req.body.studentId === 'string') studentId = req.body.studentId;
+        else if (req.body && typeof req.body.student === 'object') studentId = req.body.student._id || req.body.student.id;
+        else if (req.query && typeof req.query.studentId === 'string') studentId = req.query.studentId;
+      }
+
+      // Validate basic ObjectId shape (24 hex chars)
+      const isValidObjectId = (id: any) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id);
+
+      if (!studentId || !isValidObjectId(studentId)) {
+        return res.status(400).json(prepareResponse(400, 'Student ID is required and must be a valid ObjectId'));
       }
 
       const result = await this.submissionService.resetStudentAttempts(studentId, questionnaireId);

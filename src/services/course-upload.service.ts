@@ -56,8 +56,8 @@ export class CourseUploadService {
      * Sube una imagen de curso a Bunny CDN
      */
     async uploadCourseImage(file: Express.Multer.File): Promise<string> {
-        const fileName = this.bunnyService.generateUniqueFileName(file.originalname, 'course');
-        const cdnUrl = await this.bunnyService.uploadFile(file.buffer, fileName, 'course-images');
+        // Preserve original filename when uploading to Bunny
+        const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(file.buffer, file.originalname, 'course-images');
         logger.info(`✅ Course image uploaded to Bunny CDN: ${cdnUrl}`);
         return cdnUrl;
     }
@@ -90,8 +90,7 @@ export class CourseUploadService {
      */
     async uploadProgramFile(file: Express.Multer.File): Promise<string> {
         try {
-            const fileName = this.bunnyService.generateUniqueFileName(file.originalname, 'program');
-            const cdnUrl = await this.bunnyService.uploadFile(file.buffer, fileName, 'course-programs');
+            const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(file.buffer, file.originalname, 'course-programs');
             logger.info(`✅ Program file uploaded to Bunny CDN: ${cdnUrl}`);
             return cdnUrl;
         } catch (error) {

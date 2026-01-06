@@ -7,14 +7,16 @@ import { logger } from '../utils';
 import config from '@/config';
 import { userRepository } from '@/repositories';
 
-// Extractor personalizado que acepta token desde header o query parameter (útil para SSE)
+/**
+ * Extracts JWT token from Authorization header or query parameter.
+ * @param req  Request object
+ * @returns JWT token string or null if not found
+ */
 const jwtExtractor = (req: Request) => {
-  // Primero intentar desde el header Authorization
   const authHeader = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
   if (authHeader) {
     return authHeader;
   }
-  // Si no está en el header, intentar desde query parameter (para SSE)
   const tokenFromQuery = req.query.token as string | undefined;
   if (tokenFromQuery) {
     return tokenFromQuery;
@@ -22,11 +24,17 @@ const jwtExtractor = (req: Request) => {
   return null;
 };
 
+/**
+ * Passport JWT Strategy configuration
+ */
 const options = {
   jwtFromRequest: jwtExtractor,
   secretOrKey: config.JWT_SECRET,
 };
 
+/**
+ * JWT Strategy for Passport
+ */
 passport.use(
   new JwtStrategy(options, async (jwtPayload, done) => {
     try {
@@ -44,6 +52,11 @@ passport.use(
 
 export default passport;
 
+/**
+ *  Handles authentication errors based on info object.
+ * @param info  Info object from Passport
+ * @returns  Object containing status and message
+ */
 const handleAuthError = (info: Record<string, string>) => {
   if (info && info.name === 'TokenExpiredError') {
     return { status: 401, message: 'Token expired' };
@@ -54,6 +67,12 @@ const handleAuthError = (info: Record<string, string>) => {
   return { status: 401, message: 'Unauthorized' };
 };
 
+/**
+ * Middleware to authorize requests using JWT authentication.
+ * @param req  Request object
+ * @param res  Response object
+ * @param next  Next function
+ */
 export const authorize = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('jwt', { session: false }, (err: Error, user: IUser, info: Record<string, string>) => {
     if (err) {

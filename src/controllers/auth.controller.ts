@@ -27,6 +27,12 @@ class AuthController {
       }
       return res.json(prepareResponse(200, 'Correo de restablecimiento de contraseña enviado.', responseData));
     } catch (error) {
+      // Si es un error definido en errors.yml, devolver respuesta legible al cliente
+      if (error && typeof error === 'object' && 'status' in error) {
+        const status = (error as any).status || 400;
+        const message = (error as any).message || 'Error';
+        return res.status(status).json(prepareResponse(status, message, null));
+      }
       return next(error);
     }
   };

@@ -614,11 +614,8 @@ export default class FileController {
 
       logger.info(`📤 Uploading profile image: ${req.file.originalname} (${req.file.size} bytes)`);
 
-      // Generar nombre único para el archivo
-      const fileName = this.bunnyService.generateUniqueFileName(req.file.originalname, 'profile');
-
-      // Subir a Bunny CDN
-      const cdnUrl = await this.bunnyService.uploadFile(req.file.buffer, fileName, 'profile-images');
+      // Subir a Bunny CDN preservando nombre original
+      const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(req.file.buffer, req.file.originalname, 'profile-images');
 
       logger.info(`✅ Profile image uploaded successfully: ${cdnUrl}`);
 

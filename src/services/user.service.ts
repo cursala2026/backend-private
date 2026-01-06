@@ -5,6 +5,7 @@ import os from 'os';
 import bcrypt from 'bcryptjs';
 import { IUser } from '../models/user.model';
 import { sendEmail } from '../utils/emailer';
+import config from '@/config';
 import { IUserExtended } from '@/types/user.types';
 import { Types, UserStatus } from '@/models';
 import { deleteOldFile } from '@/utils/fileUpload.util';
@@ -321,7 +322,76 @@ export default class UserService {
       }
     }
 
-    return this.userRepository.updateUser(userId, userData);
+    // Obtener usuario actual para detectar cambios en roles
+    const existingUser = await this.userRepository.getUserById(userId);
+
+    const updatedUser = await this.userRepository.updateUser(userId, userData);
+
+    // Si existía usuario y se actualizó el campo roles, comparar y notificar
+    try {
+      if (existingUser && updatedUser && Object.prototype.hasOwnProperty.call(userData, 'roles')) {
+        const oldRoles = Array.isArray(existingUser.roles) ? existingUser.roles.map(String) : [];
+        const newRoles = Array.isArray(userData.roles) ? userData.roles.map(String) : (Array.isArray(updatedUser.roles) ? updatedUser.roles.map(String) : []);
+
+        const sortAndStringify = (arr: string[]) => arr.map(r => r.toUpperCase()).sort().join(',');
+        if (sortAndStringify(oldRoles) !== sortAndStringify(newRoles)) {
+          // Enviar email informando cambio de roles
+          if (updatedUser.email) {
+            const roleDisplayNames: Record<string, string> = {
+              'ADMIN': 'Administrador',
+              'PROFESOR': 'Profesor',
+              'ALUMNO': 'Alumno'
+            };
+            const oldNames = oldRoles.map(r => roleDisplayNames[r.toUpperCase()] || r).join(', ') || 'Ninguno';
+            const newNames = newRoles.map(r => roleDisplayNames[r.toUpperCase()] || r).join(', ') || 'Ninguno';
+
+            const frontendBase = (config.FRONTEND_DOMAIN || '').split(',')[0] || '';
+            await sendEmail({
+              email: updatedUser.email,
+              subject: 'Cambio de roles en tu cuenta - Cursala',
+              html: `
+                <div style="font-family: Inter, Arial, Helvetica, sans-serif; max-width:680px; margin:0 auto; background:#f6f7fb; padding:24px;">
+                  <div style="background:#ffffff; border-radius:10px; padding:28px; box-shadow:0 4px 18px rgba(15,23,42,0.06);">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <div style="width:48px; height:48px; border-radius:8px; background:#e0f2fe; display:flex; align-items:center; justify-content:center; color:#0369a1; font-weight:700;">🔄</div>
+                      <div>
+                        <h2 style="margin:0; font-size:18px; color:#0f172a;">Cambio de roles en tu cuenta</h2>
+                        <p style="margin:6px 0 0; color:#475569; font-size:14px;">Hola <strong>${updatedUser.firstName || ''}</strong>, tus roles fueron actualizados.</p>
+                      </div>
+                    </div>
+
+                    <div style="display:flex; gap:12px; margin-top:18px; flex-wrap:wrap;">
+                      <div style="flex:1; min-width:200px; background:#f8fafc; padding:12px; border-radius:8px;">
+                        <div style="font-size:12px; color:#94a3b8;">Roles anteriores</div>
+                        <div style="margin-top:8px; color:#0f172a; font-weight:600;">${oldNames}</div>
+                      </div>
+                      <div style="flex:1; min-width:200px; background:#ecfdf5; padding:12px; border-radius:8px;">
+                        <div style="font-size:12px; color:#059669;">Roles actuales</div>
+                        <div style="margin-top:8px; color:#065f46; font-weight:600;">${newNames}</div>
+                      </div>
+                    </div>
+
+                    <p style="margin:18px 0 0; color:#475569; font-size:14px;">Si no esperabas este cambio, por favor contacta al administrador o responde a este correo.</p>
+
+                    <p style="margin-top:20px;">
+                      <a href="${frontendBase || '#'}" style="display:inline-block; background:#0ea5e9; color:#ffffff; padding:10px 14px; border-radius:8px; text-decoration:none; font-weight:600;">Ir a mi cuenta</a>
+                    </p>
+
+                    <p style="margin:22px 0 0; color:#9aa4b2; font-size:12px;">Equipo Cursala</p>
+                  </div>
+                </div>
+              `,
+            });
+          } else {
+            logger.warn('No email disponible para usuario; no se puede notificar cambio de roles', { userId });
+          }
+        }
+      }
+    } catch (emailErr) {
+      logger.error('Error enviando notificación de cambio de roles', { error: (emailErr as Error).message, userId });
+    }
+
+    return updatedUser;
   }
 
   async getUsersByAssignedCourses(courseId: string) {
