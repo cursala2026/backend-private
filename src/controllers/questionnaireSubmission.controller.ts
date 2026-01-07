@@ -80,8 +80,21 @@ export default class QuestionnaireSubmissionController {
     try {
       const { questionnaireId, studentId } = req.params;
 
-      const submissions = await this.submissionService.getStudentSubmissions(studentId, questionnaireId);
-      return res.json(prepareResponse(200, 'Student submissions fetched successfully', submissions));
+      // Recuperar studentId si el frontend envío un objeto accidentalmente (por ejemplo '[object Object]')
+      let sid: any = studentId;
+      if (!sid || String(sid) === '[object Object]') {
+        if (req.body && typeof req.body.studentId === 'string') sid = req.body.studentId;
+        else if (req.body && typeof req.body.student === 'object') sid = req.body.student._id || req.body.student.id;
+        else if (req.query && typeof req.query.studentId === 'string') sid = req.query.studentId;
+      }
+
+      const isValidObjectId = (id: any) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id);
+      if (!sid || !isValidObjectId(sid)) {
+        return res.status(400).json(prepareResponse(400, 'El ID de estudiante es requerido y debe ser un ObjectId válido'));
+      }
+
+      const submissions = await this.submissionService.getStudentSubmissions(sid, questionnaireId);
+      return res.json(prepareResponse(200, 'Envíos del estudiante obtenidos correctamente', submissions));
     } catch (error) {
       return next(error);
     }

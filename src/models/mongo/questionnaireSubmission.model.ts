@@ -4,7 +4,7 @@ import { ObjectId } from '@/models';
 // Interface for Answer
 export interface IAnswer {
   questionId: ObjectId;
-  questionType: 'MULTIPLE_CHOICE' | 'TEXT';
+  questionType: 'MULTIPLE_CHOICE' | 'MULTIPLE_SELECT' | 'TEXT';
   // Soportar selección múltiple en frontend/backend
   selectedOptionIds?: ObjectId[];
   selectedOptionId?: ObjectId; // For backward compatibility (single selection)
@@ -54,7 +54,7 @@ const AnswerSchema = new Schema<IAnswer>(
     questionType: {
       type: String,
       required: true,
-      enum: ['MULTIPLE_CHOICE', 'TEXT'],
+      enum: ['MULTIPLE_CHOICE', 'MULTIPLE_SELECT', 'TEXT'],
     },
     selectedOptionId: {
       type: Schema.Types.ObjectId,

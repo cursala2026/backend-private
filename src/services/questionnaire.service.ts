@@ -39,7 +39,7 @@ class QuestionnaireService {
     // Validate MC questions have options and correctOptionId
     for (let i = 0; i < data.questions.length; i++) {
       const question = data.questions[i];
-      if (question.type === 'MULTIPLE_CHOICE') {
+      if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
         if (!question.options || question.options.length < 2) {
           throw new Error(`Multiple choice question "${question.questionText}" must have at least 2 options`);
         }
@@ -152,7 +152,7 @@ class QuestionnaireService {
             const newQuestion = updateData.questions[i];
             const existingQuestion = existingQuestionnaire.questions[i];
             
-            if (newQuestion.type === 'MULTIPLE_CHOICE' && existingQuestion.type === 'MULTIPLE_CHOICE') {
+            if ((newQuestion.type === 'MULTIPLE_CHOICE' || newQuestion.type === 'MULTIPLE_SELECT') && (existingQuestion.type === 'MULTIPLE_CHOICE' || existingQuestion.type === 'MULTIPLE_SELECT')) {
               // Handle correctOptionId conversion from index to ObjectId if needed
               // Normalize possible single or multiple correct answers
               if ((newQuestion as any).correctOptionIds && Array.isArray((newQuestion as any).correctOptionIds)) {
@@ -285,7 +285,7 @@ class QuestionnaireService {
           const newQuestion = updateData.questions[i];
           const existingQuestion = existingQuestionnaire.questions[i];
           
-          if (newQuestion.type === 'MULTIPLE_CHOICE' && newQuestion.options) {
+              if ((newQuestion.type === 'MULTIPLE_CHOICE' || newQuestion.type === 'MULTIPLE_SELECT') && newQuestion.options) {
             for (let j = 0; j < newQuestion.options.length; j++) {
               const newOption = newQuestion.options[j] as any;
               
@@ -372,7 +372,7 @@ class QuestionnaireService {
         }
 
         // For multiple choice, check options (text and order)
-        if (existing.type === 'MULTIPLE_CHOICE' && updated.type === 'MULTIPLE_CHOICE') {
+        if ((existing.type === 'MULTIPLE_CHOICE' || existing.type === 'MULTIPLE_SELECT') && (updated.type === 'MULTIPLE_CHOICE' || updated.type === 'MULTIPLE_SELECT')) {
           if (!existing.options || !updated.options) {
             if (existing.options !== updated.options) {
               return false;
@@ -468,7 +468,7 @@ class QuestionnaireService {
         const existing = existingQuestions[i];
         const updated = newQuestions[i];
         
-        if (existing.type === 'MULTIPLE_CHOICE' && updated.type === 'MULTIPLE_CHOICE') {
+        if ((existing.type === 'MULTIPLE_CHOICE' || existing.type === 'MULTIPLE_SELECT') && (updated.type === 'MULTIPLE_CHOICE' || updated.type === 'MULTIPLE_SELECT')) {
           const existingCorrectId = existing.correctOptionId?.toString();
           const updatedCorrectId = updated.correctOptionId?.toString();
           
@@ -519,7 +519,7 @@ class QuestionnaireService {
         }
 
         // For multiple choice, check options
-        if (existing.type === 'MULTIPLE_CHOICE' && updated.type === 'MULTIPLE_CHOICE') {
+        if ((existing.type === 'MULTIPLE_CHOICE' || existing.type === 'MULTIPLE_SELECT') && (updated.type === 'MULTIPLE_CHOICE' || updated.type === 'MULTIPLE_SELECT')) {
           if (!existing.options || !updated.options) {
             if (existing.options !== updated.options) {
               return true;

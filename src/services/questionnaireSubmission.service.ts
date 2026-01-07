@@ -69,6 +69,28 @@ class QuestionnaireSubmissionService {
    * Enviar respuestas y auto-calificar
    */
   async submitAnswers(submissionId: string, answers: IAnswer[]): Promise<QuestionnaireSubmissionDoc> {
+    // Validar formato básico de las respuestas: questionId y selectedOptionId(s) deben ser ObjectId (string de 24 hex)
+    const isValidObjectIdString = (v: any) => typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v);
+    if (!answers || !Array.isArray(answers)) {
+      throw { status: 400, key: 'validation.answers_required', message: 'Se requiere un arreglo de respuestas' };
+    }
+    for (const a of answers) {
+      if (!a.questionId || !isValidObjectIdString(String(a.questionId))) {
+        throw { status: 400, key: 'validation.invalid_question_id', message: 'Cada respuesta debe tener un questionId válido' };
+      }
+      if ((a as any).selectedOptionIds && Array.isArray((a as any).selectedOptionIds)) {
+        for (const sid of (a as any).selectedOptionIds) {
+          if (!isValidObjectIdString(String(sid))) {
+            throw { status: 400, key: 'validation.invalid_selected_option_ids', message: 'Los selectedOptionIds deben ser _id válidos de las opciones (no índices)' };
+          }
+        }
+      } else if (a.selectedOptionId) {
+        if (!isValidObjectIdString(String(a.selectedOptionId))) {
+          throw { status: 400, key: 'validation.invalid_selected_option_id', message: 'selectedOptionId debe ser un _id válido de la opción (no un índice)' };
+        }
+      }
+    }
+
     const submission = await this.submissionRepository.findById(submissionId);
     if (!submission) {
       throw new Error('Submission not found');
@@ -323,7 +345,7 @@ class QuestionnaireSubmissionService {
         };
       }
 
-      if (question.type === 'MULTIPLE_CHOICE') {
+      if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
         totalMCPoints += question.points;
         // Support multiple correct options and multiple selected options
         const correctIds: string[] = [];
@@ -344,17 +366,33 @@ class QuestionnaireSubmissionService {
           selectedIds.push(answer.selectedOptionId.toString());
         }
 
-        // Exact-match scoring: full points only if selected set equals correct set
+        // Scoring with penalización por selecciones incorrectas (falsos positivos):
+        // scoreRaw = (correctSelections - wrongSelections) / correctCount
+        // no puede ser negativo (min 0). isCorrect = true solo para match exacto (mismo conjunto).
         const correctSet = new Set(correctIds);
         const selectedSet = new Set(selectedIds);
+        const intersectionCount = [...correctSet].filter((v) => selectedSet.has(v)).length;
+        const wrongSelections = [...selectedSet].filter((v) => !correctSet.has(v)).length;
+        const correctCount = correctSet.size || 0;
         let isCorrect = false;
-        if (correctSet.size === selectedSet.size) {
-          isCorrect = [...correctSet].every((v) => selectedSet.has(v));
-        }
-        const pointsAwarded = isCorrect ? question.points : 0;
-        earnedMCPoints += pointsAwarded;
+        let pointsAwarded = 0;
+        if (correctCount > 0) {
+          // exact match requires same size and same elements
+          if (correctSet.size === selectedSet.size && [...correctSet].every((v) => selectedSet.has(v))) {
+            isCorrect = true;
+          }
 
-        // Convert to plain object to avoid Mongoose subdocument issues
+          const penaltyFactor = 0.5; // cada selección incorrecta resta medio acierto
+          const raw = (intersectionCount - penaltyFactor * wrongSelections) / correctCount;
+          const ratio = Math.max(0, raw);
+          pointsAwarded = Math.round(question.points * ratio);
+          earnedMCPoints += pointsAwarded;
+        } else {
+          pointsAwarded = 0;
+          earnedMCPoints += 0;
+        }
+
+        // Return graded answer object
         return {
           questionId: answer.questionId,
           questionType: answer.questionType,

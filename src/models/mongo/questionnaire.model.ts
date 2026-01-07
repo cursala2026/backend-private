@@ -10,7 +10,7 @@ export interface IQuestionOption {
 
 export interface IQuestion {
   _id?: Types.ObjectId;
-  type: 'MULTIPLE_CHOICE' | 'TEXT';
+  type: 'MULTIPLE_CHOICE' | 'MULTIPLE_SELECT' | 'TEXT';
   // Texto breve del enunciado (para `promptType: 'TEXT'`) — se mantiene por compatibilidad
   questionText: string;
   // Tipo de enunciado/prompt: texto, imagen o video (imágenes/videos gestionados por Bunny)
@@ -77,7 +77,7 @@ const QuestionSchema = new Schema<IQuestion>(
     type: {
       type: String,
       required: true,
-      enum: ['MULTIPLE_CHOICE', 'TEXT'],
+      enum: ['MULTIPLE_CHOICE', 'MULTIPLE_SELECT', 'TEXT'],
     },
     questionText: {
       type: String,
