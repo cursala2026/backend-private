@@ -427,7 +427,9 @@ export class FileUploadService {
                 });
         }
 
-        return { imageUrl, videoUrl, supportMaterials, errors, uploadIdsToClean };
+        // Deduplicar entradas accidentales
+        const dedupedSupportMaterials = Array.from(new Set(supportMaterials.filter(Boolean)));
+        return { imageUrl, videoUrl, supportMaterials: dedupedSupportMaterials, errors, uploadIdsToClean };
     }
 
     /**
@@ -565,6 +567,9 @@ export class FileUploadService {
             });
         }
 
+        // Deduplicar entradas accidentales (URLs repetidas o nombres locales)
+        supportMaterials = supportMaterials.filter(Boolean);
+        supportMaterials = Array.from(new Set(supportMaterials));
         return { imageUrl, videoUrl, supportMaterials, filesToDelete, uploadIdsToClean };
     }
 

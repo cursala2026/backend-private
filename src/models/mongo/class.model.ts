@@ -145,6 +145,13 @@ ClassSchema.index({ status: 1 });
 ClassSchema.index({ courseId: 1 });
 ClassSchema.index({ order: 1 });
 
+// Garantizar unicidad de supportMaterials antes de guardar
+ClassSchema.pre('save', function (this: any) {
+  if (Array.isArray(this.supportMaterials)) {
+    this.supportMaterials = Array.from(new Set(this.supportMaterials.filter(Boolean)));
+  }
+});
+
 const ClassModel = model<IClassData>('Class', ClassSchema, 'classes');
 export { ClassModel };
 
