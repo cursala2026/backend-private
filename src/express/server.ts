@@ -212,9 +212,10 @@ export default class Server implements NodeServer {
 
       logger.info(`✅ Registered ${validRoutes.length} route(s)`);
       this.app.use(config.BASE_URL, ...validRoutes);
-    } catch (err) {
+    } catch (err: unknown) {
       logger.error('❌ Error while registering routes:');
-      logger.error(`   Message: ${err?.message || err}`);
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error(`   Message: ${errMessage}`);
       throw err;
     }
 

@@ -27,7 +27,15 @@ export default async function registerRoutes() {
       
       let module: any;
       try {
-        module = await import(fileUrl);
+        // Prefer CommonJS require when running the compiled `dist` (avoids passing file:// URLs to require)
+        // Fallback to dynamic import when require isn't available (e.g. ESM runtimes).
+        // @ts-ignore
+        if (typeof require === 'function') {
+          // @ts-ignore
+          module = require(filePath);
+        } else {
+          module = await import(fileUrl);
+        }
       } catch (importError: any) {
         logger.error(`❌ Import failed for ${file}: ${importError?.message}`);
         throw importError;
