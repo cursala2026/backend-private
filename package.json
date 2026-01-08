@@ -4,7 +4,7 @@
   "description": "cursala Private API",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "nodemon --ignore src/static-remote -r tsconfig-paths/register src/index.ts",
+    "dev": "tsx watch --env-file .env src/index.ts",
     "prod": "node ./dist/src/index.js",
     "start": "npm run prod",
     "build": "ts-node build.ts",
@@ -89,6 +89,7 @@
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.6",
     "ts-node": "10.9.1",
+    "tsx": "^3.12.7",
     "tsc-alias": "^1.8.8",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"

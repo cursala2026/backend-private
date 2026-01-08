@@ -14,7 +14,7 @@ export default class FileController {
   private readonly bunnyService: BunnyService;
 
   constructor(private readonly fileService: FileService) {
-    this.bunnyService = new BunnyService();
+    this.bunnyService = BunnyService.getInstance();
   }
 
   getFileImage = async (req: Request, res: Response, next: NextFunction) => {

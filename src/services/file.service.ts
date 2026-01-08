@@ -13,7 +13,7 @@ export default class FileService {
   private bunnyService: BunnyService;
 
   constructor() {
-    this.bunnyService = new BunnyService();
+    this.bunnyService = BunnyService.getInstance();
   }
 
   /**

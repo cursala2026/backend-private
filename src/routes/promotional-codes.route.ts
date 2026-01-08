@@ -11,7 +11,11 @@ router.get('/', authorize, requireAdmin, promotionalCodeController.getAllPromoti
 router.get('/stats', authorize, requireAdmin, promotionalCodeController.getPromotionalCodeStats);
 router.get('/:id', authorize, requireAdmin, promotionalCodeController.getPromotionalCodeById);
 router.put('/:id', authorize, requireAdmin, promotionalCodeController.updatePromotionalCode);
+router.patch('/:id', authorize, requireAdmin, promotionalCodeController.patchPromotionalCode);
 router.delete('/:id', authorize, requireAdmin, promotionalCodeController.deletePromotionalCode);
+
+// Validación para usuarios autenticados (frontend debe usar token)
+router.post('/validate', authorize, promotionalCodeController.validatePromotionalCode);
 
 // 🟠 ALTO: Activar/pausar códigos promocionales requiere admin
 router.patch('/:id/pause', authorize, requireAdmin, promotionalCodeController.pausePromotionalCode);

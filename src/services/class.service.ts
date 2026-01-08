@@ -18,7 +18,7 @@ export default class ClassService {
   private readonly bunnyService: BunnyService;
 
   constructor(private readonly classRepository: ClassRepository) {
-    this.bunnyService = new BunnyService();
+    this.bunnyService = BunnyService.getInstance();
   }
 
   /**

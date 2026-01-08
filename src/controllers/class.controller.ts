@@ -27,7 +27,7 @@ export default class ClassController {
     private readonly classService: ClassService,
     private readonly courseService?: CourseService
   ) {
-    this.bunnyService = new BunnyService();
+    this.bunnyService = BunnyService.getInstance();
   }
 
   // Delegar operaciones de chunks a FileUploadService

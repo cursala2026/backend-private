@@ -72,7 +72,7 @@ export const PaymentRequestSchema: Schema<PaymentRequestModel> = new Schema<Paym
     },
     paymentTicket: {
       type: String,
-      required: true,
+      required: false,
     },
     comments: {
       type: String,

@@ -165,4 +165,13 @@ export default class PaymentService {
 
     return result;
   }
+
+  /**
+   * Crea un PaymentRequest provisional (sin archivo) usado para integración con checkouts externos.
+   */
+  async createPaymentRequest(paymentData: Partial<IPaymentRequest>): Promise<IPaymentRequest> {
+    // No enviamos emails ni intentamos procesar archivo; solo guardamos la solicitud
+    const result = await this.paymentRepository.submitPayment(paymentData);
+    return result;
+  }
 }

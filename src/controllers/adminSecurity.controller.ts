@@ -6,6 +6,7 @@ import { logger } from '../utils';
 import config from '../config';
 import adminSecurityService from '../services/adminSecurity.service';
 import { userRepository, courseRepository, categoryRepository } from '../repositories';
+import { PromotionalCode } from '@/models/mongo/promotionalCode.model';
 
 // Roles are now fixed codes: ADMIN, PROFESOR, ALUMNO
 
@@ -372,9 +373,6 @@ export const getChartData = async (req: AuthenticatedRequest, res: Response) => 
 };
 export const getSystemStatsPublic = async (req: Request, res: Response) => {
   try {
-    // Importar modelos necesarios
-    const { PromotionalCode } = await import('@/models/mongo/promotionalCode.model');
-
     // Obtener estadísticas
     const [
       totalUsers,
@@ -419,9 +417,6 @@ export const getSystemStats = async (req: AuthenticatedRequest, res: Response) =
         message: 'Acceso denegado. Se requiere rol de administrador.',
       });
     }
-
-    // Importar modelos necesarios
-    const { PromotionalCode } = await import('@/models/mongo/promotionalCode.model');
 
     // Obtener estadísticas y últimos usuarios registrados
     const [

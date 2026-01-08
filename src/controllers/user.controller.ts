@@ -13,7 +13,7 @@ export default class UserController {
   private bunnyService: BunnyService;
   
   constructor(private readonly userService: UserService) {
-    this.bunnyService = new BunnyService();
+    this.bunnyService = BunnyService.getInstance();
   }
 
   addCountriesToUser = async (req: Request, res: Response, next: NextFunction) => {

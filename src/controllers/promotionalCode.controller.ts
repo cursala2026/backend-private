@@ -190,6 +190,85 @@ export default class PromotionalCodeController {
     }
   };
 
+  // Actualizar parcialmente código promocional (PATCH)
+  patchPromotionalCode = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      if (!id) {
+        return res.status(400).json(prepareResponse(400, 'ID del código promocional es requerido'));
+      }
+
+      const modifiedBy = req.user?._id;
+      if (!modifiedBy) {
+        return res.status(401).json(prepareResponse(401, 'Usuario no autenticado'));
+      }
+
+      // Campos permitidos para PATCH
+      const allowedFields = new Set([
+        'code',
+        'name',
+        'description',
+        'discountType',
+        'discountValue',
+        'applicableCourses',
+        'isGlobal',
+        'validFrom',
+        'validUntil',
+        'maxUses',
+        'maxUsesPerUser',
+        'minimumPurchaseAmount',
+        'status',
+      ]);
+
+      const partialUpdate: Record<string, unknown> = {};
+      Object.keys(updateData || {}).forEach((key) => {
+        if (allowedFields.has(key)) {
+          partialUpdate[key] = updateData[key];
+        }
+      });
+
+      if (Object.keys(partialUpdate).length === 0) {
+        return res.status(400).json(prepareResponse(400, 'No se enviaron campos actualizables o no están permitidos'));
+      }
+
+      // Validaciones parciales
+      if (partialUpdate.discountValue !== undefined && Number(partialUpdate.discountValue) <= 0) {
+        return res.status(400).json(prepareResponse(400, 'El valor de descuento debe ser mayor a 0'));
+      }
+
+      if (
+        partialUpdate.discountType === DiscountType.PERCENTAGE &&
+        partialUpdate.discountValue !== undefined &&
+        Number(partialUpdate.discountValue) > 100
+      ) {
+        return res.status(400).json(prepareResponse(400, 'El porcentaje de descuento no puede ser mayor a 100%'));
+      }
+
+      const updatedCode = await this.promotionalCodeService.updatePromotionalCode(
+        id,
+        partialUpdate as any,
+        new mongoose.Types.ObjectId(modifiedBy.toString())
+      );
+
+      if (!updatedCode) {
+        return res.status(404).json(prepareResponse(404, 'Código promocional no encontrado'));
+      }
+
+      return res.json(prepareResponse(200, 'Código promocional actualizado parcialmente', updatedCode));
+    } catch (error) {
+      const err = error as Error;
+      logger.error(`Error al actualizar parcialmente código promocional: ${err.message}`);
+
+      if (err.message.includes('Ya existe un código promocional')) {
+        return res.status(400).json(prepareResponse(400, 'Ya existe un código promocional con ese nombre'));
+      }
+
+      return res.status(500).json(prepareResponse(500, 'Error interno del servidor', { error: err.message }));
+    }
+  };
+
   // Activar código promocional
   activatePromotionalCode = async (req: Request, res: Response) => {
     try {

@@ -6,6 +6,8 @@ import { IMercadoPagoPayment, MercadoPagoPaymentStatus } from '@/models/mongo/me
 import generalConnection from '@/config/databases';
 import * as MercadoPagoService from '@/services/mercadoPago.service';
 import config from '@/config';
+import { promotionalCodeService } from '@/services';
+import { PaymentRequest } from '@/models';
 
 export default class MercadoPagoPaymentService {
   private readonly userRepository: UserRepository;
@@ -111,6 +113,51 @@ export default class MercadoPagoPaymentService {
 
       // Asignar curso automáticamente al usuario
       await this.assignCourseToUser(paymentData.studentEmail, courseId, new Date());
+
+      // Si el externalReference contiene un código en formato _PROMO_{CODE}, aplicarlo
+      try {
+        const extRef = paymentData.externalReference || '';
+        const promoMatch = String(extRef).match(/_PROMO_([A-Z0-9]+)/i);
+        if (promoMatch && promoMatch[1]) {
+          const codeStr = promoMatch[1].toUpperCase();
+          const promo = await promotionalCodeService.getPromotionalCodeByCode(codeStr);
+          if (promo && promo._id && user?._id) {
+            const discountApplied = paymentData.amount - (paymentRecord.transactionAmount || paymentData.amount) || 0;
+            await promotionalCodeService.applyPromotionalCode(promo._id.toString(), user._id.toString(), courseId, discountApplied);
+            logger.info('Promotional code applied from externalReference after payment', { code: codeStr, userId: user?._id?.toString(), courseId });
+          }
+        }
+      } catch (err) {
+        logger.warn('Error applying promo from externalReference after payment', { error: (err as Error).message });
+      }
+
+      // Intentar aplicar código promocional si existe un PaymentRequest asociado
+      try {
+        const paymentRequest = await PaymentRequest.findOne({
+          courseId,
+          studentEmail: paymentData.studentEmail,
+          promotionalCodeApplied: true,
+        })
+          .sort({ createdAt: -1 })
+          .exec();
+
+        if (paymentRequest && paymentRequest.promotionalCode) {
+          const promo = await promotionalCodeService.getPromotionalCodeByCode(paymentRequest.promotionalCode);
+          if (promo && promo._id && user?._id) {
+            const discountApplied = paymentRequest.discountAmount || 0;
+            await promotionalCodeService.applyPromotionalCode(promo._id.toString(), user._id.toString(), courseId, discountApplied);
+            logger.info('Promotional code applied after successful MercadoPago payment', {
+              code: promo.code,
+              userId: user._id?.toString(),
+              courseId,
+            });
+          } else {
+            logger.info('No promo applied: promo or user not found', { promo: !!promo, user: !!user });
+          }
+        }
+      } catch (err) {
+        logger.warn('Error trying to auto-apply promotional code after payment', { error: (err as Error).message });
+      }
 
       // Enviar emails de confirmación solo en producción
       if (process.env.NODE_ENV === 'production') {
@@ -249,6 +296,50 @@ export default class MercadoPagoPaymentService {
           externalReference: paymentInfo.external_reference,
         });
         await this.assignCourseToUser(studentEmail, courseId, new Date());
+
+        // Si external_reference contiene _PROMO_{CODE}, intentar aplicarlo ahora
+        try {
+          const promoMatch = String(paymentInfo.external_reference).match(/_PROMO_([A-Z0-9]+)/i);
+          if (promoMatch && promoMatch[1]) {
+            const codeStr = promoMatch[1].toUpperCase();
+            const promo = await promotionalCodeService.getPromotionalCodeByCode(codeStr);
+            if (promo && promo._id && user?._id) {
+              const discountApplied = 0;
+              await promotionalCodeService.applyPromotionalCode(promo._id.toString(), user._id.toString(), courseId, discountApplied);
+              logger.info('Promotional code applied from externalReference (webhook)', { code: codeStr, userId: user?._id?.toString(), courseId });
+            }
+          }
+        } catch (err) {
+          logger.warn('Error applying promo from externalReference in webhook', { error: (err as Error).message });
+        }
+
+        // Intentar aplicar código promocional buscándolo en PaymentRequest (por si fue enviado como pago manual antes)
+        try {
+          const paymentRequest = await PaymentRequest.findOne({
+            courseId,
+            studentEmail,
+            promotionalCodeApplied: true,
+          })
+            .sort({ createdAt: -1 })
+            .exec();
+
+          if (paymentRequest && paymentRequest.promotionalCode) {
+            const promo = await promotionalCodeService.getPromotionalCodeByCode(paymentRequest.promotionalCode);
+            if (promo && promo._id && user?._id) {
+              const discountApplied = paymentRequest.discountAmount || 0;
+              await promotionalCodeService.applyPromotionalCode(promo._id.toString(), user._id.toString(), courseId, discountApplied);
+              logger.info('Promotional code applied after webhook payment', {
+                code: promo.code,
+                userId: user?._id?.toString(),
+                courseId,
+              });
+            } else {
+              logger.info('No promo applied from webhook: promo or user not found', { promo: !!promo, user: !!user });
+            }
+          }
+        } catch (err) {
+          logger.warn('Error trying to auto-apply promotional code after webhook', { error: (err as Error).message });
+        }
 
         // Enviar emails de confirmación solo para pagos nuevos aprobados y solo en producción
         if (process.env.NODE_ENV === 'production') {

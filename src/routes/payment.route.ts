@@ -1,10 +1,13 @@
 import { Router } from 'express';
 import { paymentController } from '@/controllers';
+import { authorize } from '@/middlewares/auth.middleware';
 
 const router = Router();
 
 // Rutas para pagos tradicionales
 router.post('/submit-form', paymentController.submitPaymentFormData);
+router.post('/requests', authorize, paymentController.createPaymentRequest);
+router.post('/requests/validate-create', authorize, paymentController.validateAndCreatePaymentRequest);
 
 // Rutas para MercadoPago
 router.post('/create-preference', paymentController.createPaymentPreference);

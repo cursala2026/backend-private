@@ -1,10 +1,12 @@
 import { NextFunction, Request, Response } from 'express';
 import { logger, prepareResponse } from '../utils';
+import { IPaymentRequest } from '@/models';
 import PaymentService from '@/services/payment.service';
 import MercadoPagoPaymentService from '@/services/mercadoPagoPayment.service';
 import { mercadoPagoRepository } from '@/repositories';
 import * as MercadoPagoService from '@/services/mercadoPago.service';
 import { uploadPaymentTicket } from '@/services/payment-upload.service';
+import { promotionalCodeService } from '@/services';
 
 // Re-exportar para compatibilidad con rutas
 export { uploadPaymentTicket } from '@/services/payment-upload.service';
@@ -286,6 +288,118 @@ export default class PaymentController {
       });
     } catch (error) {
       return next(error);
+    }
+  };
+
+  // Crear PaymentRequest provisional (autenticado)
+  createPaymentRequest = async (req: Request, res: Response) => {
+    try {
+      const {
+        courseId,
+        courseName,
+        coursePrice,
+        finalPrice,
+        studentName,
+        studentEmail,
+        promotionalCodeApplied,
+        promotionalCode,
+        discountAmount,
+        discountType,
+      } = req.body;
+
+      if (!courseId || !courseName || coursePrice === undefined || !studentEmail || !studentName) {
+        return res.status(400).json(prepareResponse(400, 'courseId, courseName, coursePrice, studentName y studentEmail son requeridos'));
+      }
+
+      const paymentData: Partial<IPaymentRequest> = {
+        courseId,
+        courseName,
+        coursePrice: Number(coursePrice),
+        finalPrice: finalPrice ? Number(finalPrice) : undefined,
+        studentName,
+        studentEmail,
+        promotionalCodeApplied: promotionalCodeApplied === true || promotionalCodeApplied === 'true',
+        promotionalCode: promotionalCode || undefined,
+        discountAmount: discountAmount ? Number(discountAmount) : undefined,
+        discountType: discountType || undefined,
+      };
+
+      const payment = await this.paymentService.createPaymentRequest(paymentData);
+
+      return res.status(201).json(prepareResponse(201, 'PaymentRequest provisional creado', { paymentRequestId: payment._id }));
+    } catch (error) {
+      logger.error(`Error creating provisional payment request: ${(error as Error).message}`);
+      return res.status(500).json(prepareResponse(500, 'Error creando PaymentRequest', { error: (error as Error).message }));
+    }
+  };
+
+  // Validar código promocional y crear PaymentRequest en una sola llamada
+  validateAndCreatePaymentRequest = async (req: Request, res: Response) => {
+    try {
+      const {
+        courseId,
+        courseName,
+        coursePrice,
+        studentName,
+        studentEmail,
+        promotionalCode,
+        userId,
+      } = req.body;
+
+      if (!courseId || !courseName || coursePrice === undefined || !studentEmail || !studentName) {
+        return res
+          .status(400)
+          .json(prepareResponse(400, 'courseId, courseName, coursePrice, studentName y studentEmail son requeridos'));
+      }
+
+      // Determinar userId para validación (prefiere el body, luego req.user)
+      const userIdToValidate = userId || req.user?._id;
+
+      let finalPrice: number | undefined = undefined;
+      let discountAmount: number | undefined = undefined;
+      let discountType: string | undefined = undefined;
+
+      if (promotionalCode) {
+        const validation = await promotionalCodeService.validatePromotionalCode(
+          promotionalCode.trim().toUpperCase(),
+          courseId,
+          userIdToValidate ? String(userIdToValidate) : `anonymous_${Date.now()}`,
+          Number(coursePrice)
+        );
+
+        if (!validation.isValid) {
+          return res.status(400).json(prepareResponse(400, validation.message, validation));
+        }
+
+        finalPrice = validation.finalPrice;
+        discountAmount = validation.discountAmount;
+        discountType = (validation.promotionalCode && (validation.promotionalCode as any).discountType) || undefined;
+      }
+
+      const paymentData: Partial<IPaymentRequest> = {
+        courseId,
+        courseName,
+        coursePrice: Number(coursePrice),
+        finalPrice: finalPrice !== undefined ? Number(finalPrice) : undefined,
+        studentName,
+        studentEmail,
+        promotionalCodeApplied: Boolean(promotionalCode),
+        promotionalCode: promotionalCode || undefined,
+        discountAmount: discountAmount !== undefined ? Number(discountAmount) : undefined,
+        discountType: discountType || undefined,
+      };
+
+      const payment = await this.paymentService.createPaymentRequest(paymentData);
+
+      return res.status(201).json(
+        prepareResponse(201, 'PaymentRequest provisional creado (validación incluida)', {
+          paymentRequestId: payment._id,
+          finalPrice: payment.finalPrice,
+        })
+      );
+    } catch (error) {
+      logger.error(`Error creating validated PaymentRequest: ${(error as Error).message}`);
+      return res.status(500).json(prepareResponse(500, 'Error creando PaymentRequest validado', { error: (error as Error).message }));
     }
   };
 

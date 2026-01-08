@@ -29,9 +29,7 @@ export default class Server implements NodeServer {
     private readonly setErrorHandlers: (app: Express) => void
   ) {
     try {
-      logger.info('🔧 Initializing Express app...');
       this.app = express();
-      logger.info('🔧 Creating HTTP server...');
       this.server = http.createServer(this.app);
       
       // Basic runtime validations for production secrets
@@ -44,11 +42,8 @@ export default class Server implements NodeServer {
         }
       }
       
-      logger.info('🔧 Setting server configuration...');
       this.setServerConfig();
-      logger.info('🔧 Setting server listeners...');
       this.setListeners();
-      logger.info('✅ Server constructor completed successfully');
     } catch (error: any) {
       logger.error('❌ Error in Server constructor:');
       logger.error(`   Message: ${error?.message || 'Unknown error'}`);
@@ -59,8 +54,6 @@ export default class Server implements NodeServer {
 
   start(): void {
     try {
-      logger.info(`🔧 Starting server on port ${this.port}...`);
-      
       this.server.listen(this.port, () => {
         logger.info(`⚡ Listening on ${this.port}`);
       });
@@ -84,8 +77,6 @@ export default class Server implements NodeServer {
           this.stop(1);
         }
       });
-      
-      logger.info('✅ Server.start() completed');
     } catch (error: any) {
       logger.error('❌ Error in server.start():');
       logger.error(`   Message: ${error?.message || 'Unknown error'}`);
@@ -104,7 +95,6 @@ export default class Server implements NodeServer {
 
   setServerConfig(): void {
     try {
-      logger.info('🔧 Setting port and trust proxy...');
       this.app.set('port', this.port);
       this.app.set('trust proxy', 1);
       // Disable X-Powered-By to avoid leak of Express
@@ -201,8 +191,32 @@ export default class Server implements NodeServer {
     // Rate limiting middleware global
     this.app.use(globalLimiter);
 
-    // Definir rutas
-    this.app.use(config.BASE_URL, ...this.routes);
+    // Validar y definir rutas
+    try {
+      // Aplanar arrays (algunos módulos podrían exportar arrays de routers)
+      const flattenedRoutes: any[] = ([] as any[]).concat(...this.routes.map((r: any) => (Array.isArray(r) ? r : [r])));
+
+      // Validar y filtrar elementos aplanados
+      const isMiddleware = (r: any) => (r && typeof r.use === 'function') || typeof r === 'function';
+      const validRoutes = flattenedRoutes.filter(isMiddleware);
+      const invalidRoutes = flattenedRoutes.filter((r: any) => !isMiddleware(r));
+
+      if (invalidRoutes.length > 0) {
+        logger.warn(`⚠️ ${invalidRoutes.length} invalid route(s) skipped`);
+      }
+
+      if (validRoutes.length === 0) {
+        logger.error('❌ No valid routes to register');
+        throw new TypeError('No valid routes to register');
+      }
+
+      logger.info(`✅ Registered ${validRoutes.length} route(s)`);
+      this.app.use(config.BASE_URL, ...validRoutes);
+    } catch (err) {
+      logger.error('❌ Error while registering routes:');
+      logger.error(`   Message: ${err?.message || err}`);
+      throw err;
+    }
 
     // Middleware de logging de errores
     this.app.use(
@@ -212,9 +226,7 @@ export default class Server implements NodeServer {
     );
 
     // Custom error handlers
-      logger.info('🔧 Setting error handlers...');
       this.setErrorHandlers(this.app);
-      logger.info('✅ Server configuration completed successfully');
     } catch (error: any) {
       logger.error('❌ Error in setServerConfig:');
       logger.error(`   Message: ${error?.message || 'Unknown error'}`);

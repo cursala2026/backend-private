@@ -6,6 +6,8 @@ import { Transform } from 'stream';
 import path from 'path';
 
 class BunnyService {
+  private static instance: BunnyService | null = null;
+  
   private readonly storageApiKey: string;
   private readonly storageZoneName: string;
   private readonly storageRegion: string;
@@ -17,7 +19,7 @@ class BunnyService {
   private readonly streamLibraryId: string;
   private readonly streamApiBaseUrl: string = 'https://video.bunnycdn.com';
 
-  constructor() {
+  private constructor() {
     this.storageApiKey = config.BUNNY_STORAGE_API_KEY || '';
     this.storageZoneName = config.BUNNY_STORAGE_ZONE_NAME || '';
     this.storageRegion = config.BUNNY_STORAGE_REGION || 'br';
@@ -39,6 +41,13 @@ class BunnyService {
         libraryId: this.streamLibraryId,
       });
     }
+  }
+
+  public static getInstance(): BunnyService {
+    if (!BunnyService.instance) {
+      BunnyService.instance = new BunnyService();
+    }
+    return BunnyService.instance;
   }
 
   /**

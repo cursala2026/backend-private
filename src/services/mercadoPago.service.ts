@@ -1,5 +1,6 @@
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { logger, maskSensitiveFields } from '../utils';
+import { PaymentRequest } from '@/models';
 
 // Validar token de acceso según entorno
 const getAccessToken = () => {
@@ -146,7 +147,48 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
     };
 
     // Preparar datos base de la preferencia (campos requeridos por el tipo)
-    const preferenceData: Record<string, unknown> = {
+      // Si el frontend envía metadata.paymentRequestId, intentar ajustar precios desde la reserva
+      if (data.metadata && (data.metadata as any).paymentRequestId) {
+        try {
+          const prId = String((data.metadata as any).paymentRequestId);
+          const paymentReq = await PaymentRequest.findById(prId).exec();
+          if (paymentReq) {
+            // Ajustar items: si item.id coincide con paymentReq.courseId, usar finalPrice o calcular
+            data.items = (data.items || []).map((it: any) => {
+              try {
+                const itemCourseId = String(it.id || it.courseId || '');
+                if (paymentReq.courseId && String(paymentReq.courseId) === itemCourseId) {
+                  let newPrice: number | undefined;
+                  if (paymentReq.finalPrice !== undefined && paymentReq.finalPrice !== null) {
+                    newPrice = Number(paymentReq.finalPrice);
+                  } else if (paymentReq.discountAmount !== undefined && paymentReq.discountAmount !== null) {
+                    // discountAmount stored as absolute number (frontend may send percent or absolute)
+                    if (paymentReq.discountType === 'PERCENTAGE') {
+                      const base = Number(paymentReq.coursePrice || it.unit_price || 0);
+                      newPrice = Math.max(0, Math.round(base - (base * Number(paymentReq.discountAmount)) / 100));
+                    } else {
+                      const base = Number(paymentReq.coursePrice || it.unit_price || 0);
+                      newPrice = Math.max(0, base - Number(paymentReq.discountAmount));
+                    }
+                  }
+
+                  if (newPrice !== undefined) {
+                    return { ...it, unit_price: newPrice };
+                  }
+                }
+              } catch (e) {
+                logger.warn('Error adjusting item price from PaymentRequest', { err: (e as Error).message });
+              }
+              return it;
+            });
+            logger.info('Adjusted items from PaymentRequest', { paymentRequestId: prId, items: data.items });
+          }
+        } catch (err) {
+          logger.warn('Error fetching PaymentRequest for preference adjustment', { error: (err as Error).message });
+        }
+      }
+
+      const preferenceData: Record<string, unknown> = {
       items: data.items,
       payer: {
         first_name: data.payer.first_name,

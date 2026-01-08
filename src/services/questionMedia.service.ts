@@ -5,7 +5,7 @@ class QuestionMediaService {
   private readonly bunnyService: BunnyService;
 
   constructor() {
-    this.bunnyService = new BunnyService();
+    this.bunnyService = BunnyService.getInstance();
   }
 
   /**

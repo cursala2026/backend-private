@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import { pathToFileURL } from 'url';
 import { Router } from 'express';
 import { logger } from '../utils';
 
@@ -18,17 +19,46 @@ export default async function registerRoutes() {
 
   for (const file of routeFiles) {
     try {
-      logger.info(`🔄 Loading route file: ${file}`);
-      
       // Usar path.resolve para asegurar una ruta absoluta correcta
       const filePath = path.resolve(routesDir, file);
+
+      // En Windows import dinámico necesita un file:// URL
+      const fileUrl = pathToFileURL(filePath).href;
       
-      const module: RouteModule = await import(filePath);
-      const router = module.default;
+      let module: any;
+      try {
+        module = await import(fileUrl);
+      } catch (importError: any) {
+        logger.error(`❌ Import failed for ${file}: ${importError?.message}`);
+        throw importError;
+      }
+
+      const isRouterLike = (x: any) => {
+        if (!x) return false;
+        if (typeof x === 'function') return true;
+        if (typeof x.use === 'function' && typeof x.route === 'function') return true;
+        if (Array.isArray(x) && x.length > 0 && x.every((v) => typeof v === 'function')) return true;
+        return false;
+      };
+
+      // Manejar tanto ESM como CommonJS
+      let router: any = module.default;
       
-      if (!router) {
-        logger.error(`❌ Route file ${file} does not export a default router`);
-        continue;
+      // Si module.default es un objeto con una propiedad default (CommonJS wrapping)
+      if (router && typeof router === 'object' && router.default && !isRouterLike(router)) {
+        router = router.default;
+      }
+
+      // Si no es router, buscar en otras exportaciones del módulo
+      if (!isRouterLike(router)) {
+        const candidates = Object.values(module || {});
+        const found = candidates.find((v) => isRouterLike(v));
+        if (found) {
+          router = found;
+        } else {
+          logger.error(`❌ Skipping route file ${file}: no valid router export found`);
+          continue;
+        }
       }
       
       // Extraer el nombre del archivo sin extensión y sin sufijo .route
@@ -42,8 +72,6 @@ export default async function registerRoutes() {
       } else {
         routers.push(router);
       }
-      
-      logger.info(`📍 Registered route: /${prefix}`);
     } catch (error: any) {
       logger.error(`❌ Error loading route file ${file}:`);
       logger.error(`   Message: ${error?.message || 'Unknown error'}`);
