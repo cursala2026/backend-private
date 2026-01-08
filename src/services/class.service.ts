@@ -57,7 +57,19 @@ export default class ClassService {
    * @returns La clase creada.
    */
   async create(classData: Partial<IClassData>): Promise<ClassDoc> {
-    return this.classRepository.create(classData);
+    const created = await this.classRepository.create(classData);
+
+    try {
+      const svc = await import('./index');
+      const cid = created.courseId ? String(created.courseId) : undefined;
+      const cs = svc && (svc.courseService as any);
+      if (cs && cid) await cs.rebuildOrderedContentForCourse(cid);
+      else console.warn('courseService not available to rebuild orderedContent after class create', { courseId: cid });
+    } catch (err) {
+      console.error('Error rebuilding orderedContent after class create', (err as Error).message);
+    }
+
+    return created;
   }
 
   /**
@@ -67,7 +79,19 @@ export default class ClassService {
    * @returns La clase actualizada.
    */
   async update(id: string, updateData: Partial<IClassData>): Promise<ClassDoc> {
-    return this.classRepository.update(id, updateData);
+    const updated = await this.classRepository.update(id, updateData);
+
+    try {
+      const svc = await import('./index');
+      const cid = updated.courseId ? String(updated.courseId) : undefined;
+      const cs = svc && (svc.courseService as any);
+      if (cs && cid) await cs.rebuildOrderedContentForCourse(cid);
+      else console.warn('courseService not available to rebuild orderedContent after class update', { courseId: cid });
+    } catch (err) {
+      console.error('Error rebuilding orderedContent after class update', (err as Error).message);
+    }
+
+    return updated;
   }
 
   /**
@@ -78,7 +102,17 @@ export default class ClassService {
    */
   async updateWithOperators(id: string, updateQuery: Record<string, unknown>): Promise<ClassDoc> {
     const updateQ = updateQuery as unknown as import('mongoose').UpdateQuery<IClassData>;
-    return this.classRepository.updateWithOperators(id, updateQ);
+    const updated = await this.classRepository.updateWithOperators(id, updateQ);
+    try {
+      const svc = await import('./index');
+      const cid = updated.courseId ? String(updated.courseId) : undefined;
+      const cs = svc && (svc.courseService as any);
+      if (cs && cid) await cs.rebuildOrderedContentForCourse(cid);
+      else console.warn('courseService not available to rebuild orderedContent after class updateWithOperators', { courseId: cid });
+    } catch (err) {
+      console.error('Error rebuilding orderedContent after class updateWithOperators', (err as Error).message);
+    }
+    return updated;
   }
 
   /**
@@ -109,24 +143,66 @@ export default class ClassService {
       }
     }
 
-    // Elimina archivos asociados de Bunny CDN si existen
-    if (classData.imageUrl && this.bunnyService.isBunnyCdnUrl(classData.imageUrl)) {
-      await this.bunnyService.deleteFile(classData.imageUrl);
-    }
-    if (classData.videoUrl && this.bunnyService.isBunnyCdnUrl(classData.videoUrl)) {
-      // Detectar si es Stream o Storage y usar el método apropiado
-      if (this.bunnyService.isStreamUrl(classData.videoUrl)) {
-        await this.bunnyService.deleteVideoFromStream(classData.videoUrl);
+    // Elimina archivos asociados: preferir Bunny CDN, fallback a archivos locales
+    if (classData.imageUrl) {
+      if (this.bunnyService.isBunnyCdnUrl(classData.imageUrl)) {
+        await this.bunnyService.deleteFile(classData.imageUrl);
       } else {
-        await this.bunnyService.deleteFile(classData.videoUrl);
+        try {
+          const filePath = path.join(__dirname, '../static/images', classData.imageUrl);
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        } catch (err) {
+          console.warn('Failed to delete local class image:', (err as Error).message);
+        }
+      }
+    }
+
+    if (classData.videoUrl) {
+      if (this.bunnyService.isBunnyCdnUrl(classData.videoUrl)) {
+        // Detectar si es Stream o Storage y usar el método apropiado
+        if (this.bunnyService.isStreamUrl(classData.videoUrl)) {
+          await this.bunnyService.deleteVideoFromStream(classData.videoUrl);
+        } else {
+          await this.bunnyService.deleteFile(classData.videoUrl);
+        }
+      } else {
+        try {
+          const filePath = path.join(__dirname, '../static/videos', classData.videoUrl);
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        } catch (err) {
+          console.warn('Failed to delete local class video:', (err as Error).message);
+        }
       }
     }
     // Elimina archivos de material de apoyo de Bunny CDN si existen
     if (classData.supportMaterials && Array.isArray(classData.supportMaterials)) {
       for (const materialUrl of classData.supportMaterials) {
         if (this.bunnyService.isBunnyCdnUrl(materialUrl)) {
-          await this.bunnyService.deleteFile(materialUrl);
+          try {
+            await this.bunnyService.deleteFile(materialUrl);
+          } catch (err) {
+            console.warn('Failed to delete support material from CDN:', (err as Error).message);
+          }
+        } else {
+          try {
+            const filePath = path.join(__dirname, '../static/files', materialUrl);
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+          } catch (err) {
+            console.warn('Failed to delete local support material:', (err as Error).message);
+          }
         }
+      }
+    }
+
+    // Reconstruir orderedContent del curso
+    if (courseId) {
+      try {
+        const svc = await import('./index');
+        const cs = svc && (svc.courseService as any);
+        if (cs) await cs.rebuildOrderedContentForCourse(courseId);
+        else console.warn('courseService not available to rebuild orderedContent after class delete', { courseId });
+      } catch (err) {
+        console.error('Error rebuilding orderedContent after class delete', (err as Error).message);
       }
     }
 
@@ -213,7 +289,17 @@ export default class ClassService {
    * @returns La clase actualizada.
    */
   async changeStatus(classId: string, status: string): Promise<IClassData | null> {
-    return this.classRepository.changeStatus(classId, status);
+    const updated = await this.classRepository.changeStatus(classId, status);
+    try {
+      const cid = updated?.courseId ? String(updated.courseId) : undefined;
+      if (cid) {
+        const { courseService } = await import('./index');
+        await courseService.rebuildOrderedContentForCourse(cid);
+      }
+    } catch (err) {
+      console.error('Error rebuilding orderedContent after class changeStatus', (err as Error).message);
+    }
+    return updated;
   }
 
   /**
@@ -222,7 +308,17 @@ export default class ClassService {
    * @returns La clase actualizada.
    */
   async moveUpOrder(classId: string): Promise<IClassData | null> {
-    return this.classRepository.moveUpOrder(classId);
+    const updated = await this.classRepository.moveUpOrder(classId);
+    try {
+      const cid = updated?.courseId ? String(updated.courseId) : undefined;
+      if (cid) {
+        const { courseService } = await import('./index');
+        await courseService.rebuildOrderedContentForCourse(cid);
+      }
+    } catch (err) {
+      console.error('Error rebuilding orderedContent after class moveUpOrder', (err as Error).message);
+    }
+    return updated;
   }
 
   /**
@@ -231,7 +327,17 @@ export default class ClassService {
    * @returns La clase actualizada.
    */
   async moveDownOrder(classId: string): Promise<IClassData | null> {
-    return this.classRepository.moveDownOrder(classId);
+    const updated = await this.classRepository.moveDownOrder(classId);
+    try {
+      const cid = updated?.courseId ? String(updated.courseId) : undefined;
+      if (cid) {
+        const { courseService } = await import('./index');
+        await courseService.rebuildOrderedContentForCourse(cid);
+      }
+    } catch (err) {
+      console.error('Error rebuilding orderedContent after class moveDownOrder', (err as Error).message);
+    }
+    return updated;
   }
 
   /**

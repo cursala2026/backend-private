@@ -4,14 +4,14 @@ import { requireAdmin } from '@/middlewares/adminSecurity.middleware';
 import { requireAdminOrQuestionnaireOwner } from '@/middlewares/questionnaire.middleware';
 import { questionnaireController, questionnaireSubmissionController } from '@/controllers';
 import { questionnaireRepository } from '@/repositories';
-import { uploadFiles } from '@/utils/fileUpload.util';
+import { uploadQuestionMedia } from '@/utils/fileUpload.util';
 import QuestionnaireController from '@/controllers/questionnaire.controller';
 import QuestionnaireService from '@/services/questionnaire.service';
 import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 
 const router = Router();
 
-// Endpoint para subir/actualizar media de una pregunta
+// Endpoint para subir/actualizar media de una pregunta (límite 500MB)
 router.post(
   '/:questionnaireId/questions/:questionId/media',
   authorize,
@@ -19,8 +19,15 @@ router.post(
     const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
     return middleware(req, res, next);
   },
-  uploadFiles.single('mediaFile'),
+  uploadQuestionMedia.single('mediaFile'),
   (req, res, next) => questionnaireController.uploadQuestionMedia(req, res, next)
+);
+
+// SSE endpoint para progreso de subida de media de pregunta
+router.get(
+  '/:questionnaireId/questions/:questionId/media-upload-progress',
+  authorize,
+  (req, res, next) => questionnaireController.getQuestionMediaUploadProgress(req, res, next)
 );
 
 // ==================== QUESTIONNAIRE ROUTES ====================

@@ -237,3 +237,10 @@ export const uploadFiles = multer({
   limits: { fileSize: 1024 * 1024 * 1024 }, // Límite de 1GB
   fileFilter: multerFileFilter,
 });
+
+// Multer específico para medios de preguntas con límite de 500MB
+export const uploadQuestionMedia = multer({
+  storage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // Límite de 500MB
+  fileFilter: multerFileFilter,
+});

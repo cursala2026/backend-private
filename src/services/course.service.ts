@@ -9,6 +9,7 @@ import NotificationService from './notification.service';
 import { NotificationType } from '@/models/mongo/notification.model';
 import { courseProgressRepository, questionnaireSubmissionRepository, certificateRepository } from '@/repositories';
 import { courseUploadService } from './course-upload.service';
+import config from '@/config';
 
 export default class CourseService {
   constructor(
@@ -83,6 +84,28 @@ export default class CourseService {
     });
     
     return orderedContent;
+  }
+
+  /**
+   * Reconstruye y persiste `orderedContent` del curso especificado.
+   * Usa `findOneById` para obtener las clases y cuestionarios actuales,
+   * construye el array ordenado y lo persiste en el documento del curso.
+   */
+  async rebuildOrderedContentForCourse(courseId: string): Promise<void> {
+    try {
+      const course = await this.courseRepository.findOneById(courseId);
+      if (!course) return;
+
+      const classes = course.classes || [];
+      const questionnaires = course.questionnaires || [];
+
+      const ordered = this.buildOrderedContent(classes, questionnaires);
+
+      // Persistir el orderedContent en el documento del curso
+      await this.courseRepository.update(courseId, { orderedContent: ordered });
+    } catch (err) {
+      logger.error('Error rebuilding orderedContent for course', { courseId, error: (err as Error).message });
+    }
   }
 
   async findById(id: string): Promise<ICourse | null> {
@@ -411,6 +434,9 @@ export default class CourseService {
     // Eliminar todos los envíos de cuestionarios del estudiante para este curso
     await questionnaireSubmissionRepository.deleteByStudentAndCourse(studentId, courseId);
 
+    // Eliminar todos los certificados del estudiante para este curso (comportamiento igual que el admin)
+    await certificateRepository.deleteByStudentAndCourse(studentId, courseId);
+
     // Remover el estudiante del array de estudiantes del curso
     return this.courseRepository.unenrollStudent(courseId, studentId);
   }
@@ -502,15 +528,34 @@ export default class CourseService {
         if (!user) continue;
 
         const title = 'Has sido asignado a un curso';
-        const message = `Has sido asignado al curso: ${course.title || '(sin título)'}`;
+        const courseTitle = (course as any).title || (course as any).name || '(sin título)';
+        const message = `Has sido asignado al curso: ${courseTitle}`;
 
         // Email
         if (user.email) {
           try {
+            const frontendBase = (config.FRONTEND_DOMAIN || '').split(',')[0] || '';
             await sendEmail({
               email: user.email,
-              subject: `Asignación a curso: ${course.title || ''}`,
-              html: `<p>${message}</p>`,
+              subject: `Has sido asignado al curso: ${courseTitle}`,
+              html: `
+                <div style="font-family: Inter, Arial, sans-serif; max-width:680px; margin:0 auto; background:#f6f7fb; padding:24px;">
+                  <div style="background:#ffffff; border-radius:10px; padding:28px; box-shadow:0 4px 18px rgba(15,23,42,0.06);">
+                    <div style="display:flex; gap:12px; align-items:center;">
+                      <div style="width:48px; height:48px; border-radius:8px; background:#ecfeff; display:flex; align-items:center; justify-content:center; color:#0ea5e9; font-weight:700;">🎓</div>
+                      <div>
+                        <h2 style="margin:0; font-size:18px; color:#0f172a;">Has sido asignado a un curso</h2>
+                        <p style="margin:6px 0 0; color:#475569; font-size:14px;">Hola <strong>${user.firstName || ''}</strong>, te han asignado como profesor en el curso <strong>${courseTitle}</strong>.</p>
+                      </div>
+                    </div>
+                    <div style="margin-top:18px;">
+                      <p style="color:#475569; font-size:14px;">Puedes ver los detalles y gestionar el contenido desde el panel del curso.</p>
+                      ${frontendBase ? `<p style="margin-top:18px;"><a href="${frontendBase}/courses/${course._id}" style="display:inline-block; background:#0ea5e9; color:#ffffff; padding:10px 14px; border-radius:8px; text-decoration:none; font-weight:600;">Ver curso</a></p>` : ''}
+                    </div>
+                    <p style="margin-top:20px; color:#9aa4b2; font-size:12px;">Equipo Cursala</p>
+                  </div>
+                </div>
+              `,
             });
           } catch (err) {
             logger.error(`Error enviando email a ${user._id}: ${(err as Error).message}`);
@@ -540,14 +585,33 @@ export default class CourseService {
         if (!user) continue;
 
         const title = 'Has sido removido de un curso';
-        const message = `Has sido desasignado del curso: ${course.title || '(sin título)'}`;
+        const courseTitle = (course as any).title || (course as any).name || '(sin título)';
+        const message = `Has sido desasignado del curso: ${courseTitle}`;
 
         if (user.email) {
           try {
+            const frontendBase = (config.FRONTEND_DOMAIN || '').split(',')[0] || '';
             await sendEmail({
               email: user.email,
-              subject: `Remoción de curso: ${course.title || ''}`,
-              html: `<p>${message}</p>`,
+              subject: `Has sido desasignado del curso: ${courseTitle}`,
+              html: `
+                <div style="font-family: Inter, Arial, sans-serif; max-width:680px; margin:0 auto; background:#f6f7fb; padding:24px;">
+                  <div style="background:#ffffff; border-radius:10px; padding:28px; box-shadow:0 4px 18px rgba(15,23,42,0.06);">
+                    <div style="display:flex; gap:12px; align-items:center;">
+                      <div style="width:48px; height:48px; border-radius:8px; background:#fff7ed; display:flex; align-items:center; justify-content:center; color:#f97316; font-weight:700;">⚠️</div>
+                      <div>
+                        <h2 style="margin:0; font-size:18px; color:#0f172a;">Has sido desasignado de un curso</h2>
+                        <p style="margin:6px 0 0; color:#475569; font-size:14px;">Hola <strong>${user.firstName || ''}</strong>, has sido removido como profesor del curso <strong>${courseTitle}</strong>.</p>
+                      </div>
+                    </div>
+                    <div style="margin-top:18px;">
+                      <p style="color:#475569; font-size:14px;">Si crees que esto es un error, contacta al administrador o responde a este correo.</p>
+                      ${frontendBase ? `<p style="margin-top:18px;"><a href="${frontendBase}/support" style="display:inline-block; background:#f97316; color:#ffffff; padding:10px 14px; border-radius:8px; text-decoration:none; font-weight:600;">Contactar al soporte</a></p>` : ''}
+                    </div>
+                    <p style="margin-top:20px; color:#9aa4b2; font-size:12px;">Equipo Cursala</p>
+                  </div>
+                </div>
+              `,
             });
           } catch (err) {
             logger.error(`Error enviando email a ${user._id}: ${(err as Error).message}`);

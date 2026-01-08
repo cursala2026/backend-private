@@ -108,6 +108,18 @@ class QuestionnaireService {
     // Save the updated questionnaire
     await createdQuestionnaire.save();
 
+    try {
+      const cid = (createdQuestionnaire.courseId ? String(createdQuestionnaire.courseId) : undefined);
+      if (cid) {
+        const svc = await import('./index');
+        const cs = svc && (svc.courseService as any);
+        if (cs) await cs.rebuildOrderedContentForCourse(cid);
+        else logger.warn('courseService not available to rebuildOrderedContent after questionnaire create', { courseId: cid });
+      }
+    } catch (err) {
+      logger.error('Error rebuilding orderedContent after questionnaire create', { error: (err as Error).message });
+    }
+
     return createdQuestionnaire;
   }
 
@@ -210,8 +222,17 @@ class QuestionnaireService {
         }
         
         const updated = await this.questionnaireRepository.update(id, updateData);
-        
-        
+        try {
+          const cid = updated.courseId ? String(updated.courseId) : undefined;
+          if (cid) {
+            const svc = await import('./index');
+            const cs = svc && (svc.courseService as any);
+            if (cs) await cs.rebuildOrderedContentForCourse(cid);
+            else logger.warn('courseService not available to rebuildOrderedContent after questionnaire update', { courseId: cid });
+          }
+        } catch (err) {
+          logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
+        }
         return updated;
       }
       
@@ -226,6 +247,15 @@ class QuestionnaireService {
 
       // If questions haven't changed, allow update of other fields only
       const updated = await this.questionnaireRepository.update(id, otherFields);
+      try {
+        const cid = updated.courseId ? String(updated.courseId) : undefined;
+        if (cid) {
+          const { courseService } = await import('./index');
+          await courseService.rebuildOrderedContentForCourse(cid);
+        }
+      } catch (err) {
+        logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
+      }
       return updated;
     }
 
@@ -332,14 +362,44 @@ class QuestionnaireService {
 
         // Save the updated questionnaire with correct ObjectIds
         await updatedQuestionnaire.save();
+        try {
+          const cid = updatedQuestionnaire.courseId ? String(updatedQuestionnaire.courseId) : undefined;
+          if (cid) {
+            const svc = await import('./index');
+            const cs = svc && (svc.courseService as any);
+            if (cs) await cs.rebuildOrderedContentForCourse(cid);
+            else logger.warn('courseService not available to rebuildOrderedContent after questionnaire update', { courseId: cid });
+          }
+        } catch (err) {
+          logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
+        }
         return updatedQuestionnaire;
       }
 
+      try {
+        const cid = updatedQuestionnaire.courseId ? String(updatedQuestionnaire.courseId) : undefined;
+        if (cid) {
+          const { courseService } = await import('./index');
+          await courseService.rebuildOrderedContentForCourse(cid);
+        }
+      } catch (err) {
+        logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
+      }
       return updatedQuestionnaire;
     }
 
     // If no questions to update, just update other fields
-    return await this.questionnaireRepository.update(id, data);
+    const updated = await this.questionnaireRepository.update(id, data);
+    try {
+      const cid = updated.courseId ? String(updated.courseId) : undefined;
+      if (cid) {
+        const { courseService } = await import('./index');
+        await courseService.rebuildOrderedContentForCourse(cid);
+      }
+    } catch (err) {
+      logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
+    }
+    return updated;
   }
 
   /**
@@ -569,6 +629,10 @@ class QuestionnaireService {
   async delete(id: string): Promise<void> {
     const hasSubmissions = await this.submissionRepository.hasSubmissions(id);
 
+    // Obtener el cuestionario antes de eliminar para conocer courseId
+    const existing = await this.questionnaireRepository.findById(id);
+    const courseId = existing?.courseId ? String(existing.courseId) : undefined;
+
     if (hasSubmissions) {
       // Eliminar todas las submissions del cuestionario en cascada
       const deletedCount = await this.submissionRepository.deleteByQuestionnaire(id);
@@ -579,6 +643,17 @@ class QuestionnaireService {
     }
 
     await this.questionnaireRepository.delete(id);
+
+    if (courseId) {
+      try {
+        const svc = await import('./index');
+        const cs = svc && (svc.courseService as any);
+        if (cs) await cs.rebuildOrderedContentForCourse(courseId);
+        else logger.warn('courseService not available to rebuildOrderedContent after questionnaire delete', { courseId });
+      } catch (err) {
+        logger.error('Error rebuilding orderedContent after questionnaire delete', { error: (err as Error).message });
+      }
+    }
   }
 
   /**
@@ -691,6 +766,37 @@ class QuestionnaireService {
     // Persist change using repository method that updates a single question
     const updated = await this.questionnaireRepository.updateQuestion(questionnaireId, q._id!.toString(), partialQuestion);
     return updated;
+  }
+
+  /**
+   * Actualizar el estado de subida de media de una pregunta
+   */
+  async updateQuestionUploadStatus(
+    questionnaireId: string,
+    questionId: string,
+    updates: Partial<{ mediaUploadStatus: 'ready' | 'processing' | 'error'; mediaOriginalName?: string; promptType?: 'IMAGE' | 'VIDEO'; promptMediaUrl?: string; promptMediaProvider?: 'BUNNY' }>
+  ): Promise<QuestionnaireDoc> {
+    const updated = await this.questionnaireRepository.updateQuestion(questionnaireId, questionId, updates);
+    return updated;
+  }
+
+  /**
+   * Subir imagen con callback de progreso
+   */
+  async uploadImageMedia(buffer: Buffer, originalName: string, onProgress?: (percent: number) => void): Promise<string> {
+    // Para imágenes pequeñas, reportar progreso simulado
+    if (onProgress) onProgress(0);
+    const cdnUrl = await this.questionMediaService.uploadImage(buffer, originalName);
+    if (onProgress) onProgress(100);
+    return cdnUrl;
+  }
+
+  /**
+   * Subir video con streaming y callback de progreso
+   */
+  async uploadVideoMedia(stream: import('stream').Readable, originalName: string, fileSize: number, onProgress?: (percent: number) => void): Promise<string> {
+    const cdnUrl = await this.questionMediaService.uploadVideoStream(stream, originalName, fileSize, onProgress);
+    return cdnUrl;
   }
 }
 

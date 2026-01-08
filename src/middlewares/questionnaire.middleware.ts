@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 import { hasAdminRole } from '@/middlewares/adminSecurity.middleware';
+import { Course } from '@/models/mongo/course.model';
 
 /**
  * Middleware para verificar si el usuario es admin o dueño del cuestionario
@@ -32,6 +33,19 @@ export function requireAdminOrQuestionnaireOwner(questionnaireRepository: Questi
 
       if (creatorId === userId) {
         return next();
+      }
+
+      // Allow professors assigned to the course (course.teachers) to edit the questionnaire
+      try {
+        if (questionnaire.courseId) {
+          const course = await Course.findById(questionnaire.courseId).exec();
+          if (course && Array.isArray((course as any).teachers)) {
+            const teacherIds = (course as any).teachers.map((t: any) => String(t));
+            if (teacherIds.includes(userId)) return next();
+          }
+        }
+      } catch (err) {
+        // ignore errors here and fall through to deny if something goes wrong fetching the course
       }
 
       return res.status(403).json({

@@ -346,7 +346,9 @@ class QuestionnaireSubmissionService {
       }
 
       if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
-        totalMCPoints += question.points;
+        // Determine correct ids first. If there are no correct answers stored,
+        // skip counting this question in the total auto-graded pool to avoid
+        // penalizing students when the question wasn't configured correctly.
         // Support multiple correct options and multiple selected options
         const correctIds: string[] = [];
         if ((question as any).correctOptionIds && Array.isArray((question as any).correctOptionIds)) {
@@ -356,6 +358,27 @@ class QuestionnaireSubmissionService {
         } else if ((question as any).correctOptionId) {
           correctIds.push((question as any).correctOptionId.toString());
         }
+
+        if (correctIds.length === 0) {
+          // Missing correct answers for this question in DB — log and skip its points
+          logger.warn('Skipping auto-grade for question without correctOptionId(s)', {
+            questionId: question._id?.toString(),
+            questionnaireQuestion: question.questionText,
+          });
+          // Return the answer as-is but with 0 pointsAwarded so grading proceeds
+          return {
+            questionId: answer.questionId,
+            questionType: answer.questionType,
+            textAnswer: answer.textAnswer,
+            selectedOptionId: answer.selectedOptionId,
+            selectedOptionIds: (answer as any).selectedOptionIds,
+            isCorrect: false,
+            pointsAwarded: 0,
+            feedback: answer.feedback,
+          };
+        }
+        // Only count this question's points in the total if correct answers exist
+        totalMCPoints += question.points;
 
         const selectedIds: string[] = [];
         if ((answer as any).selectedOptionIds && Array.isArray((answer as any).selectedOptionIds)) {

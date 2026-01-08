@@ -1,6 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
 import prepareResponse from '@/utils/api-response';
 import QuestionnaireService from '@/services/questionnaire.service';
+import questionMediaUploadProgressService from '@/services/question-media-upload-progress.service';
+import { EventEmitter } from 'events';
+import fs from 'fs';
+import { Readable } from 'stream';
 
 export default class QuestionnaireController {
   constructor(private readonly questionnaireService: QuestionnaireService) {}
@@ -195,7 +199,7 @@ export default class QuestionnaireController {
   };
 
   /**
-   * Subir / reemplazar media para una pregunta
+   * Subir / reemplazar media para una pregunta (asíncrono - procesa en segundo plano)
    */
   uploadQuestionMedia = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -218,27 +222,161 @@ export default class QuestionnaireController {
         promptType = 'VIDEO';
       }
 
-      // Read file buffer (from disk)
-      const fs = await import('fs');
-      const buffer = fs.readFileSync(file.path);
+      const uploadId = `${questionnaireId}_${questionId}`;
 
-      // Call service to upload and update questionnaire
-      const updated = await this.questionnaireService.updateQuestionMedia(
-        questionnaireId,
-        questionId,
-        buffer,
-        file.originalname,
-        promptType
+      // Marcar la pregunta como "processing"
+      await this.questionnaireService.updateQuestionUploadStatus(questionnaireId, questionId, {
+        mediaUploadStatus: 'processing',
+        mediaOriginalName: file.originalname,
+        promptType,
+      });
+
+      // Iniciar tracking de progreso
+      questionMediaUploadProgressService.startTracking(uploadId);
+
+      // Lanzar subida en segundo plano
+      this.uploadMediaInBackground(questionnaireId, questionId, file.path, file.originalname, file.size, promptType, uploadId).catch((err) => {
+        console.error('Error in background upload:', err);
+      });
+
+      // Retornar inmediatamente con status 202 (Accepted) - el cliente usará SSE para el progreso
+      return res.status(202).json(
+        prepareResponse(202, 'Upload started, use SSE for progress tracking', { uploadId })
       );
+    } catch (error) {
+      return next(error);
+    }
+  };
 
-      // Remove temporary file
-      try {
-        fs.unlinkSync(file.path);
-      } catch (e) {
-        // ignore
+  /**
+   * Subir media en segundo plano (imagen o video)
+   */
+  private async uploadMediaInBackground(
+    questionnaireId: string,
+    questionId: string,
+    localFilePath: string,
+    originalName: string,
+    fileSize: number,
+    promptType: 'IMAGE' | 'VIDEO',
+    uploadId: string
+  ): Promise<void> {
+    try {
+      let cdnUrl: string;
+
+      if (promptType === 'IMAGE') {
+        // Para imágenes, leer buffer y subir (usualmente son más pequeñas)
+        const buffer = fs.readFileSync(localFilePath);
+        cdnUrl = await this.questionnaireService.uploadImageMedia(buffer, originalName, (percent) => {
+          questionMediaUploadProgressService.updateProgress(uploadId, percent);
+        });
+      } else {
+        // Para videos, usar streaming (más eficiente para archivos grandes)
+        const stream = fs.createReadStream(localFilePath);
+        cdnUrl = await this.questionnaireService.uploadVideoMedia(stream, originalName, fileSize, (percent) => {
+          questionMediaUploadProgressService.updateProgress(uploadId, percent);
+        });
       }
 
-      return res.json(prepareResponse(200, 'Media uploaded and question updated', updated));
+      // Eliminar archivo local
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+      }
+
+      // Actualizar la pregunta con la URL final y marcar como 'ready'
+      await this.questionnaireService.updateQuestionUploadStatus(questionnaireId, questionId, {
+        promptMediaUrl: cdnUrl,
+        promptMediaProvider: 'BUNNY',
+        mediaUploadStatus: 'ready',
+      });
+
+      // Marcar tracking como completado
+      questionMediaUploadProgressService.finishTracking(uploadId);
+    } catch (error) {
+      // Limpiar archivo local en caso de error
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+      }
+
+      // Marcar como error
+      questionMediaUploadProgressService.setError(uploadId, (error as Error).message);
+      await this.questionnaireService.updateQuestionUploadStatus(questionnaireId, questionId, {
+        mediaUploadStatus: 'error',
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * SSE endpoint para progreso de subida de media de pregunta
+   */
+  getQuestionMediaUploadProgress = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { questionnaireId, questionId } = req.params as any;
+      const uploadId = `${questionnaireId}_${questionId}`;
+
+      // Configurar headers SSE
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no'); // Disable buffering for nginx
+
+      // Crear EventEmitter para este cliente
+      const clientEmitter = new EventEmitter();
+
+      // Registrar cliente SSE
+      questionMediaUploadProgressService.registerSSEClient(uploadId, clientEmitter);
+
+      // Enviar progreso inicial
+      const initialProgress = questionMediaUploadProgressService.getProgress(uploadId);
+      res.write(`data: ${JSON.stringify({ percent: initialProgress })}\n\n`);
+
+      let lastSentPercent = initialProgress;
+
+      // Escuchar eventos de progreso
+      clientEmitter.on('progress', (data: { percent: number }) => {
+        // Solo enviar si el porcentaje cambió (evitar spam)
+        if (data.percent !== lastSentPercent && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ percent: data.percent })}\n\n`);
+          lastSentPercent = data.percent;
+        }
+      });
+
+      clientEmitter.on('complete', (data: { percent: number }) => {
+        if (!res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ percent: data.percent })}\n\n`);
+          res.end();
+        }
+      });
+
+      clientEmitter.on('error', (data: { message: string }) => {
+        if (!res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ error: data.message })}\n\n`);
+          res.end();
+        }
+      });
+
+      // Heartbeat cada 30 segundos para mantener conexión viva
+      const heartbeatInterval = setInterval(() => {
+        if (!res.writableEnded) {
+          res.write(`: heartbeat\n\n`);
+        } else {
+          clearInterval(heartbeatInterval);
+        }
+      }, 30000);
+
+      // Cleanup cuando el cliente se desconecte
+      const cleanup = () => {
+        clearInterval(heartbeatInterval);
+        questionMediaUploadProgressService.unregisterSSEClient(uploadId, clientEmitter);
+        clientEmitter.removeAllListeners();
+        if (!res.writableEnded) {
+          res.end();
+        }
+      };
+
+      req.on('close', cleanup);
+      req.on('aborted', cleanup);
     } catch (error) {
       return next(error);
     }

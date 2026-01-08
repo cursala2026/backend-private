@@ -19,6 +19,10 @@ export interface IQuestion {
   promptMediaUrl?: string;
   // Proveedor de media (opcional). Actualmente soportado: 'BUNNY'
   promptMediaProvider?: 'BUNNY';
+  // Estado de la subida de media: 'ready' | 'processing' | 'error'
+  mediaUploadStatus?: 'ready' | 'processing' | 'error';
+  // Nombre original del archivo de media
+  mediaOriginalName?: string;
   order: number;
   points: number;
   required: boolean;
@@ -102,6 +106,18 @@ const QuestionSchema = new Schema<IQuestion>(
       type: String,
       required: false,
       enum: ['BUNNY'],
+    },
+    mediaUploadStatus: {
+      type: String,
+      enum: ['ready', 'processing', 'error'],
+      default: 'ready',
+      required: false,
+    },
+    mediaOriginalName: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 500,
     },
     order: {
       type: Number,
