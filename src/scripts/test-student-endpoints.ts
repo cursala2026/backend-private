@@ -86,9 +86,9 @@ async function testStudentEndpoints() {
       const teacherData = teacher as any;
       console.log(`\n📋 Profesor: ${teacherData.firstName} ${teacherData.lastName} (${teacherData.email})`);
 
-      // Obtener cursos donde este profesor es mainTeacher
+      // Obtener cursos donde este profesor está en el array `teachers`
       const teacherCourses = await Course.find({
-        mainTeacher: teacherData._id
+        teachers: teacherData._id
       }).lean();
 
       console.log(`   Cursos asignados: ${teacherCourses.length}`);

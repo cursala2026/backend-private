@@ -43,7 +43,9 @@ import {
 export const authService = new AuthService(userRepository);
 export const userService = new UserService(userRepository, courseRepository, certificateRepository);
 export const categoryService = new CategoryService(categoryRepository);
-export const courseService = new CourseService(courseRepository, userRepository);
+// Instanciar notificationService antes para poder inyectarlo en CourseService
+export const notificationService = new NotificationService(notificationRepository);
+export const courseService = new CourseService(courseRepository, userRepository, notificationService);
 export const classService = new ClassService(classRepository);
 export const fileService = new FileService();
 export const iWantToTrainService = new IWantToTrainService(iWantToTrainRepository);
@@ -63,5 +65,4 @@ export const questionnaireSubmissionService = new QuestionnaireSubmissionService
   questionnaireRepository
 );
 export const questionMediaService = new QuestionMediaService();
-export const notificationService = new NotificationService(notificationRepository);
 export const supportTicketService = new SupportTicketService(supportTicketRepository);

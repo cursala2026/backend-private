@@ -130,7 +130,7 @@ class QuestionnaireRepository {
 
   /**
    * Encuentra todos los cuestionarios creados por un profesor
-   * Busca en el array teachers (prioridad) y mainTeacher (compatibilidad)
+   * Busca en el array `teachers` (prioridad). La compatibilidad con `mainTeacher` fue eliminada.
    * @param professorId - ID del profesor
    * @returns Lista de cuestionarios del profesor
    */
@@ -154,23 +154,8 @@ class QuestionnaireRepository {
         { $unwind: '$course' },
         {
           $match: {
-            $or: [
-              // Prioridad: buscar en el array teachers
-              { 'course.teachers': professorObjectId },
-              // Compatibilidad: buscar en mainTeacher solo si no tiene teachers o el profesor no está en teachers
-              {
-                $and: [
-                  { 'course.mainTeacher': professorObjectId },
-                  {
-                    $or: [
-                      { 'course.teachers': { $exists: false } },
-                      { 'course.teachers': { $size: 0 } },
-                      { 'course.teachers': { $ne: professorObjectId } }
-                    ]
-                  }
-                ]
-              }
-            ]
+            // Buscar únicamente en `course.teachers` (compatibilidad con `mainTeacher` eliminada)
+            'course.teachers': professorObjectId
           },
         },
         { $sort: { 'course.name': 1, 'position.type': 1, createdAt: 1 } },

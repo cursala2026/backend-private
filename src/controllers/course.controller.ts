@@ -193,20 +193,7 @@ export default class CourseController {
             return res.status(404).json({ message: 'Course not found' });
           }
 
-          // Migración automática: si tiene mainTeacher pero no teachers, migrar
-          if (existingCourse.mainTeacher && (!existingCourse.teachers || existingCourse.teachers.length === 0)) {
-            const { Types } = require('mongoose');
-            const mainTeacherId = typeof existingCourse.mainTeacher === 'string' 
-              ? existingCourse.mainTeacher 
-              : existingCourse.mainTeacher.toString();
-            
-            if (Types.ObjectId.isValid(mainTeacherId)) {
-              // Agregar mainTeacher al array teachers si no está ya
-              const teachersArray = [new Types.ObjectId(mainTeacherId)];
-              existingCourse.teachers = teachersArray;
-              await this.courseService.update(id, { teachers: teachersArray }, []);
-            }
-          }
+          // Nota: la migración desde `mainTeacher` a `teachers` ya no es necesaria.
 
           const updateData: Partial<ICourse> = {};
           const unsetFields: string[] = [];
@@ -533,21 +520,7 @@ export default class CourseController {
     }
   };
 
-  assignMainTeacher = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { courseId } = req.params;
-      const { mainTeacherId } = req.body;
-
-      const course = await this.courseService.assignMainTeacher(courseId, mainTeacherId);
-
-      if (!mainTeacherId || mainTeacherId === '') {
-        return res.json(prepareResponse(200, 'Main teacher removed successfully', course));
-      }
-      return res.json(prepareResponse(200, 'Main teacher assigned successfully', course));
-    } catch (error) {
-      return next(error);
-    }
-  };
+  // `mainTeacher` endpoint removed; use course update (`teachers` array) instead.
 
   changePublishedStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -589,6 +562,29 @@ export default class CourseController {
       const { teacherId } = req.params;
       const courses = await this.courseService.findByTeacherId(teacherId);
       return res.json(prepareResponse(200, 'Teacher courses fetched successfully', courses));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * Endpoint atómico para añadir/remover teachers del curso.
+   * Body: { add?: string[], remove?: string[] }
+   */
+  updateTeachers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { courseId } = req.params;
+      const { add, remove } = req.body as { add?: string[]; remove?: string[] };
+
+      if (!courseId) return res.status(400).json(prepareResponse(400, 'Course ID is required'));
+
+      // Validación mínima: al menos add o remove
+      if ((!Array.isArray(add) || add.length === 0) && (!Array.isArray(remove) || remove.length === 0)) {
+        return res.status(400).json(prepareResponse(400, 'add or remove array must be provided'));
+      }
+
+      const updated = await this.courseService.updateTeachers(courseId, { add, remove });
+      return res.json(prepareResponse(200, 'Course teachers updated successfully', updated));
     } catch (error) {
       return next(error);
     }

@@ -50,7 +50,6 @@ export interface ICourse {
   maxInstallments: number;
   interestFree: boolean;
   showOnHome?: boolean;
-  mainTeacher?: ObjectId; // Mantener para compatibilidad, pero usar teachers
   teachers?: ObjectId[]; // Array de profesores (1-3)
   numberOfClasses?: number;
   duration?: number; // Duración del curso en horas
@@ -132,7 +131,6 @@ export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
     maxInstallments: { type: Number, min: 1 },
     interestFree: { type: Boolean },
     showOnHome: { type: Boolean, default: false },
-    mainTeacher: { type: Schema.Types.ObjectId, ref: 'User' }, // Mantener para compatibilidad
     teachers: {
       type: [Schema.Types.ObjectId],
       ref: 'User',

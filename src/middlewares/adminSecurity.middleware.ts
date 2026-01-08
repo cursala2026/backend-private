@@ -292,7 +292,7 @@ export function requireAdminOrSelf(req: Request, res: Response, next: NextFuncti
 /**
  * Middleware que permite acceso a admins O al profesor propietario del curso.
  * Busca el courseId en req.params (como 'id' o 'courseId').
- * Si el usuario es admin, pasa. Si no, verifica que sea el mainTeacher del curso.
+ * Si el usuario es admin, pasa. Si no, verifica que sea uno de los profesores del curso.
  */
 export function requireAdminOrCourseOwner(courseRepository: any) {
   return async (req: Request, res: Response, next: NextFunction) => {

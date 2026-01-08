@@ -4,13 +4,17 @@ import { ICourse, Types } from '@/models';
 import { logger } from '@/utils';
 import CourseRepository from '@/repositories/course.repository';
 import UserRepository from '@/repositories/user.repository';
+import { sendEmail } from '@/utils/emailer';
+import NotificationService from './notification.service';
+import { NotificationType } from '@/models/mongo/notification.model';
 import { courseProgressRepository, questionnaireSubmissionRepository, certificateRepository } from '@/repositories';
 import { courseUploadService } from './course-upload.service';
 
 export default class CourseService {
   constructor(
     private readonly courseRepository: CourseRepository,
-    private readonly userRepository: UserRepository
+    private readonly userRepository: UserRepository,
+    private readonly notificationService?: NotificationService
   ) {}
 
   async findOneById(id: string) {
@@ -86,7 +90,23 @@ export default class CourseService {
   }
 
   async update(id: string, updateData: Partial<ICourse>, unsetFields?: string[]): Promise<ICourse> {
-    return this.courseRepository.update(id, updateData, unsetFields);
+    const existingCourse = await this.courseRepository.findOneById(id);
+    if (!existingCourse) {
+      throw new Error('Course not found');
+    }
+
+    const existingTeachers = (existingCourse.teachers || []).map((t: any) => String(t));
+    const newTeachers = updateData.teachers ? (updateData.teachers as any[]).map(t => String(t)) : undefined;
+
+    const updated = await this.courseRepository.update(id, updateData, unsetFields);
+
+    if (newTeachers) {
+      const added = newTeachers.filter(t => !existingTeachers.includes(t));
+      const removed = existingTeachers.filter(t => !newTeachers.includes(t));
+      await this.handleTeacherAssignmentChanges(added, removed, updated);
+    }
+
+    return updated;
   }
 
   async create(courseData: Partial<ICourse>): Promise<ICourse> {
@@ -176,7 +196,18 @@ export default class CourseService {
     }
 
     // Realizar la actualización
-    return this.courseRepository.update(id, updateData, unsetFields);
+    const updated = await this.courseRepository.update(id, updateData, unsetFields);
+
+    // Si se modificó el array `teachers`, detectar cambios y notificar
+    if (updateData.teachers) {
+      const existingTeachers = (existingCourse.teachers || []).map((t: any) => String(t));
+      const newTeachers = (updateData.teachers as any[]).map(t => String(t));
+      const added = newTeachers.filter(t => !existingTeachers.includes(t));
+      const removed = existingTeachers.filter(t => !newTeachers.includes(t));
+      await this.handleTeacherAssignmentChanges(added, removed, updated);
+    }
+
+    return updated;
   }
 
   /**
@@ -208,6 +239,28 @@ export default class CourseService {
 
     // Eliminar el curso de la base de datos
     return this.courseRepository.delete(id);
+  }
+
+  /**
+   * Actualiza atómicamente los teachers del curso y dispara notificaciones apropiadas.
+   */
+  async updateTeachers(courseId: string, payload: { add?: string[]; remove?: string[] }): Promise<ICourse> {
+    const { add = [], remove = [] } = payload;
+
+    const existingCourse = await this.courseRepository.findOneById(courseId);
+    if (!existingCourse) throw new Error('Course not found');
+
+    // Ejecutar operación atómica en repo
+    const updated = await this.courseRepository.updateTeachersAtomic(courseId, add, remove);
+
+    // Disparar notificaciones basadas en diffs
+    try {
+      await this.handleTeacherAssignmentChanges(add, remove, updated);
+    } catch (err) {
+      logger.error('Error handling teacher assignment notifications', { error: (err as Error).message });
+    }
+
+    return updated;
   }
 
   async delete(id: string): Promise<ICourse | null> {
@@ -262,22 +315,7 @@ export default class CourseService {
   async changeShowOnHome(courseId: string): Promise<ICourse | null> {
     return this.courseRepository.changeShowOnHome(courseId);
   }
-
-  async assignMainTeacher(courseId: string, mainTeacherId: string): Promise<ICourse> {
-    // If mainTeacherId is empty or null, remove the main teacher
-    if (!mainTeacherId || mainTeacherId === '') {
-      return this.courseRepository.assignMainTeacher(courseId, null);
-    }
-
-    // Validate that the user exists
-    const teacher = await this.userRepository.getUserById(mainTeacherId);
-    if (!teacher) {
-      throw new Error('El usuario especificado como profesor principal no existe.');
-    }
-
-    // Assign the main teacher to the course
-    return this.courseRepository.assignMainTeacher(courseId, new Types.ObjectId(mainTeacherId));
-  }
+ 
 
   async findByTeacherId(teacherId: string): Promise<ICourse[]> {
     return this.courseRepository.findByTeacherId(teacherId);
@@ -452,5 +490,83 @@ export default class CourseService {
     });
 
     return duplicatedCourse;
+  }
+
+  private async handleTeacherAssignmentChanges(added: string[], removed: string[], course: ICourse) {
+    if ((!added || added.length === 0) && (!removed || removed.length === 0)) return;
+
+    // Enviar notificaciones y emails a los profesores añadidos
+    for (const teacherId of added) {
+      try {
+        const user = await this.userRepository.getUserById(teacherId);
+        if (!user) continue;
+
+        const title = 'Has sido asignado a un curso';
+        const message = `Has sido asignado al curso: ${course.title || '(sin título)'}`;
+
+        // Email
+        if (user.email) {
+          try {
+            await sendEmail({
+              email: user.email,
+              subject: `Asignación a curso: ${course.title || ''}`,
+              html: `<p>${message}</p>`,
+            });
+          } catch (err) {
+            logger.error(`Error enviando email a ${user._id}: ${(err as Error).message}`);
+          }
+        }
+
+        // In-app notification
+        try {
+          await this.notificationService?.sendNotification(user._id.toString(), {
+            title,
+            message,
+            type: NotificationType.SUCCESS,
+            metadata: { courseId: course._id?.toString() },
+          });
+        } catch (err) {
+          logger.error(`Error creando notificación para ${user._id}: ${(err as Error).message}`);
+        }
+      } catch (err) {
+        logger.error(`Error procesando teacher added ${teacherId}: ${(err as Error).message}`);
+      }
+    }
+
+    // Notificar a los profesores removidos
+    for (const teacherId of removed) {
+      try {
+        const user = await this.userRepository.getUserById(teacherId);
+        if (!user) continue;
+
+        const title = 'Has sido removido de un curso';
+        const message = `Has sido desasignado del curso: ${course.title || '(sin título)'}`;
+
+        if (user.email) {
+          try {
+            await sendEmail({
+              email: user.email,
+              subject: `Remoción de curso: ${course.title || ''}`,
+              html: `<p>${message}</p>`,
+            });
+          } catch (err) {
+            logger.error(`Error enviando email a ${user._id}: ${(err as Error).message}`);
+          }
+        }
+
+        try {
+          await this.notificationService?.sendNotification(user._id.toString(), {
+            title,
+            message,
+            type: NotificationType.WARNING,
+            metadata: { courseId: course._id?.toString() },
+          });
+        } catch (err) {
+          logger.error(`Error creando notificación para ${user._id}: ${(err as Error).message}`);
+        }
+      } catch (err) {
+        logger.error(`Error procesando teacher removed ${teacherId}: ${(err as Error).message}`);
+      }
+    }
   }
 }

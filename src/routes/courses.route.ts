@@ -33,13 +33,13 @@ router.delete('/:courseId/unenroll/:userId', authorize, requireAdmin, courseCont
 // 🔴 ADMIN: Duplicar curso con todas sus clases y cuestionarios
 router.post('/:courseId/duplicate', authorize, requireAdmin, courseController.duplicateCourse);
 router.post('/course', authorize, requireAdmin, courseController.create);
+router.patch('/:courseId/teachers', authorize, requireAdminOrCourseOwner(courseRepository), courseController.updateTeachers);
 router.patch('/:id', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);
 router.delete('/:courseId/delete', authorize, requireAdmin, courseController.delete);
 router.patch('/:courseId/status', authorize, requireAdmin, courseController.changeStatus);
 router.patch('/:courseId/up', authorize, requireAdmin, courseController.moveUpOrder);
 router.patch('/:courseId/down', authorize, requireAdmin, courseController.moveDownOrder);
 router.patch('/:courseId/showOnHome', authorize, requireAdmin, courseController.changeShowOnHome);
-router.patch('/:courseId/main-teacher', authorize, requireAdmin, courseController.assignMainTeacher);
 router.patch('/:courseId/published', authorize, requireAdmin, courseController.changePublishedStatus);
 
 export default router;
