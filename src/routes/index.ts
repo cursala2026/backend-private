@@ -77,6 +77,15 @@ export default async function registerRoutes() {
         const wrappedRouter = Router();
         wrappedRouter.use(`/${prefix}`, router);
         routers.push(wrappedRouter);
+
+        // Exponer alias amigable para frontend: cuando el archivo es `bankAccount.route.ts`
+        // también montar el mismo router bajo `/bank-accounts` para mantener compatibilidad
+        // con llamadas que usan `/bank-accounts/...`.
+        if (prefix === 'bankAccount') {
+          const altRouter = Router();
+          altRouter.use('/bank-accounts', router);
+          routers.push(altRouter);
+        }
       } else {
         routers.push(router);
       }

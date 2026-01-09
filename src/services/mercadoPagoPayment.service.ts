@@ -608,7 +608,48 @@ export default class MercadoPagoPaymentService {
    * Obtiene todos los pagos de MercadoPago
    */
   async getAllPayments(limit: number = 50) {
-    return this.mercadoPagoRepository.getAllPayments(limit);
+    // Obtener pagos desde el repositorio
+    const payments = await this.mercadoPagoRepository.getAllPayments(limit);
+
+    // Enriquecer cada pago con el `studentUsername` buscando en la colección de usuarios
+    const enriched = await Promise.all(
+      payments.map(async (p: any) => {
+        // Manejar tanto documentos de mongoose como objetos puros
+        const plain: any = p && (typeof p.toObject === 'function' ? p.toObject() : p);
+
+        let studentUsername: string | null = null;
+
+        try {
+          if (plain.studentId) {
+            const user = await this.userRepository.findOneById(String(plain.studentId));
+            if (user) {
+              studentUsername = (user.username && String(user.username)) ||
+                ((user.firstName || user.lastName) && `${user.firstName || ''} ${user.lastName || ''}`.trim()) ||
+                null;
+            }
+          }
+
+          // Si no encontramos por ID, intentar por email
+          if (!studentUsername && plain.studentEmail) {
+            const userByEmail = await this.userRepository.findOneByEmail(String(plain.studentEmail));
+            if (userByEmail) {
+              studentUsername = (userByEmail.username && String(userByEmail.username)) ||
+                ((userByEmail.firstName || userByEmail.lastName) && `${userByEmail.firstName || ''} ${userByEmail.lastName || ''}`.trim()) ||
+                null;
+            }
+          }
+        } catch (err) {
+          // No interrumpir si hay error al consultar usuarios; devolveremos null en studentUsername
+        }
+
+        return {
+          ...plain,
+          studentUsername,
+        } as IMercadoPagoPayment & { studentUsername?: string | null };
+      })
+    );
+
+    return enriched as unknown as IMercadoPagoPayment[];
   }
 
   /**

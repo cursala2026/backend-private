@@ -36,6 +36,25 @@ export default class BankAccountController {
   };
 
   /**
+   * Public endpoint for students area: returns non-sensitive bank account info
+   * (alias and last 4 digits of CBU) without requiring authentication.
+   */
+  getPublicBankAccounts = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const bankAccounts = await this.bankAccountService.getAllBankAccounts();
+
+      const publicAccounts = bankAccounts.map((acc: any) => ({
+        alias: acc.alias,
+        cbu: acc.cbu,
+      }));
+
+      return res.json(prepareResponse(200, 'Public bank accounts fetched successfully', publicAccounts));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
    * Update bank account
    */
   updateBankAccount = async (req: Request, res: Response, next: NextFunction) => {

@@ -6,9 +6,11 @@ import { bankAccountController } from '@/controllers';
 const router = Router();
 
 // 🟠 ALTO: Ver cuentas bancarias requiere admin
-router.get('/bank-accounts', authorize, requireAdmin, bankAccountController.getAllBankAccounts);
-// Ruta para estudiantes
+router.get('/', authorize, requireAdmin, bankAccountController.getAllBankAccounts);
+// Ruta para estudiantes (requiere auth y rol ALUMNO)
 router.get('/student', authorize, bankAccountController.getBankAccountsForStudent);
+// Ruta pública para mostrar en la parte de alumnos (alias y CBU completo)
+router.get('/public/student', bankAccountController.getPublicBankAccounts);
 // 🟠 ALTO: Modificar cuentas bancarias requiere admin (sin verificación adicional para desarrollo)
 router.patch('/bank-account/:id', authorize, requireAdmin, bankAccountController.updateBankAccount);
 
