@@ -45,7 +45,8 @@ export const userService = new UserService(userRepository, courseRepository, cer
 export const categoryService = new CategoryService(categoryRepository);
 // Instanciar notificationService antes para poder inyectarlo en CourseService
 export const notificationService = new NotificationService(notificationRepository);
-export const courseService = new CourseService(courseRepository, userRepository, notificationService);
+export const promotionalCodeService = new PromotionalCodeService();
+export const courseService = new CourseService(courseRepository, userRepository, notificationService, promotionalCodeService);
 export const classService = new ClassService(classRepository);
 export const fileService = new FileService();
 export const iWantToTrainService = new IWantToTrainService(iWantToTrainRepository);
@@ -58,7 +59,6 @@ export const faqService = new FAQService(faqRepository);
 export const fileMaterialService = new FileMaterialService();
 export { adminSecurityService };
 export const certificateService = new CertificateService(userRepository, courseRepository, certificateRepository);
-export const promotionalCodeService = new PromotionalCodeService();
 export const questionnaireService = new QuestionnaireService(questionnaireRepository, questionnaireSubmissionRepository);
 export const questionnaireSubmissionService = new QuestionnaireSubmissionService(
   questionnaireSubmissionRepository,

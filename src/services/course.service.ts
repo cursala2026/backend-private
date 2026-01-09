@@ -6,6 +6,7 @@ import CourseRepository from '@/repositories/course.repository';
 import UserRepository from '@/repositories/user.repository';
 import { sendEmail } from '@/utils/emailer';
 import NotificationService from './notification.service';
+import PromotionalCodeService from './promotionalCode.service';
 import { NotificationType } from '@/models/mongo/notification.model';
 import { courseProgressRepository, questionnaireSubmissionRepository, certificateRepository } from '@/repositories';
 import { courseUploadService } from './course-upload.service';
@@ -15,7 +16,8 @@ export default class CourseService {
   constructor(
     private readonly courseRepository: CourseRepository,
     private readonly userRepository: UserRepository,
-    private readonly notificationService?: NotificationService
+    private readonly notificationService?: NotificationService,
+    private readonly promotionalCodeService?: PromotionalCodeService
   ) {}
 
   async findOneById(id: string) {
@@ -301,7 +303,32 @@ export default class CourseService {
   }
 
   async findPublishedCourses(): Promise<ICourse[]> {
-    return this.courseRepository.findPublishedCourses();
+    const courses = await this.courseRepository.findPublishedCourses();
+
+    try {
+      if (!this.promotionalCodeService) return courses;
+
+      const ids = (courses || [])
+        .map((c: any) => (c && c._id ? String(c._id) : (c && c.id ? String(c.id) : undefined)))
+        .filter(Boolean) as string[];
+
+      if (ids.length === 0) return courses;
+
+      const promosMap = await this.promotionalCodeService.getActivePromotionsForCourses(ids);
+
+      const augmented = (courses || []).map((c: any) => {
+        const id = c && c._id ? String(c._id) : c && c.id ? String(c.id) : undefined;
+        return {
+          ...c,
+          hasActivePromotionalCode: id ? Boolean(promosMap[id]) : false,
+        };
+      });
+
+      return augmented as unknown as ICourse[];
+    } catch (err) {
+      // Si hay error en promo service, devolver cursos sin el flag para no romper endpoint
+      return courses;
+    }
   }
 
   async changeStatus(courseId: string, status: string): Promise<ICourse | null> {
@@ -406,7 +433,31 @@ export default class CourseService {
   }
 
   async getStudentCourses(studentId: string): Promise<ICourse[]> {
-    return this.courseRepository.getStudentCourses(studentId);
+    const courses = await this.courseRepository.getStudentCourses(studentId);
+
+    try {
+      if (!this.promotionalCodeService) return courses;
+
+      const ids = (courses || [])
+        .map((c: any) => (c && c._id ? String(c._id) : c && c.id ? String(c.id) : undefined))
+        .filter(Boolean) as string[];
+
+      if (ids.length === 0) return courses;
+
+      const promosMap = await this.promotionalCodeService.getActivePromotionsForCourses(ids);
+
+      const augmented = (courses || []).map((c: any) => {
+        const id = c && c._id ? String(c._id) : c && c.id ? String(c.id) : undefined;
+        return {
+          ...c,
+          hasActivePromotionalCode: id ? Boolean(promosMap[id]) : false,
+        };
+      });
+
+      return augmented as unknown as ICourse[];
+    } catch (err) {
+      return courses;
+    }
   }
 
   async unenrollStudent(courseId: string, studentId: string): Promise<ICourse> {
