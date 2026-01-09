@@ -355,20 +355,15 @@ class AuthService {
     try {
       await sendEmail({
         email: newUser.email,
-        subject: 'Bienvenido a Cursala',
+        subject: 'Equipo de Cursala.com.ar',
         html: `
-        <h2>¡Bienvenido a Cursala!</h2>
-        <p>Hola ${newUser.firstName},</p>
-        <p>Te damos la bienvenida a <strong>Cursala</strong>, la plataforma educativa que te ayudará a alcanzar tus objetivos de aprendizaje.</p>
-        <p>Tu cuenta ha sido creada exitosamente. Ahora puedes:</p>
-        <ul>
-          <li>Explorar nuestros cursos disponibles</li>
-          <li>Acceder a contenido educativo de calidad</li>
-        </ul>
-        <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
-        <p>¡Que disfrutes tu experiencia de aprendizaje!</p>
-        <br>
-        <p>Saludos,<br>El equipo de Cursala</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px;">
+          <h2>¡Bienvenido a Cursala!</h2>
+          <p>Hola ${newUser.firstName},</p>
+          <p>Te damos la bienvenida.</p>
+          <br>
+          <p>Saludos,<br>Equipo de Cursala.com.ar</p>
+        </div>
       `,
       });
     } catch (emailErr) {
