@@ -2,6 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import UserController from '../user.controller';
 import UserService from '@/services/user.service';
 import { uploadFiles } from '@/utils/fileUpload.util';
+import fs from 'fs';
+import path from 'path';
+
+// Mock BunnyService to avoid real network calls
+jest.mock('@/services/bunny.service', () => ({
+    getInstance: () => ({
+        uploadFilePreserveOriginal: jest.fn().mockResolvedValue('https://cdn.test/file.jpg'),
+        deleteFile: jest.fn().mockResolvedValue(true),
+    }),
+}));
 
 // Mock dependencies
 jest.mock('@/services/user.service');
@@ -62,23 +72,59 @@ describe('UserController', () => {
         });
     });
 
+    describe('getUsersPaginated', () => {
+        it('should forward courseId from query to service', async () => {
+            const mockResult = { data: [], pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 } };
+            mockUserService.getUsersPaginated.mockResolvedValue(mockResult as any);
+
+            req.query = { page: '1', limit: '10', sort: 'createdAt', dir: 'DESC', courseId: '64a1f2e5b9c3d4e5f6a7b8c9' } as any;
+
+            await userController.getUsersPaginated(req as Request, res as Response, next);
+
+            expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: '64a1f2e5b9c3d4e5f6a7b8c9' }));
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 200, data: mockResult }));
+        });
+
+        it('should forward courseId=none to service', async () => {
+            const mockResult = { data: [], pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 } };
+            mockUserService.getUsersPaginated.mockResolvedValue(mockResult as any);
+
+            req.query = { page: '1', limit: '10', sort: 'createdAt', dir: 'DESC', courseId: 'none' } as any;
+
+            await userController.getUsersPaginated(req as Request, res as Response, next);
+
+            expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: 'none' }));
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 200, data: mockResult }));
+        });
+    });
+
     describe('updateUserData', () => {
         it('should update user data successfully with files', async () => {
             req.params = { userId: 'user-123' };
             req.body = { professionalDescription: 'A very long professional description that is definitely longer than 100 characters to pass the validation check in the controller logic. It needs to be quite verbose.' };
 
+            // Simular multipart/form-data para que el controller invoque uploadFiles.fields
+            (req as any).is = jest.fn().mockReturnValue('multipart/form-data');
+
+            // Prepare temporary files to simulate multer-created files
+            const tmpPhoto = path.join(__dirname, 'tmp_photo.jpg');
+            const tmpSig = path.join(__dirname, 'tmp_sig.png');
+            fs.writeFileSync(tmpPhoto, 'photo');
+            fs.writeFileSync(tmpSig, 'sig');
+
             // Mock Multer middleware
             (uploadFiles.fields as jest.Mock).mockReturnValue((req: Request, res: Response, cb: (err?: any) => void) => {
                 req.files = {
-                    photo: [{ filename: 'photo.jpg', mimetype: 'image/jpeg', size: 1000 } as any],
-                    signatureFile: [{ filename: 'sig.png', mimetype: 'image/png', size: 1000 } as any],
+                    photo: [{ filename: 'photo.jpg', originalname: 'photo.jpg', mimetype: 'image/jpeg', size: 1000, path: tmpPhoto } as any],
+                    signatureFile: [{ filename: 'sig.png', originalname: 'sig.png', mimetype: 'image/png', size: 1000, path: tmpSig } as any],
                 };
                 cb(null);
             });
 
             const mockUser = { _id: 'user-123', profilePhotoUrl: 'photo.jpg', professionalSignatureUrl: 'sig.png' };
             mockUserService.getUserById.mockResolvedValue(mockUser as any);
-            mockUserService.updateUserData.mockResolvedValue(mockUser as any);
+            // updateUser is called by the controller for DB updates
+            mockUserService.updateUser.mockResolvedValue(mockUser as any);
 
             await userController.updateUserData(req as Request, res as Response, next);
 
@@ -97,15 +143,16 @@ describe('UserController', () => {
 
             await new Promise(resolve => setImmediate(resolve));
 
-            expect(mockUserService.updateUserData).toHaveBeenCalledWith(
+            expect(mockUserService.updateUser).toHaveBeenCalledWith(
                 'user-123',
-                req.body.professionalDescription,
-                'photo.jpg',
-                'sig.png'
+                expect.objectContaining({ professionalDescription: req.body.professionalDescription })
             );
+            // After file upload the controller calls updateUser for photo and signature
+            expect(mockUserService.updateUser).toHaveBeenCalledWith('user-123', { profilePhotoUrl: expect.any(String) });
+            expect(mockUserService.updateUser).toHaveBeenCalledWith('user-123', { professionalSignatureUrl: expect.any(String) });
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 status: 200,
-                message: 'Datos del usuario actualizados correctamente',
+                message: 'Usuario actualizado correctamente',
             }));
         });
     });

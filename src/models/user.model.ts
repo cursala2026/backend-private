@@ -2,12 +2,6 @@ import { Schema, model } from 'mongoose';
 import { Types } from '@/models';
 import { UserStatus } from './enums';
 
-interface IAssignedCourse {
-  courseId: Types.ObjectId;
-  startDate: Date;
-  endDate: Date;
-}
-
 interface IAssignedCourseEdit {
   courseId: Types.ObjectId;
 }
@@ -27,7 +21,6 @@ interface IUser {
   updatedAt: Date;
   roles: string[];
   resetPasswordToken: string;
-  assignedCourses?: IAssignedCourse[];
   assignedCoursesEdit?: IAssignedCourseEdit[];
   lastConnection?: Date;
   professionalDescription?: string;
@@ -37,14 +30,6 @@ interface IUser {
 
 interface UserModel extends IUser { }
 
-const AssignedCourseSchema = new Schema<IAssignedCourse>(
-  {
-    courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
-    startDate: { type: Date, required: true },
-    endDate: { type: Date, required: true },
-  },
-  { _id: false }
-);
 const AssignedCoursesEditSchema = new Schema<IAssignedCourseEdit>(
   {
     courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
@@ -66,7 +51,6 @@ const UserSchema: Schema<UserModel> = new Schema<UserModel>(
     // Roles ahora se almacenan como códigos string (e.g. 'ADMIN','ALUMNO')
     roles: [{ type: String }],
     resetPasswordToken: String,
-    assignedCourses: [AssignedCourseSchema],
     assignedCoursesEdit: [AssignedCoursesEditSchema],
     lastConnection: { type: Date, required: false, default: Date.now },
     professionalDescription: { type: String, required: false },
@@ -84,7 +68,5 @@ export {
   UserModel,
   IAssignedCourseEdit,
   UserSchema,
-  AssignedCourseSchema,
-  IAssignedCourse,
   AssignedCoursesEditSchema,
 };

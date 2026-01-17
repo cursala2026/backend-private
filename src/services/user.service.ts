@@ -45,7 +45,13 @@ export default class UserService {
     dir: number;
     search?: string;
     role?: string;
+    courseId?: string; // optional filter: courseId or special value 'none' to return users without courses
   }) {
+    // If filtering by course and no role is specified, limit to students by default
+    if (params.courseId && !params.role) {
+      params.role = 'ALUMNO';
+    }
+
     return this.userRepository.getUsersPaginated(params);
   }
 

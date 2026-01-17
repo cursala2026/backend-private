@@ -1,4 +1,4 @@
-import { IUser, UserSchema, IAssignedCourse, IAssignedCourseEdit } from '../models/user.model';
+import { IUser, UserSchema, IAssignedCourseEdit } from '../models/user.model';
 import { IUserExtended } from '@/types/user.types';
 import { Connection, Model, Types, UserStatus } from '@/models';
 import { CourseSchema } from '../models/mongo/course.model';
@@ -151,43 +151,114 @@ class UserRepository {
     dir: number;
     search?: string;
     role?: string;
+    courseId?: string; // optional; if 'none' returns users with no assigned courses
   }) {
-    const { page, limit, sort, dir, search, role } = params;
+    const { page, limit, sort, dir, search, role, courseId } = params;
     const skip = (page - 1) * limit;
 
-    // Build search filter
-    const searchFilter: any = search
-      ? {
-          $or: [
-            { email: { $regex: search, $options: 'i' } },
-            { firstName: { $regex: search, $options: 'i' } },
-            { lastName: { $regex: search, $options: 'i' } },
-          ],
-        }
-      : {};
-
-    // Add role filter if provided
-    if (role) {
-      searchFilter.roles = { $in: [role.toUpperCase()] };
+    // Build aggregation pipeline and combined search + role filter
+    const pipeline: any[] = [];
+    const matchConditions: any[] = [];
+    if (search) {
+      matchConditions.push({
+        $or: [
+          { email: { $regex: search, $options: 'i' } },
+          { firstName: { $regex: search, $options: 'i' } },
+          { lastName: { $regex: search, $options: 'i' } },
+        ],
+      });
     }
 
-    // Get total count
-    const total = await this.model.countDocuments(searchFilter).exec();
+    if (role) {
+      const r = String(role).toUpperCase();
+      // Support roles stored as strings or as objects with `code` property
+      matchConditions.push({
+        $or: [
+          { roles: { $in: [r] } },
+          { 'roles.code': r },
+        ],
+      });
+    }
 
-    // Get paginated results
+    if (matchConditions.length > 0) {
+      pipeline.push({ $match: { $and: matchConditions } });
+    }
+
     const sortObj: Record<string, 1 | -1> = { [sort]: dir as 1 | -1 };
-    
-    const users = await this.model
-      .find(searchFilter)
-      .select('-password -resetPasswordToken')
-      .sort(sortObj)
-      .skip(skip)
-      .limit(limit)
-      .lean()
-      .exec();
+
+    // Build aggregation pipeline dynamically to support course filters.
+
+    // If filtering by a specific course id (not 'none'), we will lookup the course and
+    // match users that are either in user.assignedCourses or are present in course.students
+    let courseObjId: Types.ObjectId | null = null;
+    const isNoneFilter = courseId === 'none' || courseId === 'unassigned';
+    if (courseId && !isNoneFilter) {
+      try {
+        courseObjId = new Types.ObjectId(courseId);
+      } catch (err) {
+        // invalid id -> return empty result set
+        pipeline.push({ $match: { _id: { $exists: false } } });
+      }
+    }
+
+    // For COURSE and NONE filters we perform a lookup into courses to check students membership
+    // This lookup will produce `matchedCoursesForUser` array with courses where the user is enrolled (or empty)
+    pipeline.push({
+      $lookup: {
+        from: 'courses',
+        let: { uid: '$_id' },
+        pipeline: [
+          // if specific courseObjId provided, restrict to that course
+          ...(courseObjId ? [{ $match: { _id: courseObjId } }] : []),
+          {
+            $match: {
+              $expr: { $in: ['$$uid', { $map: { input: { $ifNull: ['$students', []] }, as: 's', in: '$$s.userId' } }] }
+            }
+          }
+        ],
+        as: 'matchedCoursesForUser',
+      }
+    });
+
+    // Apply course filtering logic using only courses.students as source of truth
+    if (courseId) {
+      if (isNoneFilter) {
+        // users not enrolled in any course (matchedCoursesForUser empty)
+        pipeline.push({
+          $match: {
+            $expr: { $eq: [{ $size: { $ifNull: ['$matchedCoursesForUser', []] } }, 0] }
+          }
+        });
+      } else if (courseObjId) {
+        // users that are present in matchedCoursesForUser
+        pipeline.push({
+          $match: { $expr: { $gt: [{ $size: { $ifNull: ['$matchedCoursesForUser', []] } }, 0] } }
+        });
+      }
+    }
+
+    // Count total with the current pipeline (without sort/skip/limit)
+    const countPipeline = [...pipeline, { $count: 'count' }];
+    const totalRes = await this.model.aggregate(countPipeline).exec();
+    const total = (totalRes && totalRes[0] && (totalRes[0] as any).count) || 0;
+
+    // Continue building pipeline for page results
+    pipeline.push({ $sort: sortObj }, { $skip: skip }, { $limit: limit });
+
+    // Project out internal lookup fields and sensitive data
+    pipeline.push({
+      $project: {
+        password: 0,
+        resetPasswordToken: 0,
+        matchedCoursesForUser: 0,
+        assignedCourses: 0,
+      },
+    });
+
+    const usersAgg = await this.model.aggregate(pipeline).exec();
 
     return {
-      data: users as unknown as IUser[],
+      data: (usersAgg as unknown) as IUser[],
       pagination: {
         page,
         page_size: limit,
@@ -425,16 +496,18 @@ class UserRepository {
       throw new Error('El courseId proporcionado no es válido.');
     }
 
-    const user = await this.model.findById(userId).exec() as unknown as IUser | null;
+    // Consultar la colección courses para verificar si el usuario está en el array students
+    const CourseModel = this.connection.model('Course', CourseSchema, 'courses');
 
-    if (!user) {
-      throw new Error('Usuario no encontrado.');
-    }
+    const res = await CourseModel.aggregate([
+      { $match: { _id: new Types.ObjectId(courseId) } },
+      { $project: { students: 1 } },
+      { $unwind: { path: '$students', preserveNullAndEmptyArrays: false } },
+      { $match: { 'students.userId': new Types.ObjectId(userId) } },
+      { $project: { student: '$students' } },
+    ]).exec();
 
-    // Buscar el curso en los cursos asignados
-    const assignedCourse = user.assignedCourses?.find((course: IAssignedCourse) => course.courseId.toString() === courseId);
-
-    if (!assignedCourse) {
+    if (!res || res.length === 0) {
       return {
         isAssigned: false,
         isWithinTimeRange: false,
@@ -443,24 +516,19 @@ class UserRepository {
       };
     }
 
-    // Verificar si estamos dentro del rango de fechas permitido
-    const currentDate = new Date();
-    const startDate = new Date(assignedCourse.startDate);
-    const endDate = new Date(assignedCourse.endDate);
+    const studentEntry = (res[0] as any).student;
+    const startDate = studentEntry.startDate ? new Date(studentEntry.startDate) : null;
+    const endDate = studentEntry.endDate ? new Date(studentEntry.endDate) : null;
+    const now = new Date();
 
-    const isWithinTimeRange = currentDate >= startDate && currentDate <= endDate;
+    const isWithinTimeRange = (!startDate || now >= startDate) && (!endDate || now <= endDate);
 
     return {
       isAssigned: true,
       isWithinTimeRange,
       isValid: isWithinTimeRange,
-      courseInfo: {
-        startDate: assignedCourse.startDate,
-        endDate: assignedCourse.endDate,
-      },
-      message: isWithinTimeRange
-        ? 'El curso está asignado y es válido para el período actual.'
-        : 'El curso está asignado pero no está dentro del período permitido.',
+      courseInfo: startDate && endDate ? { startDate, endDate } : undefined,
+      message: isWithinTimeRange ? 'El curso está asignado y es válido para el período actual.' : 'El curso está asignado pero no está dentro del período permitido.',
     };
   }
 
@@ -485,14 +553,7 @@ class UserRepository {
       throw new Error('Usuario no encontrado.');
     }
 
-    // Verificar si el curso está en assignedCoursesEdit
-    const isInEditCourses = user.assignedCoursesEdit?.some((course: IAssignedCourseEdit) => course.courseId.toString() === courseId);
-
-    if (isInEditCourses) {
-      return true;
-    }
-
-    // Si no está en assignedCoursesEdit, hacer la validación actual
+    // Sólo comprobar membership en courses.students (source of truth)
     const result = await this.isCourseValidForUser(userId, courseId);
     return result.isValid;
   }
@@ -513,7 +574,6 @@ class UserRepository {
       email: du.email,
       username: du.username,
       roles: du.roles,
-      assignedCourses: du.assignedCourses,
       status: du.status,
     };
   }

@@ -24,6 +24,7 @@ const mockUserRepository: any = {
   updateLastConnection: jest.fn(),
   updateUser: jest.fn(),
   getUsersByAssignedCourses: jest.fn(),
+  getUsersPaginated: jest.fn(),
   updateUserProfessionalData: jest.fn(),
 };
 const mockRoleRepository: any = {
@@ -154,5 +155,38 @@ describe('UserService - getUserProfileImage Security Tests', () => {
       const result = await userService.getUserProfileImage(longFilename);
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('UserService - getUsersPaginated passthrough', () => {
+  test('forwards courseId to repository (valid id)', async () => {
+    const expected = { data: [], pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 } };
+    (mockUserRepository.getUsersPaginated as jest.Mock).mockResolvedValue(expected);
+
+    const res = await userService.getUsersPaginated({ page: 1, limit: 10, sort: 'createdAt', dir: -1, courseId: '64a1f2e5b9c3d4e5f6a7b8c9' });
+
+    expect(mockUserRepository.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: '64a1f2e5b9c3d4e5f6a7b8c9' }));
+    expect(res).toBe(expected);
+  });
+
+  test('forwards courseId=none to repository', async () => {
+    const expected = { data: [], pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 } };
+    (mockUserRepository.getUsersPaginated as jest.Mock).mockResolvedValue(expected);
+
+    const res = await userService.getUsersPaginated({ page: 1, limit: 10, sort: 'createdAt', dir: -1, courseId: 'none' });
+
+    expect(mockUserRepository.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: 'none' }));
+    expect(res).toBe(expected);
+  });
+
+  test('forwards invalid courseId string to repository', async () => {
+    const expected = { data: [], pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 } };
+    (mockUserRepository.getUsersPaginated as jest.Mock).mockResolvedValue(expected);
+
+    const invalidId = 'not-an-object-id';
+    const res = await userService.getUsersPaginated({ page: 1, limit: 10, sort: 'createdAt', dir: -1, courseId: invalidId });
+
+    expect(mockUserRepository.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: invalidId }));
+    expect(res).toBe(expected);
   });
 });

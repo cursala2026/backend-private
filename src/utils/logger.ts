@@ -26,7 +26,7 @@ if (config.NODE_ENV === 'production') {
   // En desarrollo, mantener nivel global en 'debug' pero limitar la salida a consola a 'info'
   logger = winston.createLogger({
     exitOnError: false,
-    format: winston.format.combine(winston.format.colorize(), winston.format.timestamp(), winston.format.simple()),
+    format: winston.format.combine(winston.format.colorize(), winston.format.timestamp(), winston.format.splat(), winston.format.simple()),
     level: 'debug',
     handleExceptions: true,
     transports: [
@@ -41,7 +41,7 @@ if (config.NODE_ENV === 'production') {
         // Persistir todo (incluyendo debug) en archivo para auditoría
         level: 'debug',
         handleExceptions: true,
-        format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
+        format: winston.format.combine(winston.format.timestamp(), winston.format.splat(), winston.format.json()),
         filename: `logs/log-${new Date().toISOString().split('T')[0]}.log`,
       }),
     ],

@@ -39,6 +39,7 @@ export default class UserController {
   getUsersPaginated = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { page, limit, sort, dir, search, role } = req.query;
+      const rawCourseId = (req.query.courseId || req.query.course || req.query.course_id) as string | undefined;
 
       const result = await this.userService.getUsersPaginated({
         page: Number(page) || 1,
@@ -47,18 +48,25 @@ export default class UserController {
         dir: dir === 'ASC' ? 1 : -1,
         search: search as string,
         role: role as string,
+        courseId: rawCourseId,
       });
-
-      // DEBUG: Log del usuario específico
-      const targetUser = result?.data?.find((u: any) => u.email === 'rubilar85@hotmail.com');
-      if (targetUser) {
-        logger.info('🔍 DEBUG getUsersPaginated - rubilar85@hotmail.com:', {
-          _id: targetUser._id,
-          email: targetUser.email,
-          roles: targetUser.roles,
-          rolesType: Array.isArray(targetUser.roles) ? 'Array' : typeof targetUser.roles
-        });
+      // Logear query y total para depuración desde frontend (sin usar curl)
+      try {
+        let total: number | null = null;
+        if (result && result.pagination && typeof result.pagination.total === 'number') {
+          total = result.pagination.total as number;
+        } else if (result && typeof (result as any).total === 'number') {
+          total = (result as any).total as number;
+        }
+        logger.debug('GET /api/v1/user - query: %o - pagination.total: %d', req.query, total ?? -1);
+      } catch (logErr) {
+        logger.warn('Failed to log users pagination result', { err: (logErr as Error).message });
       }
+
+      // Evitar cacheo por parte de clientes/proxies para este endpoint
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
 
       return res.json(prepareResponse(200, 'Users fetched successfully', result));
     } catch (error) {
@@ -581,35 +589,27 @@ export default class UserController {
   getUserProfileImage = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { imageFileName } = req.params;
+      if (!imageFileName) {
+        return res.status(400).json(prepareResponse(400, 'Image file name required', null));
+      }
 
-      // Obtener IP del cliente (considerando proxies)
-      const clientIP =
-        (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
-        req.socket.remoteAddress ||
-        'unknown';
-
-      const fileBuffer = await this.userService.getUserProfileImage(imageFileName, clientIP);
+      const fileBuffer = await this.userService.getUserProfileImage(imageFileName, req.ip);
       if (!fileBuffer) {
-        return res.status(404).json({ message: 'Image not found' });
+        return res.status(404).json(prepareResponse(404, 'Image not found', null));
       }
 
-      // Detectar tipo de archivo por extensión
-      const extension = imageFileName.split('.').pop()?.toLowerCase();
-      let contentType = 'image/jpeg'; // default
+      const ext = path.extname(imageFileName).toLowerCase();
+      let contentType = 'application/octet-stream';
+      if (ext === '.png') contentType = 'image/png';
+      else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+      else if (ext === '.webp') contentType = 'image/webp';
 
-      if (extension === 'png') {
-        contentType = 'image/png';
-      } else if (extension === 'jpg' || extension === 'jpeg') {
-        contentType = 'image/jpeg';
-      }
-
-      // Agregar headers de seguridad para CSP
       res.setHeader('Content-Type', contentType);
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'none'; script-src 'none'");
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 
-      res.send(fileBuffer);
+      return res.send(fileBuffer);
     } catch (error) {
       return next(error);
     }
