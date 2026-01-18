@@ -8,7 +8,6 @@ import { Types, Schema } from 'mongoose';
 import { logger } from '@/utils';
 import { sendEmail } from '@/utils/emailer';
 import config from '@/config';
-import { NotificationType } from '@/models/mongo/notification.model';
 
 class QuestionnaireSubmissionService {
   constructor(
@@ -301,7 +300,7 @@ class QuestionnaireSubmissionService {
           await svc.notificationService.sendNotification(submission.studentId.toString(), {
             title: 'Corrección disponible',
             message: `Tu corrección para "${questionnaire.title || 'el cuestionario'}" fue enviada. Puntuación: ${finalScore}`,
-            type: NotificationType.SUCCESS,
+            type: 'success',
             metadata: {
               questionnaireId: submission.questionnaireId?.toString(),
               submissionId: submissionId,

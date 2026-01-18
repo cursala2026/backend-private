@@ -8,7 +8,6 @@ const { sendEmail } = require('@/utils/emailer');
 describe('CourseService - teachers notifications', () => {
   let mockCourseRepository: any;
   let mockUserRepository: any;
-  let mockNotificationService: any;
   let courseService: CourseService;
 
   beforeEach(() => {
@@ -24,11 +23,7 @@ describe('CourseService - teachers notifications', () => {
       getUserById: jest.fn().mockImplementation((id: string) => Promise.resolve({ _id: id, email: `${id}@example.com`, firstName: `User${id}` })),
     } as any;
 
-    mockNotificationService = {
-      sendNotification: jest.fn().mockResolvedValue(true),
-    } as any;
-
-    courseService = new CourseService(mockCourseRepository, mockUserRepository, mockNotificationService);
+    courseService = new CourseService(mockCourseRepository, mockUserRepository);
   });
 
   test('updateTeachers calls repo and notifies added and removed teachers', async () => {
@@ -44,8 +39,9 @@ describe('CourseService - teachers notifications', () => {
 
     // sendEmail called for added and removed
     expect(sendEmail).toHaveBeenCalled();
-    // notificationService called for both
-    expect(mockNotificationService.sendNotification).toHaveBeenCalledTimes(2);
+    // previously would notify in-app; now notifications removed so only email expected
+    // sendEmail called for added and removed
+    expect(sendEmail).toHaveBeenCalled();
   });
 
   test('update detects teacher diffs and notifies added', async () => {
@@ -59,7 +55,8 @@ describe('CourseService - teachers notifications', () => {
     const res = await courseService.update(courseId, { teachers: ['t1', 't2'] } as any);
 
     expect(mockCourseRepository.update).toHaveBeenCalledWith(courseId, { teachers: ['t1', 't2'] }, undefined);
-    expect(mockNotificationService.sendNotification).toHaveBeenCalled();
+    // notification removed; ensure email was attempted
+    expect(sendEmail).toHaveBeenCalled();
     expect(res).toEqual(updated);
   });
 
@@ -73,7 +70,7 @@ describe('CourseService - teachers notifications', () => {
 
     await expect((courseService as any).handleTeacherAssignmentChanges(added, removed, course)).resolves.not.toThrow();
 
-    // notificationService still called for added and removed
-    expect(mockNotificationService.sendNotification).toHaveBeenCalledTimes(2);
+    // notification removed; only ensure function completes without throwing and email attempted
+    expect(sendEmail).toHaveBeenCalled();
   });
 });

@@ -21,5 +21,4 @@ export * from './certificate.model';
 export * from './courseProgress.model';
 export * from './questionnaire.model';
 export * from './questionnaireSubmission.model';
-export * from './notification.model';
 export * from './supportTicket.model';

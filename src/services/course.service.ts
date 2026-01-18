@@ -5,9 +5,9 @@ import { logger } from '@/utils';
 import CourseRepository from '@/repositories/course.repository';
 import UserRepository from '@/repositories/user.repository';
 import { sendEmail } from '@/utils/emailer';
-import NotificationService from './notification.service';
+// NotificationService removed — kept optional `notificationService` as `any` to preserve calls
 import PromotionalCodeService from './promotionalCode.service';
-import { NotificationType } from '@/models/mongo/notification.model';
+// NotificationType removed; usar literales 'success' | 'warning' donde corresponda
 import { courseProgressRepository, questionnaireSubmissionRepository, certificateRepository } from '@/repositories';
 import { courseUploadService } from './course-upload.service';
 import config from '@/config';
@@ -16,7 +16,6 @@ export default class CourseService {
   constructor(
     private readonly courseRepository: CourseRepository,
     private readonly userRepository: UserRepository,
-    private readonly notificationService?: NotificationService,
     private readonly promotionalCodeService?: PromotionalCodeService
   ) {}
 
@@ -613,17 +612,7 @@ export default class CourseService {
           }
         }
 
-        // In-app notification
-        try {
-          await this.notificationService?.sendNotification(user._id.toString(), {
-            title,
-            message,
-            type: NotificationType.SUCCESS,
-            metadata: { courseId: course._id?.toString() },
-          });
-        } catch (err) {
-          logger.error(`Error creando notificación para ${user._id}: ${(err as Error).message}`);
-        }
+        // In-app notification removed
       } catch (err) {
         logger.error(`Error procesando teacher added ${teacherId}: ${(err as Error).message}`);
       }
@@ -669,16 +658,7 @@ export default class CourseService {
           }
         }
 
-        try {
-          await this.notificationService?.sendNotification(user._id.toString(), {
-            title,
-            message,
-            type: NotificationType.WARNING,
-            metadata: { courseId: course._id?.toString() },
-          });
-        } catch (err) {
-          logger.error(`Error creando notificación para ${user._id}: ${(err as Error).message}`);
-        }
+        // In-app notification removed
       } catch (err) {
         logger.error(`Error procesando teacher removed ${teacherId}: ${(err as Error).message}`);
       }

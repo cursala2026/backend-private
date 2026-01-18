@@ -16,7 +16,6 @@ import FileMaterialRepository from './fileMaterial.repository';
 import CertificateRepository from './certificate.repository';
 import QuestionnaireRepository from './questionnaire.repository';
 import QuestionnaireSubmissionRepository from './questionnaireSubmission.repository';
-import NotificationRepository from './notification.repository';
 import SupportTicketRepository from './supportTicket.repository';
 
 export const userRepository = new UserRepository(generalConnection);
@@ -35,7 +34,6 @@ export const fileMaterialRepository = new FileMaterialRepository(generalConnecti
 export const certificateRepository = new CertificateRepository(generalConnection);
 export const questionnaireRepository = new QuestionnaireRepository(generalConnection);
 export const questionnaireSubmissionRepository = new QuestionnaireSubmissionRepository(generalConnection);
-export const notificationRepository = new NotificationRepository(generalConnection);
 export const supportTicketRepository = new SupportTicketRepository(generalConnection);
 
 // Re-export singleton repository

@@ -7,7 +7,7 @@ export default class BankAccountController {
   constructor(private readonly bankAccountService: BankAccountService) {}
 
   /**
-   * Get all bank accounts
+   * Obtiner todas las cuentas bancarias
    */
   getAllBankAccounts = async (req: Request, res: Response, next: NextFunction) => {
     try {

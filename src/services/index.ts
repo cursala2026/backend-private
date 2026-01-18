@@ -18,7 +18,6 @@ import PromotionalCodeService from './promotionalCode.service';
 import QuestionnaireService from './questionnaire.service';
 import QuestionnaireSubmissionService from './questionnaireSubmission.service';
 import QuestionMediaService from './questionMedia.service';
-import NotificationService from './notification.service';
 import SupportTicketService from './supportTicket.service';
 
 import {
@@ -36,7 +35,6 @@ import {
   certificateRepository,
   questionnaireRepository,
   questionnaireSubmissionRepository,
-  notificationRepository,
   supportTicketRepository,
 } from '@/repositories';
 
@@ -44,9 +42,8 @@ export const authService = new AuthService(userRepository);
 export const userService = new UserService(userRepository, courseRepository, certificateRepository);
 export const categoryService = new CategoryService(categoryRepository);
 // Instanciar notificationService antes para poder inyectarlo en CourseService
-export const notificationService = new NotificationService(notificationRepository);
 export const promotionalCodeService = new PromotionalCodeService();
-export const courseService = new CourseService(courseRepository, userRepository, notificationService, promotionalCodeService);
+export const courseService = new CourseService(courseRepository, userRepository, promotionalCodeService);
 export const classService = new ClassService(classRepository);
 export const fileService = new FileService();
 export const iWantToTrainService = new IWantToTrainService(iWantToTrainRepository);
@@ -66,3 +63,27 @@ export const questionnaireSubmissionService = new QuestionnaireSubmissionService
 );
 export const questionMediaService = new QuestionMediaService();
 export const supportTicketService = new SupportTicketService(supportTicketRepository);
+// Exportar un stub `notificationService` por compatibilidad con imports/tests.
+export const notificationService = {
+  async sendNotification(..._args: any[]) {
+    return;
+  },
+  registerSSEClient(..._args: any[]) {
+    return;
+  },
+  unregisterSSEClient(..._args: any[]) {
+    return;
+  },
+  async getUnreadCount(..._args: any[]) {
+    return 0;
+  },
+  async markAsRead(..._args: any[]) {
+    return null;
+  },
+  async markAllAsRead(..._args: any[]) {
+    return 0;
+  },
+  async deleteNotification(..._args: any[]) {
+    return false;
+  },
+};
