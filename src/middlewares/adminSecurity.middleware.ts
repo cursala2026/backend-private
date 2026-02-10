@@ -50,6 +50,22 @@ async function hasAdminRole(user: IUser | undefined): Promise<boolean> {
   }
 }
 
+async function hasVendedorRole(user: IUser | undefined): Promise<boolean> {
+  if (!user || !Array.isArray(user.roles)) return false;
+  try {
+    if (user.roles.every((r) => typeof r === 'string' || (typeof r === 'object' && r !== null && 'code' in r))) {
+      return (user.roles as any[]).some((r) => {
+        const code = typeof r === 'string' ? r : (r && r.code ? r.code : '');
+        return String(code).toUpperCase() === 'VENDEDOR';
+      });
+    }
+    return false;
+  } catch (err) {
+    logger.error('Error checking vendedor role in hasVendedorRole:', err);
+    return false;
+  }
+}
+
 function decodeTempToken(token: string | undefined): TempAuthToken | null {
   if (!token) return null;
   try {
@@ -141,6 +157,52 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   }
 
   return next();
+}
+
+/**
+ * Middleware que permite acceso a admin o vendedor.
+ * Usar para operaciones de solo lectura que los vendedores pueden ver.
+ */
+export async function requireAdminOrVendedor(req: Request, res: Response, next: NextFunction) {
+  const { user } = req;
+
+  if (!user) {
+    return res.status(401).json({ success: false, message: 'No autenticado' });
+  }
+
+  try {
+    // Verificar si es admin o vendedor
+    if (await hasAdminRole(user) || await hasVendedorRole(user)) {
+      return next();
+    }
+
+    // Intentar obtener la versión completa desde la base de datos
+    const userId = (user as any)._id;
+    let userIdString: string;
+    
+    if (!userId) {
+      return res.status(403).json({ success: false, message: 'Acceso denegado. Usuario no válido.' });
+    }
+    
+    if (typeof userId === 'object' && userId !== null && typeof userId.toHexString === 'function') {
+      userIdString = userId.toHexString();
+    } else if (typeof userId === 'object' && userId !== null && typeof userId.toString === 'function') {
+      userIdString = userId.toString();
+    } else {
+      userIdString = String(userId);
+    }
+    
+    const fullUser = await userRepository.getUserById(userIdString);
+    if (fullUser && (await hasAdminRole(fullUser as IUser) || await hasVendedorRole(fullUser as IUser))) {
+      req.user = fullUser as any;
+      return next();
+    }
+
+    return res.status(403).json({ success: false, message: 'Acceso denegado. Requiere rol administrador o vendedor.' });
+  } catch (err) {
+    logger.error('Error comprobando rol admin/vendedor en requireAdminOrVendedor:', err);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
 }
 
 /**

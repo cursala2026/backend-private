@@ -145,18 +145,22 @@ export default class Server implements NodeServer {
         optionsSuccessStatus: 200,
         allowedHeaders: ['Content-Type', 'Authorization'],
         exposedHeaders: ['Authorization'],
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         preflightContinue: false,
       };
     } else {
-      corsOptions = { origin: true, credentials: true };
+      corsOptions = { 
+        origin: true, 
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+      };
     }
 
     // Asegurar que el middleware de CORS se aplique primero
     this.app.use(cors(corsOptions));
     this.app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -167,7 +171,7 @@ export default class Server implements NodeServer {
     // Middleware global para garantizar CORS
     this.app.use((req, res, next) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       if (req.method === 'OPTIONS') {
         return res.status(204).end();

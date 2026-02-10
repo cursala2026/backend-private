@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { userController } from '../controllers';
 import { authorize } from '@/middlewares/auth.middleware';
-import { requireAdmin, requireAdminOrSelf } from '@/middlewares/adminSecurity.middleware';
+import { requireAdmin, requireAdminOrSelf, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';
 
 const router = Router();
 
@@ -16,7 +16,7 @@ if (process.env.NODE_ENV === 'development') {
 // IMPORTANTE: Las rutas estáticas deben estar ANTES de las rutas con parámetros dinámicos
 router.get('/getAllUsers', authorize, requireAdmin, userController.getAllUsers);
 router.get('/getTeachers', authorize, requireAdmin, userController.getTeachers);
-router.get('/', authorize, requireAdmin, userController.getUsersPaginated);
+router.get('/', authorize, requireAdminOrVendedor, userController.getUsersPaginated);
 router.get('/getUsersByAssignedCourses/:courseId', authorize, requireAdmin, userController.getUsersByAssignedCourses);
 router.get('/getStudentsByTeacherCourses/:teacherId', authorize, userController.getStudentsByTeacherCourses);
 router.get('/getAllStudentsFromAllCourses', authorize, requireAdmin, userController.getAllStudentsFromAllCourses);
