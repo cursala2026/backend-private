@@ -128,28 +128,52 @@ export default class Server implements NodeServer {
 
       // En desarrollo, permitir localhost automáticamente
       if (config.NODE_ENV === 'development') {
-        allowed.push('http://localhost:4200', 'http://localhost:3000', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000');
+        allowed.push('http://localhost:4200', 'http://localhost:3000', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000', 'http://10.231.218.153:4200');
       }
 
       corsOptions = {
         origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
           // Allow non-browser or server-to-server requests (no Origin header)
           if (!origin) return callback(null, true);
-          if (allowed.includes(origin)) return callback(null, true);
-          // En lugar de lanzar un error, simplemente rechazar la solicitud
-          // Esto evita que se convierta en uncaughtException
-          callback(null, false);
+          if (allowed.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'));
+          }
         },
         credentials: true,
         optionsSuccessStatus: 200,
         allowedHeaders: ['Content-Type', 'Authorization'],
-        exposedHeaders: ['Authorization']
+        exposedHeaders: ['Authorization'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        preflightContinue: false,
       };
     } else {
       corsOptions = { origin: true, credentials: true };
     }
 
+    // Asegurar que el middleware de CORS se aplique primero
     this.app.use(cors(corsOptions));
+    this.app.use((req, res, next) => {
+      res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+      }
+      next();
+    });
+
+    // Middleware global para garantizar CORS
+    this.app.use((req, res, next) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      if (req.method === 'OPTIONS') {
+        return res.status(204).end();
+      }
+      next();
+    });
 
     // ⭐ CAMBIO 1: Configurar timeouts del servidor para mitigar DoS por conexiones largas
     this.server.setTimeout(2 * 60 * 1000); // 2 minutos

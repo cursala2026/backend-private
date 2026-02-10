@@ -447,10 +447,10 @@ export default class UserController {
                 prepareResponse(415, 'Tipo de archivo no soportado para foto. Solo se permiten PNG, JPG, JPEG', null)
               );
             }
-            const maxSize = 5 * 1024 * 1024;
+            const maxSize = 25 * 1024 * 1024;
             if (photoFile.size > maxSize) {
               if (fs.existsSync(photoFile.path)) fs.unlinkSync(photoFile.path);
-              return res.status(413).json(prepareResponse(413, 'Foto demasiado grande. Máximo 5MB', null));
+              return res.status(413).json(prepareResponse(413, 'Foto demasiado grande. Máximo 25MB', null));
             }
           }
 
@@ -464,11 +464,11 @@ export default class UserController {
                 prepareResponse(415, 'Tipo de archivo no soportado para firma. Solo se permite PNG, JPG, JPEG', null)
               );
             }
-            const maxSize = 5 * 1024 * 1024;
+            const maxSize = 25 * 1024 * 1024;
             if (signatureFile.size > maxSize) {
               if (files.photo?.[0] && fs.existsSync(files.photo[0].path)) fs.unlinkSync(files.photo[0].path);
               if (fs.existsSync(signatureFile.path)) fs.unlinkSync(signatureFile.path);
-              return res.status(413).json(prepareResponse(413, 'Firma demasiado grande. Máximo 5MB', null));
+              return res.status(413).json(prepareResponse(413, 'Firma demasiado grande. Máximo 25MB', null));
             }
           }
 
