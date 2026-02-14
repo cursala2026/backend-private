@@ -95,6 +95,25 @@ export default class ClassService {
   }
 
   /**
+   * Actualiza el orden de varias clases de un mismo curso.
+   * @param reorderData - Array de objetos con { id, order }.
+   * @param courseId - ID del curso al que pertenecen las clases.
+   */
+  async reorderClasses(reorderData: { id: string; order: number }[], courseId: string): Promise<void> {
+    for (const item of reorderData) {
+      await this.classRepository.updateOrder(item.id, item.order);
+    }
+
+    try {
+      const svc = await import('./index');
+      const cs = svc && (svc.courseService as any);
+      if (cs) await cs.rebuildOrderedContentForCourse(courseId);
+    } catch (err) {
+      console.error('Error rebuilding orderedContent after reorderClasses', (err as Error).message);
+    }
+  }
+
+  /**
    * Actualiza una clase existente usando operadores de MongoDB.
    * @param id - ID de la clase.
    * @param updateQuery - Query con operadores de MongoDB ($set, $unset, etc.).

@@ -2,15 +2,16 @@ import { IUser, UserSchema, IAssignedCourseEdit } from '../models/user.model';
 import { IUserExtended } from '@/types/user.types';
 import { Connection, Model, Types, UserStatus } from '@/models';
 import { CourseSchema } from '../models/mongo/course.model';
-import generalConnection from '../config/databases';
 import { logger } from '../utils';
 import bcrypt from 'bcryptjs';
 
 class UserRepository {
   private readonly model: Model<IUser>;
+  private readonly courseModel: Model<any>;
 
   constructor(private readonly connection: Connection) {
     this.model = this.connection.model<IUser>('User', UserSchema, 'users');
+    this.courseModel = this.connection.model('Course', CourseSchema, 'courses');
   }
 
   /**
@@ -76,16 +77,15 @@ class UserRepository {
   }
 
   async findById(id: string): Promise<IUser | null> {
-    // WORKAROUND: findById está roto con Mongoose 9.x + Node 24
-    // Buscar en todos los usuarios y comparar _id como string
-    const allUsers = await this.model.find({}).exec();
-    const foundUser = allUsers.find((u: any) => String(u._id) === id);
-    
-    if (foundUser) {
-      return foundUser as unknown as IUser;
+    if (!Types.ObjectId.isValid(id)) {
+      return null;
     }
-    
-    return null;
+
+    // Usar findOne con el ID convertido a ObjectId es mucho más eficiente que 
+    // cargar todos los usuarios. Si el entorno tiene problemas con findById,
+    // findOne es la alternativa correcta.
+    const res = await this.model.findOne({ _id: new Types.ObjectId(id) }).exec();
+    return res as unknown as IUser | null;
   }
 
   async addCountriesToUser(userId: string, updatedCountries: string[]) {
@@ -187,52 +187,77 @@ class UserRepository {
     const sortObj: Record<string, 1 | -1> = { [sort]: dir as 1 | -1 };
 
     // Build aggregation pipeline dynamically to support course filters.
-
-    // If filtering by a specific course id (not 'none'), we will lookup the course and
-    // match users that are either in user.assignedCourses or are present in course.students
     let courseObjId: Types.ObjectId | null = null;
     const isNoneFilter = courseId === 'none' || courseId === 'unassigned';
+    
     if (courseId && !isNoneFilter) {
       try {
         courseObjId = new Types.ObjectId(courseId);
       } catch (err) {
         // invalid id -> return empty result set
+        logger.warn('Invalid courseId provided for filter:', courseId);
         pipeline.push({ $match: { _id: { $exists: false } } });
       }
     }
 
-    // For COURSE and NONE filters we perform a lookup into courses to check students membership
-    // This lookup will produce `matchedCoursesForUser` array with courses where the user is enrolled (or empty)
+    // Lookup courses where user is enrolled (checking Course.students array)
     pipeline.push({
       $lookup: {
         from: 'courses',
-        let: { uid: '$_id' },
+        let: { userId: '$_id' },
         pipeline: [
-          // if specific courseObjId provided, restrict to that course
           ...(courseObjId ? [{ $match: { _id: courseObjId } }] : []),
           {
             $match: {
-              $expr: { $in: ['$$uid', { $map: { input: { $ifNull: ['$students', []] }, as: 's', in: '$$s.userId' } }] }
+              $expr: {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: { $ifNull: ['$students', []] },
+                        as: 'student',
+                        cond: { $eq: ['$$student.userId', '$$userId'] }
+                      }
+                    }
+                  },
+                  0
+                ]
+              }
             }
-          }
+          },
+          { $project: { _id: 1 } }
         ],
-        as: 'matchedCoursesForUser',
+        as: 'enrolledCoursesFromCourses',
       }
     });
 
-    // Apply course filtering logic using only courses.students as source of truth
+    // Apply course filtering
     if (courseId) {
       if (isNoneFilter) {
-        // users not enrolled in any course (matchedCoursesForUser empty)
+        // Users with NO courses assigned anywhere
         pipeline.push({
           $match: {
-            $expr: { $eq: [{ $size: { $ifNull: ['$matchedCoursesForUser', []] } }, 0] }
+            $and: [
+              { $expr: { $eq: [{ $size: { $ifNull: ['$enrolledCoursesFromCourses', []] } }, 0] } },
+              {
+                $or: [
+                  { assignedCoursesEdit: { $exists: false } },
+                  { assignedCoursesEdit: { $eq: [] } },
+                  { $expr: { $eq: [{ $size: { $ifNull: ['$assignedCoursesEdit', []] } }, 0] } }
+                ]
+              }
+            ]
           }
         });
       } else if (courseObjId) {
-        // users that are present in matchedCoursesForUser
+        // Users enrolled in specific course (either in Course.students OR User.assignedCoursesEdit)
         pipeline.push({
-          $match: { $expr: { $gt: [{ $size: { $ifNull: ['$matchedCoursesForUser', []] } }, 0] } }
+          $match: {
+            $or: [
+              { $expr: { $gt: [{ $size: { $ifNull: ['$enrolledCoursesFromCourses', []] } }, 0] } },
+              { 'assignedCoursesEdit.courseId': courseObjId }
+            ]
+          }
         });
       }
     }
@@ -245,17 +270,69 @@ class UserRepository {
     // Continue building pipeline for page results
     pipeline.push({ $sort: sortObj }, { $skip: skip }, { $limit: limit });
 
+    // Enrich users with their enrolled courses for frontend display
+    pipeline.push({
+      $lookup: {
+        from: 'courses',
+        let: { userId: '$_id', assignedCoursesEdit: { $ifNull: ['$assignedCoursesEdit', []] } },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  {
+                    $gt: [
+                      {
+                        $size: {
+                          $filter: {
+                            input: { $ifNull: ['$students', []] },
+                            as: 'student',
+                            cond: { $eq: ['$$student.userId', '$$userId'] }
+                          }
+                        }
+                      },
+                      0
+                    ]
+                  },
+                  {
+                    $in: ['$_id', { $map: { input: '$$assignedCoursesEdit', as: 'ac', in: '$$ac.courseId' } }]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              title: '$name',
+              imageUrl: 1,
+              status: 1
+            }
+          }
+        ],
+        as: 'enrolledCourses',
+      }
+    });
+
     // Project out internal lookup fields and sensitive data
     pipeline.push({
       $project: {
         password: 0,
         resetPasswordToken: 0,
-        matchedCoursesForUser: 0,
-        assignedCourses: 0,
+        enrolledCoursesFromCourses: 0,
       },
     });
 
     const usersAgg = await this.model.aggregate(pipeline).exec();
+
+    // Debug logging
+    if (courseId) {
+      logger.debug(`getUsersPaginated with courseId filter: ${courseId}, found ${total} total users, returned ${usersAgg.length} users on page ${page}`);
+      if (usersAgg.length > 0) {
+        logger.debug(`First user sample: ${JSON.stringify({ email: usersAgg[0].email, enrolledCourses: usersAgg[0].enrolledCourses?.length || 0 })}`);
+      }
+    }
 
     return {
       data: (usersAgg as unknown) as IUser[],
@@ -496,10 +573,7 @@ class UserRepository {
       throw new Error('El courseId proporcionado no es válido.');
     }
 
-    // Consultar la colección courses para verificar si el usuario está en el array students
-    const CourseModel = this.connection.model('Course', CourseSchema, 'courses');
-
-    const res = await CourseModel.aggregate([
+    const res = await this.courseModel.aggregate([
       { $match: { _id: new Types.ObjectId(courseId) } },
       { $project: { students: 1 } },
       { $unwind: { path: '$students', preserveNullAndEmptyArrays: false } },
@@ -1095,27 +1169,23 @@ class UserRepository {
       throw new Error('El courseId proporcionado no es válido.');
     }
 
-    // Verificar si el usuario tiene el curso en assignedCourses o assignedCoursesEdit
-    const user = await this.model.findOne({
-      _id: new Types.ObjectId(userId),
-      $or: [
-        { 'assignedCourses.courseId': new Types.ObjectId(courseId) },
-        { 'assignedCoursesEdit.courseId': new Types.ObjectId(courseId) },
-      ],
-    }).exec() as unknown as IUser | null;
+    // 1. Verificar en el curso (fuente de verdad principal en el sistema actual)
+    const enrollment = await this.courseModel.findOne({
+      _id: new Types.ObjectId(courseId),
+      'students.userId': new Types.ObjectId(userId),
+    }).lean();
 
-    if (user) {
+    if (enrollment) {
       return true;
     }
 
-    // Si no está en assignedCourses, verificar si el curso tiene al estudiante en su array students
-    const Course = generalConnection.model('Course', CourseSchema, 'courses');
-    const course = await Course.findOne({
-      _id: new Types.ObjectId(courseId),
-      students: new Types.ObjectId(userId),
+    // 2. Por compatibilidad, verificar en assignedCoursesEdit del usuario
+    const user = await this.model.findOne({
+      _id: new Types.ObjectId(userId),
+      'assignedCoursesEdit.courseId': new Types.ObjectId(courseId),
     }).lean();
 
-    return !!course;
+    return !!user;
   }
 
   /**

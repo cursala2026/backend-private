@@ -92,6 +92,13 @@ router.delete('/cleanup-chunks/:uploadId', authorize, classController.cleanupChu
 // ========== RUTAS EXISTENTES (SIN CAMBIOS) ==========
 
 /**
+ * @route POST /reorder
+ * @description Reordena las clases de un curso.
+ * @access Private (requiere autorización)
+ */
+router.post('/reorder', authorize, classController.reorder);
+
+/**
  * @route DELETE /:classId/delete
  * @description Elimina una clase por su ID.
  * @access Private (requiere autorización)

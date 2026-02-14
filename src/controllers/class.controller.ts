@@ -1326,4 +1326,21 @@ export default class ClassController {
       return next(error);
     }
   };
+
+  reorder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { reorderData, courseId } = req.body;
+
+      if (!reorderData || !Array.isArray(reorderData) || !courseId) {
+        return res.status(400).json(prepareResponse(400, 'Faltan parámetros: reorderData (array) y courseId.'));
+      }
+
+      await this.classService.reorderClasses(reorderData, courseId);
+
+      return res.json(prepareResponse(200, 'Clases reordenadas exitosamente'));
+    } catch (error) {
+      logger.error(`Error en reorder classes: ${(error as Error).message}`);
+      return next(error);
+    }
+  };
 }

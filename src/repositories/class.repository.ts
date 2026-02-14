@@ -41,7 +41,8 @@ class ClassRepository {
     const courseIdArray = stringToObjectId([classData.courseId.toString()]);
     const courseId = courseIdArray[0];
 
-    const lastClase = await this.model.findOne().sort({ order: -1 }).exec();
+    // Buscar la última clase de ESTE curso para determinar el orden
+    const lastClase = await this.model.findOne({ courseId }).sort({ order: -1 }).exec();
     const nextOrder = lastClase ? (lastClase as unknown as { order: number }).order + 1 : 1;
 
     try {
@@ -146,6 +147,20 @@ class ClassRepository {
       throw new Error('El ID de la clase proporcionado no es válido.');
     }
     const res = await this.model.findByIdAndUpdate(classId, { $set: { status } }, { new: true }).exec();
+    return res as unknown as ClassDoc | null;
+  }
+
+  /**
+   * Actualiza el orden de una clase.
+   * @param classId - ID de la clase.
+   * @param order - Nuevo orden.
+   * @returns La clase actualizada.
+   */
+  async updateOrder(classId: string, order: number): Promise<ClassDoc | null> {
+    if (!Types.ObjectId.isValid(classId)) {
+      throw new Error('El ID de la clase proporcionado no es válido.');
+    }
+    const res = await this.model.findByIdAndUpdate(classId, { $set: { order } }, { new: true }).exec();
     return res as unknown as ClassDoc | null;
   }
 

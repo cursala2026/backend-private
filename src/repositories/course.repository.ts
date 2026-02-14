@@ -12,17 +12,10 @@ class CourseRepository {
       throw new Error('El ID del curso proporcionado no es válido.');
     }
     
-    // WORKAROUND: $match con ObjectId está fallando con Mongoose 9.x + Node 24
-    // Usar aggregate con $addFields para convertir _id a string y hacer match
     const courses = await this.model.aggregate([
       {
-        $addFields: {
-          idString: { $toString: '$_id' }
-        }
-      },
-      {
         $match: {
-          idString: id
+          _id: new Types.ObjectId(id)
         }
       },
       {
@@ -109,7 +102,7 @@ class CourseRepository {
       },
       {
         $project: {
-          idString: 0, // Remover el campo temporal
+          // No temporal fields to remove
         },
       },
     ]).exec();
@@ -122,26 +115,13 @@ class CourseRepository {
   }
 
   async findById(id: string): Promise<ICourse | null> {
-    // WORKAROUND: findById está roto con Mongoose 9.x + Node 24
-    // Buscar en todos los cursos y comparar _id como string
-    const allCourses = await this.model.find({}).exec();
-    const foundCourse = allCourses.find((c: any) => String(c._id) === id);
-    
-    if (foundCourse) {
-      return foundCourse as unknown as ICourse;
-    }
-    
-    return null;
+    if (!id || !Types.ObjectId.isValid(id)) return null;
+    return await this.model.findById(id).exec() as unknown as ICourse | null;
   }
 
   async update(id: string, updateData: Partial<ICourse>, unsetFields?: string[]): Promise<ICourse> {
-    // WORKAROUND: findByIdAndUpdate está roto con Mongoose 9.x + Node 24
-    // Buscar el curso primero
-    const allCourses = await this.model.find({}).exec();
-    const foundCourse = allCourses.find((c: any) => String(c._id) === id);
-    
-    if (!foundCourse) {
-      throw new Error('Course not found.');
+    if (!id || !Types.ObjectId.isValid(id)) {
+      throw new Error('Course ID not valid.');
     }
     
     // Construir operación de actualización
@@ -158,19 +138,14 @@ class CourseRepository {
       });
     }
     
-    // Usar updateOne para evitar validación completa del documento
-    await this.model.updateOne(
-      { _id: (foundCourse as any)._id },
+    const updatedCourse = await this.model.findByIdAndUpdate(
+      id,
       updateOperation,
-      { runValidators: false } // No validar todo el documento, solo los campos actualizados
+      { new: true, runValidators: false }
     ).exec();
     
-    // Obtener el curso actualizado
-    const updatedCourses = await this.model.find({}).exec();
-    const updatedCourse = updatedCourses.find((c: any) => String(c._id) === id);
-    
     if (!updatedCourse) {
-      throw new Error('Course not found after update.');
+      throw new Error('Course not found.');
     }
     
     return updatedCourse as unknown as ICourse;
