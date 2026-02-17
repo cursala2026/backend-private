@@ -1,3 +1,4 @@
+import './dns-fix';
 import Server from './express';
 import setErrorHandlers from './config/errors/error-handler';
 import config from './config';

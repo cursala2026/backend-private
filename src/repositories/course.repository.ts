@@ -100,11 +100,6 @@ class CourseRepository {
           classCount: { $size: '$classes' }
         },
       },
-      {
-        $project: {
-          // No temporal fields to remove
-        },
-      },
     ]).exec();
     
     if (courses.length === 0) {
