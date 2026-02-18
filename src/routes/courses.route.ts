@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authorize } from '@/middlewares/auth.middleware';
-import { requireAdmin, requireAdminOrCourseOwner } from '@/middlewares/adminSecurity.middleware';
+import { requireAdmin, requireAdminOrCourseOwner, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';
 import { courseController } from '@/controllers';
 import { courseRepository } from '@/repositories';
 
@@ -16,8 +16,8 @@ router.get('/teacher/:teacherId', authorize, courseController.findByTeacherId); 
 // 🟡 AUTENTICADO: Rutas de estudiantes (DEBEN IR ANTES DE /:courseId)
 router.get('/me/courses', authorize, courseController.getStudentCourses); // Obtener cursos del estudiante
 
-// 🟡 AUTENTICADO: Listar todos (solo admin)
-router.get('/', authorize, requireAdmin, courseController.findAll); // Todos los cursos (solo admin)
+// 🟡 AUTENTICADO: Listar todos (solo admin y vendedor)
+router.get('/', authorize, requireAdminOrVendedor, courseController.findAll); // Todos los cursos (solo admin/vendedor)
 
 // 🟠 Administración: listado de categorías para selects (debe ir antes de /:courseId)
 router.get('/categories', authorize, requireAdmin, courseController.getCategoriesForSelect);
