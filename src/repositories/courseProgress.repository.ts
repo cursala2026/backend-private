@@ -795,6 +795,18 @@ class CourseProgressRepository {
       { $set: { overallProgress } }
     );
   }
+
+  /**
+   * Eliminar todo el progreso de un usuario (cuando se elimina el usuario)
+   * @param userId - ID del usuario
+   * @returns Número de documentos eliminados
+   */
+  async deleteAllByUserId(userId: string): Promise<number> {
+    const result = await CourseProgressModel.deleteMany({
+      userId: new Types.ObjectId(userId),
+    });
+    return result.deletedCount;
+  }
 }
 
 export const courseProgressRepository = new CourseProgressRepository();

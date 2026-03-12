@@ -838,6 +838,25 @@ class CourseRepository {
 
     return duplicatedCourse;
   }
+
+  /**
+   * Elimina a un estudiante de todos los cursos en los que esté inscrito.
+   * Se utiliza cuando un estudiante elimina su cuenta.
+   * @param studentId - ID del estudiante
+   * @returns Resultado de la operación de actualización masiva
+   */
+  async unenrollFromAllCourses(studentId: string): Promise<any> {
+    if (!Types.ObjectId.isValid(studentId)) {
+      throw new Error('El ID del estudiante proporcionado no es válido.');
+    }
+
+    return await this.model.updateMany(
+      {},
+      {
+        $pull: { students: { userId: new Types.ObjectId(studentId) } },
+      }
+    ).exec();
+  }
 }
 
 export default CourseRepository;

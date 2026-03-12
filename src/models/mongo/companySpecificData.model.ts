@@ -5,6 +5,7 @@ export interface ICompanySpecificData extends Document {
   _id: Types.ObjectId;
   privacyPolicy: string;
   termsOfService: string;
+  certificateLogos: string[];
 }
 
 const DEFAULT_PRIVACY_POLICY = 'Esta es la política de privacidad por defecto.';
@@ -22,6 +23,14 @@ export const CompanySpecificDataSchema: Schema<ICompanySpecificData> = new Schem
       type: String,
       default: DEFAULT_TERMS_OF_SERVICE,
       trim: true,
+    },
+    certificateLogos: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (v: string[]) => v.length <= 6,
+        message: 'El certificado puede contener un máximo de 6 logos',
+      },
     },
   },
   {

@@ -61,5 +61,7 @@ router.patch('/:userId/toggle-status', authorize, requireAdmin, userController.t
 // DELETE routes
 // 🔴 CRÍTICO: Eliminar usuario requiere verificación de email
 router.delete('/deleteUser/:userId', authorize, requireAdmin, userController.deleteUser);
+// Permite que un usuario elimine su propio perfil
+router.delete('/delete-self', authorize, userController.deleteSelfProfile);
 
 export default router;

@@ -148,6 +148,20 @@ class CertificateRepository {
     const result = await this.model.deleteMany(filter).exec();
     return { deletedCount: result.deletedCount || 0 };
   }
+
+  /**
+   * Deletes all certificates for a specific student.
+   * This is used when a student deletes their account.
+   * @param studentId - The student's ID.
+   * @returns A promise that resolves to the delete result.
+   */
+  async deleteAllByStudent(studentId: string): Promise<{ deletedCount: number }> {
+    const filter = {
+      studentId: studentId,
+    } as unknown as import('mongoose').QueryFilter<ICertificate>;
+    const result = await this.model.deleteMany(filter).exec();
+    return { deletedCount: result.deletedCount || 0 };
+  }
 }
 
 export default CertificateRepository;

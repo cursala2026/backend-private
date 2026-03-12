@@ -29,7 +29,9 @@ WORKDIR /app
 # Copy only package metadata and install production deps
 COPY package*.json ./
 COPY package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts && \
+    # sharp requires its native binary (pre-built for alpine/musl)
+    npm rebuild sharp --ignore-scripts=false
 
 # Copy built assets only
 COPY --from=builder /app/dist ./dist

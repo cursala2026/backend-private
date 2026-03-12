@@ -23,6 +23,7 @@
     "npm": ">=10.0.0"
   },
   "dependencies": {
+    "@types/sharp": "^0.31.1",
     "axios": "1.12.0",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
@@ -50,6 +51,7 @@
     "pdfkit": "^0.17.2",
     "puppeteer": "^24.32.0",
     "qrcode": "^1.5.4",
+    "sharp": "^0.34.5",
     "svg-to-pdfkit": "^0.1.8",
     "uuid": "^13.0.0",
     "winston": "3.8.2"
@@ -89,9 +91,9 @@
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.6",
     "ts-node": "10.9.1",
-    "tsx": "^3.12.7",
     "tsc-alias": "^1.8.8",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^3.12.7",
     "typescript": "^5.9.3"
   },
   "lint-staged": {

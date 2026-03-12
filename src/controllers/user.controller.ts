@@ -258,13 +258,55 @@ export default class UserController {
         }
       }
 
-      return res.json(prepareResponse(200, 'Usuario eliminado exitosamente', resp));
-    } catch (error) {
-      return next(error);
-    }
-  };
+    return res.json(prepareResponse(200, 'Usuario eliminado exitosamente', resp));
+  } catch (error) {
+    return next(error);
+  }
+};
 
-  getUserById = async (req: Request, res: Response, next: NextFunction) => {
+deleteSelfProfile = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = req.user as IUser; // Extraído por authorize middleware
+
+    if (!user) {
+      return res.status(401).json(prepareResponse(401, 'No autorizado'));
+    }
+
+    const userId = user._id.toString();
+
+    // Eliminar usuario de la base de datos
+    const resp = await this.userService.deleteUser(userId);
+
+    // Solo si se eliminó correctamente de BD, eliminar archivos de Bunny
+    if (resp) {
+      // Eliminar foto de perfil si existe
+      if (user.profilePhotoUrl && user.profilePhotoUrl.includes('b-cdn.net')) {
+        try {
+          await this.bunnyService.deleteFile(user.profilePhotoUrl);
+          logger.info(`✅ Foto de perfil eliminada de Bunny (auto-eliminación): ${user.profilePhotoUrl}`);
+        } catch (error) {
+          logger.error(`❌ Error al eliminar foto de perfil de Bunny (auto-eliminación): ${(error as Error).message}`);
+        }
+      }
+
+      // Eliminar firma profesional si existe
+      if (user.professionalSignatureUrl && user.professionalSignatureUrl.includes('b-cdn.net')) {
+        try {
+          await this.bunnyService.deleteFile(user.professionalSignatureUrl);
+          logger.info(`✅ Firma profesional eliminada de Bunny (auto-eliminación): ${user.professionalSignatureUrl}`);
+        } catch (error) {
+          logger.error(`❌ Error al eliminar firma de Bunny (auto-eliminación): ${(error as Error).message}`);
+        }
+      }
+    }
+
+    return res.json(prepareResponse(200, 'Tu cuenta ha sido eliminada exitosamente', resp));
+  } catch (error) {
+    return next(error);
+  }
+};
+
+getUserById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userId } = req.params;
 

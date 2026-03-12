@@ -305,6 +305,25 @@ class QuestionnaireSubmissionRepository {
     return result.deletedCount || 0;
   }
 
+  /**
+   * Elimina todas las submissions de un estudiante
+   * @param studentId - ID del estudiante
+   * @returns Número de submissions eliminadas
+   */
+  async deleteAllByStudent(studentId: string): Promise<number> {
+    if (!Types.ObjectId.isValid(studentId)) {
+      throw new Error('El ID del estudiante no es válido.');
+    }
+
+    const result = await this.model
+      .deleteMany({
+        studentId: new Types.ObjectId(studentId),
+      } as any)
+      .exec();
+
+    return result.deletedCount || 0;
+  }
+
 }
 
 export default QuestionnaireSubmissionRepository;

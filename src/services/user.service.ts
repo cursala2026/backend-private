@@ -13,6 +13,9 @@ import UserRepository from '@/repositories/user.repository';
 import CourseRepository from '@/repositories/course.repository';
 import CertificateRepository from '@/repositories/certificate.repository';
 import logger from '@/utils/logger';
+import { courseProgressRepository } from '@/repositories/courseProgress.repository';
+import QuestionnaireSubmissionRepository from '@/repositories/questionnaireSubmission.repository';
+import generalConnection from '@/config/databases';
 
 // Directorio remoto (desarrollo) - verificar si está montado
 const remoteStaticDir = path.join(os.homedir(), 'cursala-remote-static');
@@ -24,11 +27,15 @@ const staticBaseDir = isRemoteMounted ? remoteStaticDir : '/app/dist/src/static'
 // User service static directories (logged only when needed)
 
 export default class UserService {
+  private readonly questionnaireSubmissionRepository: QuestionnaireSubmissionRepository;
+
   constructor(
     private readonly userRepository: UserRepository,
     private readonly courseRepository: CourseRepository,
     private readonly certificateRepository: CertificateRepository
-  ) { }
+  ) { 
+    this.questionnaireSubmissionRepository = new QuestionnaireSubmissionRepository(generalConnection);
+  }
 
   async addCountriesToUser(userId: string, newCountries: string[] | []) {
     return this.userRepository.addCountriesToUser(userId, newCountries);
@@ -226,6 +233,35 @@ export default class UserService {
   }
 
   async deleteUser(userId: string) {
+    // 1. Eliminar al usuario de las listas de alumnos de todos los cursos
+    try {
+      await this.courseRepository.unenrollFromAllCourses(userId);
+    } catch (error) {
+      logger.error(`Error al desinscribir usuario ${userId} de todos los cursos:`, error);
+    }
+
+    // 2. Eliminar todo el progreso de cursos
+    try {
+      await courseProgressRepository.deleteAllByUserId(userId);
+    } catch (error) {
+      logger.error(`Error al eliminar progreso de usuario ${userId}:`, error);
+    }
+
+    // 3. Eliminar todos los envíos de cuestionarios
+    try {
+      await this.questionnaireSubmissionRepository.deleteAllByStudent(userId);
+    } catch (error) {
+      logger.error(`Error al eliminar envíos de cuestionarios del usuario ${userId}:`, error);
+    }
+
+    // 4. Eliminar todos los certificados del usuario
+    try {
+      await this.certificateRepository.deleteAllByStudent(userId);
+    } catch (error) {
+      logger.error(`Error al eliminar certificados del usuario ${userId}:`, error);
+    }
+
+    // 5. Finalmente, eliminar el registro del usuario
     return this.userRepository.deleteUser(userId);
   }
 

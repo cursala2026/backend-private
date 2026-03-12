@@ -8,6 +8,7 @@ import UserRepository from '@/repositories/user.repository';
 import CourseRepository from '@/repositories/course.repository';
 import CertificateRepository from '@/repositories/certificate.repository';
 import { generateCertificatePDF } from './certificate-pdf.service';
+import { companySpecificDataRepository } from '@/repositories';
 
 export default class CertificateService {
   constructor(
@@ -118,7 +119,17 @@ export default class CertificateService {
    */
   private async generateCertificatePDFInternal(certificateData: any): Promise<Buffer> {
     logger.info('Generando certificado PDF');
-    return generateCertificatePDF(certificateData);
+    // Obtener logos institucionales globales
+    let partnerLogos: string[] = [];
+    try {
+      const companyDocs = await companySpecificDataRepository.getAll();
+      if (companyDocs.length > 0) {
+        partnerLogos = companyDocs[0].certificateLogos || [];
+      }
+    } catch {
+      // No crítico: si falla la carga de logos, se genera el PDF sin ellos
+    }
+    return generateCertificatePDF({ ...certificateData, partnerLogos });
   }
 
   /**
@@ -139,24 +150,28 @@ export default class CertificateService {
       throw new Error('Curso no encontrado');
     }
 
-    // Obtener el teacherId del curso (primer profesor del array)
+    // Obtener información de los profesores del curso (hasta 3)
     const courseSafe = course as unknown as { teachers?: any[]; endDate?: Date; location?: string };
-    const teacherId = courseSafe.teachers && courseSafe.teachers.length > 0 ? courseSafe.teachers[0].toString() : null;
+    const teacherIds = (courseSafe.teachers || []).slice(0, 3).map(id => id.toString());
     
-    if (!teacherId) {
-      throw new Error('El curso no tiene profesor asignado');
+    if (teacherIds.length === 0) {
+      throw new Error('El curso no tiene profesores asignados');
     }
 
-    // Obtener información del profesor
-    const teacher = await this.userRepository.getUserById(teacherId);
+    // Obtener información de todos los profesores
+    const teachers = await Promise.all(teacherIds.map(id => this.userRepository.getUserById(id)));
 
-    if (!teacher) {
-      throw new Error('Profesor no encontrado');
+    if (teachers.some(t => !t)) {
+      throw new Error('Al menos uno de los profesores del curso no fue encontrado');
     }
+
+    // Usar el primer profesor como profesor principal para el registro del certificado (compatibilidad)
+    const teacherId = teacherIds[0];
+    const teacher = teachers[0];
 
     // Normalizear shapes locales para evitar `as any` repetidos
     const studentSafe = student as unknown as { dni?: string; company?: string; companyName?: string; firstName?: string; lastName?: string; email?: string };
-    const courseTyped = course as unknown as { endDate?: Date; location?: string; duration?: number; startDate?: Date };
+    const courseTyped = course as unknown as { endDate?: Date; location?: string; duration?: number; startDate?: Date; name?: string; description?: string };
     const teacherSafe = teacher as unknown as { profilePhotoUrl?: string; professionalSignatureUrl?: string; professionalDescription?: string; firstName?: string; lastName?: string; email?: string; _id?: unknown };
 
     // Verificar que el estudiante esté inscrito en el curso
@@ -224,13 +239,13 @@ export default class CertificateService {
         location: courseSafe.location || '',
         dates: this.buildDatesString(course.startDate, courseSafe.endDate || new Date()),
       },
-      teacher: {
-        firstName: teacher.firstName,
-        lastName: teacher.lastName,
-        email: teacher.email,
-        professionalDescription: teacher.professionalDescription,
-        professionalSignatureUrl: teacherSafe.professionalSignatureUrl,
-      },
+      teachers: (teachers as any[]).map(t => ({
+        firstName: t.firstName,
+        lastName: t.lastName,
+        email: t.email,
+        professionalDescription: t.professionalDescription,
+        professionalSignatureUrl: t.professionalSignatureUrl,
+      })),
     };
 
     // Generar PDF usando la configuración establecida
@@ -298,7 +313,7 @@ export default class CertificateService {
                           <h4 style="margin:0 0 12px 0;font-size:16px;color:#24313d;font-weight:700;">Detalles del Certificado</h4>
                           <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Estudiante:</strong> ${certificateData.student.firstName} ${certificateData.student.lastName}</p>
                           <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Curso:</strong> ${certificateData.course.name}</p>
-                          <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Profesor:</strong> ${certificateData.teacher.firstName} ${certificateData.teacher.lastName}</p>
+                          <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Profesor:</strong> ${certificateData.teachers && certificateData.teachers.length > 0 ? `${certificateData.teachers[0].firstName} ${certificateData.teachers[0].lastName}` : 'N/A'}</p>
                           <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Fecha de generación:</strong> ${new Date(certificateData.generatedAt).toLocaleDateString('es-ES')}</p>
                           <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Certificado N°:</strong> ${certificateData.certificateId}</p>
                         </td>
@@ -393,19 +408,47 @@ export default class CertificateService {
         return { isValid: false, message: 'Certificado no encontrado' };
       }
 
-      // Obtener datos completos del estudiante, curso y profesor
-      const [student, course, teacher] = await Promise.all([
+      // Obtener datos completos del estudiante y curso
+      const [student, course] = await Promise.all([
         this.userRepository.getUserById(certificate.studentId.toString()),
         this.courseRepository.findById(certificate.courseId.toString()),
-        certificate.teacherId ? this.userRepository.getUserById(certificate.teacherId.toString()) : Promise.resolve(null),
       ]);
 
       if (!student || !course) {
         return { isValid: false, message: 'Datos del certificado incompletos' };
       }
 
+      // Obtener todos los profesores del curso (igual que al generar PDF)
+      const courseSafe = course as unknown as { teachers?: any[]; duration?: number; endDate?: Date };
+      const teacherIds: string[] = (courseSafe.teachers || []).slice(0, 3).map((id: any) => id.toString());
+      // Si el curso no tiene array de profesores, usar el teacherId del certificado como fallback
+      if (teacherIds.length === 0 && certificate.teacherId) {
+        teacherIds.push(certificate.teacherId.toString());
+      }
+      const teacherDocs = await Promise.all(teacherIds.map(id => this.userRepository.getUserById(id)));
+      const teachers = teacherDocs
+        .filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined)
+        .map(t => ({
+          _id: t._id.toString(),
+          firstName: t.firstName,
+          lastName: t.lastName,
+          professionalSignatureUrl: (t as unknown as { professionalSignatureUrl?: string }).professionalSignatureUrl,
+        }));
+
+      // Obtener logos institucionales globales
+      let certificateLogos: string[] = [];
+      try {
+        const companyDocs = await companySpecificDataRepository.getAll();
+        if (companyDocs.length > 0) {
+          certificateLogos = companyDocs[0].certificateLogos || [];
+        }
+      } catch {
+        // no crítico
+      }
+
       return {
         isValid: true,
+        certificateLogos,
         student: {
           _id: student._id.toString(),
           firstName: student.firstName,
@@ -419,17 +462,10 @@ export default class CertificateService {
           name: course.name,
           description: course.description,
           startDate: course.startDate,
-          endDate: (course as unknown as { endDate?: Date }).endDate || new Date(),
-          duration: (course as unknown as { duration?: number }).duration || null,
+          endDate: courseSafe.endDate || new Date(),
+          duration: courseSafe.duration || null,
         },
-        teacher: teacher ? {
-          _id: teacher._id.toString(),
-          firstName: teacher.firstName,
-          lastName: teacher.lastName,
-          email: teacher.email,
-          professionalDescription: teacher.professionalDescription,
-          professionalSignatureUrl: (teacher as unknown as { professionalSignatureUrl?: string }).professionalSignatureUrl,
-        } : null,
+        teachers,
         certificateInfo: {
           generatedAt: certificate.generatedAt,
           generatedBy: certificate.generatedBy,
@@ -508,19 +544,23 @@ export default class CertificateService {
     }
 
     // Obtener datos completos para generar PDF
-    const [student, course, teacher] = await Promise.all([
+    const [student, course] = await Promise.all([
       this.userRepository.getUserById(existingCertificate.studentId.toString()),
       this.courseRepository.findById(existingCertificate.courseId.toString()),
-      this.userRepository.getUserById(existingCertificate.teacherId.toString()),
     ]);
 
-    if (!student || !course || !teacher) {
+    if (!student || !course) {
       throw new Error('Datos del certificado incompletos');
     }
 
     const studentSafe = student as unknown as { dni?: string; company?: string; companyName?: string; firstName?: string; lastName?: string; email?: string };
-    const courseSafe = course as unknown as { endDate?: Date; location?: string; duration?: number; startDate?: Date };
-    const teacherSafe = teacher as unknown as { profilePhotoUrl?: string; professionalSignatureUrl?: string; professionalDescription?: string; firstName?: string; lastName?: string; email?: string; _id?: unknown };
+    const courseSafe = course as unknown as { endDate?: Date; location?: string; duration?: number; startDate?: Date; teachers?: any[] };
+
+    // Cargar todos los profesores del curso (hasta 3)
+    const teacherIds = (courseSafe.teachers || []).slice(0, 3).map((id: any) => id.toString());
+    const teachersData = teacherIds.length > 0
+      ? await Promise.all(teacherIds.map((id: string) => this.userRepository.getUserById(id)))
+      : [];
 
     // Preparar datos para el PDF
     const certificateForPdf = {
@@ -542,13 +582,13 @@ export default class CertificateService {
         location: courseSafe.location || '',
         dates: this.buildDatesString(course.startDate, courseSafe.endDate || new Date()),
       },
-      teacher: {
-        firstName: teacher.firstName,
-        lastName: teacher.lastName,
-        email: teacher.email,
-        professionalDescription: teacher.professionalDescription,
-        professionalSignatureUrl: teacherSafe.professionalSignatureUrl,
-      },
+      teachers: teachersData.filter(Boolean).map((t: any) => ({
+        firstName: t.firstName,
+        lastName: t.lastName,
+        email: t.email,
+        professionalDescription: t.professionalDescription,
+        professionalSignatureUrl: t.professionalSignatureUrl,
+      })),
     };
 
     // Generar nuevo PDF
@@ -602,7 +642,7 @@ export default class CertificateService {
       throw new Error('Certificado no válido o expirado');
     }
 
-    const { student, course, teacher, certificateInfo } = validationResult;
+    const { student, course, certificateInfo } = validationResult;
 
     if (!student || !course) {
       throw new Error('Datos del certificado incompletos');
@@ -610,7 +650,14 @@ export default class CertificateService {
 
     const studentSafe = student as unknown as { dni?: string; company?: string; companyName?: string };
     const courseSafe = course as unknown as { location?: string; endDate?: Date };
-    const teacherSafe = teacher as unknown as { professionalSignatureUrl?: string };
+
+    // Cargar todos los profesores del curso (hasta 3)
+    const fullCourse = await this.courseRepository.findById(course._id);
+    const fullCourseSafe = fullCourse as unknown as { teachers?: any[] };
+    const teacherIds = (fullCourseSafe?.teachers || []).slice(0, 3).map((id: any) => id.toString());
+    const teachersData = teacherIds.length > 0
+      ? await Promise.all(teacherIds.map((id: string) => this.userRepository.getUserById(id)))
+      : [];
 
     const certificateForPdf = {
       certificateId: certificateInfo.certificateId,
@@ -631,13 +678,13 @@ export default class CertificateService {
         location: courseSafe.location || '',
         dates: this.buildDatesString(course.startDate, courseSafe.endDate || new Date()),
       },
-      teacher: teacher ? {
-        firstName: teacher.firstName,
-        lastName: teacher.lastName,
-        email: teacher.email,
-        professionalDescription: teacher.professionalDescription,
-        professionalSignatureUrl: teacherSafe.professionalSignatureUrl,
-      } : null,
+      teachers: teachersData.filter(Boolean).map((t: any) => ({
+        firstName: t.firstName,
+        lastName: t.lastName,
+        email: t.email,
+        professionalDescription: t.professionalDescription,
+        professionalSignatureUrl: t.professionalSignatureUrl,
+      })),
     };
 
     // Generar el PDF

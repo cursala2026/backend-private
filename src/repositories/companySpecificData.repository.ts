@@ -25,7 +25,7 @@ class CompanySpecificDataRepository {
    */
   async updateCompanySpecificData(
     id: string,
-    updateData: Partial<Pick<ICompanySpecificData, 'privacyPolicy'>>
+    updateData: Partial<Pick<ICompanySpecificData, 'privacyPolicy' | 'termsOfService' | 'certificateLogos'>>
   ): Promise<ICompanySpecificData | null> {
     if (!Types.ObjectId.isValid(id)) {
       throw new Error('El ID proporcionado no es válido.');
