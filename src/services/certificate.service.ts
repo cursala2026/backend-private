@@ -115,6 +115,35 @@ export default class CertificateService {
   }
 
   /**
+   * Email del director de Cursala. Su firma siempre se incluye en todos los certificados.
+   */
+  private static readonly DIRECTOR_EMAIL = 'luchovarelator@gmail.com';
+
+  /**
+   * Agrega la firma del director de Cursala al final del array de profesores.
+   * Si no se encuentra el usuario, se omite silenciosamente.
+   */
+  private async appendDirectorSignature(teachers: any[]): Promise<any[]> {
+    try {
+      const director = await this.userRepository.findOneByEmail(CertificateService.DIRECTOR_EMAIL);
+      if (director) {
+        const directorSafe = director as unknown as { professionalSignatureUrl?: string };
+        teachers.push({
+          firstName: director.firstName,
+          lastName: director.lastName,
+          email: director.email,
+          professionalDescription: director.professionalDescription,
+          professionalSignatureUrl: directorSafe.professionalSignatureUrl,
+          role: 'director',
+        });
+      }
+    } catch {
+      // No crítico: si falla la carga del director, se genera el PDF sin su firma
+    }
+    return teachers;
+  }
+
+  /**
    * Genera un PDF del certificado usando el servicio de PDF dedicado
    */
   private async generateCertificatePDFInternal(certificateData: any): Promise<Buffer> {
@@ -239,13 +268,13 @@ export default class CertificateService {
         location: courseSafe.location || '',
         dates: this.buildDatesString(course.startDate, courseSafe.endDate || new Date()),
       },
-      teachers: (teachers as any[]).map(t => ({
+      teachers: await this.appendDirectorSignature((teachers as any[]).map(t => ({
         firstName: t.firstName,
         lastName: t.lastName,
         email: t.email,
         professionalDescription: t.professionalDescription,
         professionalSignatureUrl: t.professionalSignatureUrl,
-      })),
+      }))),
     };
 
     // Generar PDF usando la configuración establecida
@@ -313,7 +342,7 @@ export default class CertificateService {
                           <h4 style="margin:0 0 12px 0;font-size:16px;color:#24313d;font-weight:700;">Detalles del Certificado</h4>
                           <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Estudiante:</strong> ${certificateData.student.firstName} ${certificateData.student.lastName}</p>
                           <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Curso:</strong> ${certificateData.course.name}</p>
-                          <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Profesor:</strong> ${certificateData.teachers && certificateData.teachers.length > 0 ? `${certificateData.teachers[0].firstName} ${certificateData.teachers[0].lastName}` : 'N/A'}</p>
+                          <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>${certificateData.teachers && certificateData.teachers.length > 1 ? 'Instructores' : 'Instructor'}:</strong> ${certificateData.teachers && certificateData.teachers.length > 0 ? certificateData.teachers.map((t: any) => `${t.firstName} ${t.lastName}`).join(', ') : 'N/A'}</p>
                           <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Fecha de generación:</strong> ${new Date(certificateData.generatedAt).toLocaleDateString('es-ES')}</p>
                           <p style="margin:4px 0;font-size:14px;color:#24313d;"><strong>Certificado N°:</strong> ${certificateData.certificateId}</p>
                         </td>
@@ -426,14 +455,18 @@ export default class CertificateService {
         teacherIds.push(certificate.teacherId.toString());
       }
       const teacherDocs = await Promise.all(teacherIds.map(id => this.userRepository.getUserById(id)));
-      const teachers = teacherDocs
+      const teachersMapped = teacherDocs
         .filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined)
         .map(t => ({
           _id: t._id.toString(),
           firstName: t.firstName,
           lastName: t.lastName,
           professionalSignatureUrl: (t as unknown as { professionalSignatureUrl?: string }).professionalSignatureUrl,
+          role: 'instructor',
         }));
+
+      // Agregar siempre la firma del director
+      const teachers = await this.appendDirectorSignature(teachersMapped);
 
       // Obtener logos institucionales globales
       let certificateLogos: string[] = [];
@@ -582,13 +615,13 @@ export default class CertificateService {
         location: courseSafe.location || '',
         dates: this.buildDatesString(course.startDate, courseSafe.endDate || new Date()),
       },
-      teachers: teachersData.filter(Boolean).map((t: any) => ({
+      teachers: await this.appendDirectorSignature(teachersData.filter(Boolean).map((t: any) => ({
         firstName: t.firstName,
         lastName: t.lastName,
         email: t.email,
         professionalDescription: t.professionalDescription,
         professionalSignatureUrl: t.professionalSignatureUrl,
-      })),
+      }))),
     };
 
     // Generar nuevo PDF
@@ -678,13 +711,13 @@ export default class CertificateService {
         location: courseSafe.location || '',
         dates: this.buildDatesString(course.startDate, courseSafe.endDate || new Date()),
       },
-      teachers: teachersData.filter(Boolean).map((t: any) => ({
+      teachers: await this.appendDirectorSignature(teachersData.filter(Boolean).map((t: any) => ({
         firstName: t.firstName,
         lastName: t.lastName,
         email: t.email,
         professionalDescription: t.professionalDescription,
         professionalSignatureUrl: t.professionalSignatureUrl,
-      })),
+      }))),
     };
 
     // Generar el PDF

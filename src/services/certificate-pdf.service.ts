@@ -54,6 +54,7 @@ export interface CertificatePdfData {
         firstName?: string;
         lastName?: string;
         professionalSignatureUrl?: string;
+        role?: string;
     }[];
     verificationCode?: string;
     partnerLogos?: string[];
@@ -348,7 +349,7 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
                     doc.fillColor('#4a5560')
                        .font('Helvetica')
                        .fontSize(6)
-                       .text('INSTRUCTOR DE CURSALA', sigX - 60, sigY + 17, {
+                       .text(teacher.role === 'director' ? 'DIRECTOR DE CURSALA' : 'INSTRUCTOR DE CURSALA', sigX - 60, sigY + 17, {
                            align: 'center',
                            width: 120,
                        });
