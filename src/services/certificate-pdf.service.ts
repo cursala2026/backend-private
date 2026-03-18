@@ -399,14 +399,14 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
             // Área segura: X de 175 (evita gráfico Cursala izquierdo) a qrX-25 (evita borde QR y margen derecho)
             const validLogoBuffers = partnerLogoBuffers.filter((b): b is Buffer => b !== null && b.length > 0);
             if (validLogoBuffers.length > 0) {
-                const logoAreaY = 482; // Subir un poco para dar espacio al mayor alto
-                const logoHeight = 45; // Aumentado de 30 a 45
-                const logoPad = 15; // Un poco más de espacio entre ellos
-                const logoLeftBound = 160; // Un poco más a la izquierda
+                // Ajustar posición para que no toque el footer pero esté centrado
+                const logoAreaY = 495; 
+                const logoHeight = 40; // Reducido de 45 a 40 para evitar colisión
+                const logoPad = 15; 
+                const logoLeftBound = 160; 
                 const logoRightBound = pageWidth - 40;
                 const safeWidth = logoRightBound - logoLeftBound;
 
-                // Aumentar maxLogoWidth de 70 a 90
                 const maxLogoWidth = Math.min(90, Math.floor((safeWidth - (validLogoBuffers.length - 1) * logoPad) / validLogoBuffers.length));
                 const totalWidth = validLogoBuffers.length * maxLogoWidth + (validLogoBuffers.length - 1) * logoPad;
                 // Centrar dentro del área segura
