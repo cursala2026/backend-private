@@ -90,16 +90,20 @@ class BunnyService {
 
   /**
    * Sube un archivo a Bunny Storage preservando el nombre original (sanitizado).
-   * Si ya existe un archivo con ese nombre en el storage, intentará agregar un sufijo incrementado.
+   * Genera un nombre único añadiendo un timestamp para evitar problemas de caché del CDN.
    */
   async uploadFilePreserveOriginal(buffer: Buffer, originalName: string, folder: string = 'profile-images'): Promise<string> {
     try {
-      // Sanitizar y normalizar el nombre original (preservando letras acentuadas)
-      const sanitized = this.sanitizeFileName(originalName);
+      const ext = path.extname(originalName);
+      const baseName = path.basename(originalName, ext);
+      const timestamp = Date.now();
+      
+      // Sanitizar y normalizar el nombre original añadiendo timestamp para unicidad y bypass de caché
+      const sanitized = this.sanitizeFileName(`${baseName}_${timestamp}${ext}`);
       const filePath = `/${folder}/${sanitized}`;
       const uploadUrl = `${this.baseUrl}${filePath}`;
 
-      logger.info(`🚀 Uploading to Bunny (preserve original name): ${uploadUrl}`);
+      logger.info(`🚀 Uploading to Bunny (unique name): ${uploadUrl}`);
 
       const response = await axios.put(uploadUrl, buffer, {
         headers: {
@@ -112,7 +116,7 @@ class BunnyService {
 
       if (response.status === 201 || response.status === 200) {
         const cdnUrl = `${this.cdnHostname}${filePath}`;
-        logger.info(`✅ File uploaded successfully to Bunny: ${cdnUrl}`);
+        logger.info(`✅ File uploaded successfully to Bunny (unique): ${cdnUrl}`);
         return cdnUrl;
       }
 
