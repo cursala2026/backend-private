@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { courseProgressService } from '@/services/courseProgress.service';
 import { IUser } from '@/models';
+import { ManualUpdateProgressParams } from '@/models/params.model';
 
 class CourseProgressController {
   /**
@@ -11,14 +12,26 @@ class CourseProgressController {
     try {
       const user = req.user as IUser;
       const { courseId } = req.params;
+      const { userId: queryUserId } = req.query;
 
       if (!user?._id) {
         res.status(401).json({ success: false, message: 'No autorizado' });
         return;
       }
 
+      // Si se proporciona un userId en la query y el solicitante es admin/profesor, 
+      // usar ese userId en lugar del del usuario autenticado
+      let targetUserId = user._id.toString();
+      if (queryUserId) {
+        const userRoles: string[] = (user as any).roles || [];
+        const isAdminOrTeacher = userRoles.includes('ADMIN') || userRoles.includes('PROFESOR');
+        if (isAdminOrTeacher) {
+          targetUserId = queryUserId.toString();
+        }
+      }
+
       const progress = await courseProgressService.getProgress(
-        user._id.toString(),
+        targetUserId,
         courseId
       );
 
@@ -227,6 +240,46 @@ class CourseProgressController {
       res.status(500).json({
         success: false,
         message: error.message || 'Error al resetear el progreso del estudiante',
+      });
+    }
+  }
+
+  /**
+   * PATCH /progress/manual-update
+   * Actualizar manualmente el progreso de una clase o cuestionario de un alumno
+   */
+  async updateManualProgress(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, courseId, type, itemId, completed, score } = req.body;
+
+      if (!userId || !courseId || !type || !itemId) {
+        res.status(400).json({
+          success: false,
+          message: 'userId, courseId, type e itemId son requeridos',
+        });
+        return;
+      }
+
+      const params: ManualUpdateProgressParams = {
+        userId,
+        courseId,
+        type,
+        itemId,
+        completed: !!completed,
+        score: score !== undefined ? Number(score) : undefined
+      };
+
+      const progress = await courseProgressService.updateManualProgress(params);
+
+      res.json({
+        success: true,
+        message: 'Progreso actualizado manualmente con éxito',
+        data: progress,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al actualizar manualmente el progreso',
       });
     }
   }

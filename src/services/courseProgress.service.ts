@@ -1,5 +1,6 @@
-import { courseProgressRepository, courseRepository, questionnaireRepository, questionnaireSubmissionRepository } from '@/repositories';
+import { courseProgressRepository, courseRepository, questionnaireRepository, questionnaireSubmissionRepository, userRepository } from '@/repositories';
 import { ICourseProgress, IClassProgress } from '@/models/mongo/courseProgress.model';
+import { ManualUpdateProgressParams } from '@/models/params.model';
 
 export interface UpdateProgressDto {
   classId: string;
@@ -235,6 +236,114 @@ class CourseProgressService {
       success: deleted,
       deletedSubmissions
     };
+  }
+
+  /**
+   * Actualizar manualmente el progreso de una clase o cuestionario
+   */
+  async updateManualProgress(params: ManualUpdateProgressParams): Promise<ICourseProgress> {
+    const { userId, courseId, type, itemId, completed, score } = params;
+
+    if (type === 'class') {
+      const totalClasses = await courseProgressRepository.getTotalClasses(courseId);
+      // upsert ya maneja la creación si no existe y el recálculo de overallProgress
+      return courseProgressRepository.upsert(
+        userId,
+        courseId,
+        {
+          classId: itemId,
+          completed: completed,
+        },
+        totalClasses
+      );
+    } else {
+      // Para cuestionarios, usamos updateQuestionnaireProgress
+      // Si completed es false, pasamos score 0
+      const finalScore = completed ? (score ?? 100) : 0;
+      
+      // Si se está desmarcando: limpiar submissions y actualizar progreso
+      if (!completed) {
+         // Eliminar todas las submissions de este alumno para este cuestionario
+         await questionnaireSubmissionRepository.deleteByStudentAndQuestionnaire(userId, itemId);
+
+         // Actualizar progreso manualmente en false
+         const progress = await courseProgressRepository.findByUserAndCourse(userId, courseId);
+         if (progress) {
+           const questionnairesProgress = progress.questionnairesProgress || [];
+           const qpIndex = questionnairesProgress.findIndex(qp => qp.questionnaireId.toString() === itemId);
+           
+           if (qpIndex >= 0) {
+             questionnairesProgress[qpIndex].completed = false;
+             questionnairesProgress[qpIndex].bestScore = 0;
+             
+             const totalClasses = await courseProgressRepository.getTotalClasses(courseId);
+             const activeQuestionnaires = await questionnaireRepository.findByCourseId(courseId);
+             const totalQuestionnairesCount = activeQuestionnaires.filter((q: any) => q.status === 'ACTIVE').length;
+             
+             const completedClassIds = new Set(progress.classesProgress.filter(cp => cp.completed).map(cp => cp.classId.toString()));
+             const completedQuestionnaireIds = new Set(questionnairesProgress.filter(qp => qp.completed).map(qp => qp.questionnaireId.toString()));
+             
+             const totalItems = totalClasses + totalQuestionnairesCount;
+             const completedItems = completedClassIds.size + completedQuestionnaireIds.size;
+             const overallProgress = totalItems > 0 ? Math.min(100, Math.round((completedItems / totalItems) * 100)) : 0;
+             
+             await courseProgressRepository.saveManualUpdate(userId, courseId, {
+               questionnairesProgress,
+               overallProgress
+             });
+             
+             return { ...progress, questionnairesProgress, overallProgress };
+           }
+         }
+      }
+
+      // Si se está marcando como completado: crear una submission GRADED para que el alumno
+      // no pueda volver a responder el cuestionario (la vista del alumno busca submissions GRADED)
+      const existingSubmissions = await questionnaireSubmissionRepository.findByStudentAndQuestionnaire(userId, itemId);
+      const hasGraded = existingSubmissions.some((s: any) => s.status === 'GRADED');
+
+      if (!hasGraded) {
+        // Obtener datos del alumno para denormalizar en la submission
+        const student = await userRepository.findById(userId);
+        const now = new Date();
+        const attemptNumber = await questionnaireSubmissionRepository.getNextAttemptNumber(userId, itemId);
+
+        await questionnaireSubmissionRepository.create({
+          questionnaireId: itemId as any,
+          courseId: courseId as any,
+          studentId: userId as any,
+          studentName: student ? `${student.firstName} ${student.lastName}` : '',
+          studentEmail: student?.email || '',
+          profilePhotoUrl: student?.profilePhotoUrl || '',
+          attemptNumber,
+          answers: [],
+          status: 'GRADED',
+          autoGradedScore: finalScore,
+          finalScore: finalScore,
+          manualGradedScore: finalScore,
+          gradedAt: now,
+          feedback: 'Aprobado manualmente por el profesor',
+          startedAt: now,
+          submittedAt: now,
+        });
+      } else {
+        // Ya existe una submission GRADED; actualizarla con la nueva nota
+        const gradedSub = existingSubmissions.find((s: any) => s.status === 'GRADED') as any;
+        await questionnaireSubmissionRepository.update(gradedSub._id.toString(), {
+          autoGradedScore: finalScore,
+          finalScore: finalScore,
+          manualGradedScore: finalScore,
+          feedback: 'Aprobado manualmente por el profesor',
+        });
+      }
+
+      return courseProgressRepository.updateQuestionnaireProgress(
+        userId,
+        courseId,
+        itemId,
+        finalScore
+      );
+    }
   }
 }
 

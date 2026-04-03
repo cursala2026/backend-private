@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { courseProgressController } from '@/controllers';
 import { authorize } from '@/middlewares/auth.middleware';
+import { requireAdmin } from '@/middlewares/adminSecurity.middleware';
 
 const router = Router();
 
@@ -29,8 +30,13 @@ router.get('/:courseId/can-access/:classId', authorize, (req, res) =>
 );
 
 // DELETE /progress/:courseId/student/:userId - Resetear progreso completo de un estudiante
-router.delete('/:courseId/student/:userId', authorize, (req, res) =>
+router.delete('/:courseId/student/:userId', authorize, requireAdmin, (req, res) =>
   courseProgressController.resetStudentProgress(req, res)
+);
+
+// PATCH /progress/manual-update - Actualizar manual de progreso por parte del profesor
+router.patch('/manual-update', authorize, requireAdmin, (req, res) =>
+  courseProgressController.updateManualProgress(req, res)
 );
 
 export default router;

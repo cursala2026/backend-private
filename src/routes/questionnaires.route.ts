@@ -101,7 +101,7 @@ router.get('/submissions/:submissionId', authorize, (req, res, next) =>
 );
 
 // Reset student attempts (professors/admins)
-router.delete('/:questionnaireId/submissions/student/:studentId', authorize, (req, res, next) =>
+router.delete('/:questionnaireId/submissions/student/:studentId', authorize, requireAdmin, (req, res, next) =>
   questionnaireSubmissionController.resetStudentAttempts(req, res, next)
 );
 

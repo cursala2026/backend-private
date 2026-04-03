@@ -9,3 +9,12 @@ export interface ProvinceId {
 export interface MunicipalityId {
   municipalityId: string;
 }
+
+export interface ManualUpdateProgressParams {
+  userId: string;
+  courseId: string;
+  type: 'class' | 'questionnaire';
+  itemId: string;
+  completed: boolean;
+  score?: number;
+}
