@@ -5,6 +5,12 @@ import { requireAdmin } from '@/middlewares/adminSecurity.middleware';
 
 const router = Router();
 
+// PATCH /progress/manual-update - Actualizar manual de progreso por parte del profesor
+// Debe estar ANTES de las rutas con /:courseId para evitar conflictos
+router.patch('/manual-update', authorize, requireAdmin, (req, res) =>
+  courseProgressController.updateManualProgress(req, res)
+);
+
 // GET /progress - Obtener todos los progresos del usuario
 router.get('/', authorize, (req, res) => courseProgressController.getAllProgress(req, res));
 
@@ -32,11 +38,6 @@ router.get('/:courseId/can-access/:classId', authorize, (req, res) =>
 // DELETE /progress/:courseId/student/:userId - Resetear progreso completo de un estudiante
 router.delete('/:courseId/student/:userId', authorize, requireAdmin, (req, res) =>
   courseProgressController.resetStudentProgress(req, res)
-);
-
-// PATCH /progress/manual-update - Actualizar manual de progreso por parte del profesor
-router.patch('/manual-update', authorize, requireAdmin, (req, res) =>
-  courseProgressController.updateManualProgress(req, res)
 );
 
 export default router;
