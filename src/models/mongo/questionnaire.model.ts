@@ -53,6 +53,7 @@ export interface IQuestionnaire {
   showCorrectAnswers: boolean;
   timeLimitMinutes?: number; // Tiempo límite en minutos para resolver el cuestionario (opcional)
   createdBy: Types.ObjectId; // Reference to User (professor)
+  isSurvey: boolean; 
 }
 
 export interface QuestionnaireModel extends IQuestionnaire {}
@@ -234,6 +235,11 @@ export const QuestionnaireSchema: Schema<QuestionnaireModel> = new Schema<Questi
       required: false,
       min: 1,
       max: 1440, // Máximo 24 horas (1440 minutos)
+    },
+    isSurvey: { 
+      type: Boolean, 
+      required: true,
+      default: false 
     },
     createdBy: {
       type: Schema.Types.ObjectId,
