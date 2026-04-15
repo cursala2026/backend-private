@@ -121,14 +121,15 @@ class QuestionnaireSubmissionService {
     const hasTextQuestions = questionnaire.questions.some((q) => q.type === 'TEXT');
 
     // Calculate if fully graded
-    const status = hasTextQuestions ? 'SUBMITTED' : 'GRADED';
-    const finalScore = hasTextQuestions ? undefined : autoGradedScore;
-
+    // Calculate if fully graded - Si es encuesta, siempre es GRADED con 100%
+    const status = questionnaire.isSurvey ? 'GRADED' : (hasTextQuestions ? 'SUBMITTED' : 'GRADED');
+    const finalScore = questionnaire.isSurvey ? 100 : (hasTextQuestions ? undefined : autoGradedScore);
+    
     // Update submission
     const updated = await this.submissionRepository.update(submissionId, {
       answers: gradedAnswers,
       status,
-      autoGradedScore,
+      autoGradedScore: questionnaire.isSurvey ? 100 : autoGradedScore, // <--- CAMBIO AQUÍ
       finalScore,
       submittedAt: new Date(),
     });

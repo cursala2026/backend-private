@@ -198,7 +198,12 @@ class CourseProgressService {
         
         // Buscar si hay un envío con estado SUBMITTED (pendiente de calificación manual)
         const pendingSubmission = submissions.find(s => s.status === 'SUBMITTED');
-        
+        if (pendingSubmission && !questionnaire.isSurvey) { // <--- CAMBIO AQUÍ
+  return { 
+    canAccess: false, 
+    reason: 'Debes esperar a que el profesor califique el examen antes de continuar' 
+  };
+}
         if (pendingSubmission) {
           return { 
             canAccess: false, 
