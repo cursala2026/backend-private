@@ -135,4 +135,24 @@ test('Surveys: should mark as passed automatically when grading', async () => {
     const result = await (service as any).gradeTextQuestions(mockSubmissionId, [], mockProfessorId, 'Encuesta OK');
     expect(result).toBeDefined();
   });
+// Test del Trabajo 2: Integración de Encuestas
+  describe('Surveys Integration', () => {
+    test('should identify if a course includes a survey component', async () => {
+      const courseWithSurvey = { 
+        id: 'survey-101', 
+        name: 'Curso con Encuesta', 
+        hasSurvey: true,
+        modules: [{ name: 'Feedback', isSurvey: true }]
+      };
+      
+      mockCourseRepository.findOneById.mockResolvedValue(courseWithSurvey);
+
+      const result = await courseService.findOneById('survey-101');
+
+      expect(result).toEqual(courseWithSurvey);
+      expect((result as any).hasSurvey).toBe(true);
+      expect(mockCourseRepository.findOneById).toHaveBeenCalledWith('survey-101');
+    });
+  });
+
 });
