@@ -16,41 +16,47 @@ class QuestionnaireService {
   /**
    * Crear un nuevo cuestionario
    */
+  /**
+   * Crear un nuevo cuestionario
+   */
   async create(data: Partial<IQuestionnaire>, creatorId: string): Promise<QuestionnaireDoc> {
-    // Validate questions structure
+    // 1. Validaciones iniciales
     if (!data.questions || data.questions.length === 0) {
       throw new Error('At least one question is required');
     }
 
-    // Validate position
     if (data.position) {
       if (data.position.type === 'BETWEEN_CLASSES' && !data.position.afterClassId) {
         throw new Error('afterClassId is required when position type is BETWEEN_CLASSES');
       }
-      // Si el tipo es FINAL_EXAM, no debe tener afterClassId
       if (data.position.type === 'FINAL_EXAM' && data.position.afterClassId) {
         delete data.position.afterClassId;
       }
     }
 
-    // Store correct option indices temporarily
     const correctOptionIndices: { [key: number]: number[] } = {};
 
-    // Validate MC questions have options and correctOptionId
+    // 2. Procesamiento de preguntas
     for (let i = 0; i < data.questions.length; i++) {
       const question = data.questions[i];
+
+      // Si es MC o MS, validamos opciones
       if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
         if (!question.options || question.options.length < 2) {
           throw new Error(`Multiple choice question "${question.questionText}" must have at least 2 options`);
         }
-        // Accept either single `correctOptionId` (legacy) or array `correctOptionIds`.
+
         const hasSingle = question.correctOptionId !== undefined && question.correctOptionId !== null;
         const hasArray = Array.isArray((question as any).correctOptionIds) && (question as any).correctOptionIds.length > 0;
-        if (!hasSingle && !hasArray) {
-          throw new Error(`Multiple choice question "${question.questionText}" must have at least one correct answer`);
+
+        // REGLA DE ENCUESTA: Solo exigimos respuesta correcta si NO es encuesta
+        if (!data.isSurvey) { 
+          if (!hasSingle && !hasArray) {
+            throw new Error(`Multiple choice question "${question.questionText}" must have at least one correct answer`);
+          }
         }
 
-        // If frontend sent indices (number) inside correctOptionIds or correctOptionId, store indices to convert later
+        // Procesamiento de índices (esto se mantiene igual para transformar a ObjectIds después)
         if (hasArray) {
           const arr = (question as any).correctOptionIds as any[];
           const indices: number[] = [];
@@ -71,25 +77,21 @@ class QuestionnaireService {
 
           if (!isNaN(correctIndex)) {
             correctOptionIndices[i] = [correctIndex];
-            // Remove it temporarily so Mongoose doesn't validate it as ObjectId
             delete question.correctOptionId;
-          } else {
-            // If it's not an index, but an ObjectId string, leave it for Mongoose
           }
         }
       }
-    }
+    } // <-- Aquí cerramos el bucle FOR correctamente
 
-    // Set createdBy
+    // 3. Persistencia
     const questionnaireData = {
       ...data,
       createdBy: new Types.ObjectId(creatorId) as any,
     };
 
-    // Create the questionnaire (Mongoose will generate _ids for options)
     const createdQuestionnaire = await this.questionnaireRepository.create(questionnaireData);
 
-    // Now update correct option IDs with the actual ObjectIds
+    // 4. Mapeo de IDs reales
     for (const [questionIndex, optionIndices] of Object.entries(correctOptionIndices)) {
       const qIndex = parseInt(questionIndex);
       const question = createdQuestionnaire.questions[qIndex];
@@ -99,22 +101,20 @@ class QuestionnaireService {
           .filter(Boolean);
         if (ids.length > 0) {
           (question as any).correctOptionIds = ids;
-          // keep backward compatibility: set first as correctOptionId
           question.correctOptionId = ids[0];
         }
       }
     }
 
-    // Save the updated questionnaire
     await createdQuestionnaire.save();
 
+    // 5. Rebuild de contenido (Bunny/Cache)
     try {
       const cid = (createdQuestionnaire.courseId ? String(createdQuestionnaire.courseId) : undefined);
       if (cid) {
         const svc = await import('./index');
         const cs = svc && (svc.courseService as any);
         if (cs) await cs.rebuildOrderedContentForCourse(cid);
-        else logger.warn('courseService not available to rebuildOrderedContent after questionnaire create', { courseId: cid });
       }
     } catch (err) {
       logger.error('Error rebuilding orderedContent after questionnaire create', { error: (err as Error).message });
@@ -268,42 +268,18 @@ class QuestionnaireService {
       // Validate new questions structure and handle correctOptionId conversion
       for (let i = 0; i < updateData.questions!.length; i++) {
         const question = updateData.questions![i];
-        if (question.type === 'MULTIPLE_CHOICE') {
+        if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
           if (!question.options || question.options.length < 2) {
-            throw new Error(`Multiple choice question must have at least 2 options`);
+            throw new Error(`Multiple choice question "${question.questionText}" must have at least 2 options`);
           }
-          
-          // Accept either single `correctOptionId` or array `correctOptionIds`.
+         if (!data.isSurvey) { 
           const hasSingle = question.correctOptionId !== undefined && question.correctOptionId !== null;
           const hasArray = Array.isArray((question as any).correctOptionIds) && (question as any).correctOptionIds.length > 0;
           if (!hasSingle && !hasArray) {
-            throw new Error(`Multiple choice question must have at least one correct answer`);
-          }
-
-          if (hasArray) {
-            const arr = (question as any).correctOptionIds as any[];
-            const indices: number[] = [];
-            for (const v of arr) {
-              const idx = typeof v === 'number' ? v : parseInt(v as any);
-              if (!isNaN(idx)) indices.push(idx);
-            }
-            if (indices.length > 0) {
-              correctOptionIndices[i] = indices;
-              delete (question as any).correctOptionIds;
-            }
-          }
-
-          if (hasSingle) {
-            const correctIndex = typeof question.correctOptionId === 'number'
-              ? question.correctOptionId
-              : parseInt(question.correctOptionId as any);
-
-            if (!isNaN(correctIndex) && !Types.ObjectId.isValid(question.correctOptionId as any)) {
-              correctOptionIndices[i] = [correctIndex];
-              delete question.correctOptionId;
-            }
+            throw new Error(`Multiple choice question "${question.questionText}" must have at least one correct answer`);
           }
         }
+      }
       }
 
       // existingQuestionnaire already retrieved above

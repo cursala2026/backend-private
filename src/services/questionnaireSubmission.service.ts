@@ -129,10 +129,20 @@ class QuestionnaireSubmissionService {
     const updated = await this.submissionRepository.update(submissionId, {
       answers: gradedAnswers,
       status,
-      autoGradedScore: questionnaire.isSurvey ? 100 : autoGradedScore, // <--- CAMBIO AQUÍ
-      finalScore,
+      autoGradedScore: questionnaire.isSurvey ? 100 : autoGradedScore,
+      finalScore, // <--- Esto ahora valdrá 100 si es encuesta
       submittedAt: new Date(),
     });
+
+    // Auditoría: Esto es clave para que el alumno pueda ver su certificado
+    if (status === 'GRADED' && finalScore !== undefined) {
+      await courseProgressRepository.updateQuestionnaireProgress(
+        submission.studentId.toString(),
+        submission.courseId.toString(),
+        submission.questionnaireId.toString(),
+        finalScore // Mandará 100, marcando el ítem como completado con éxito
+      );
+    }
 
     // If fully graded (no text questions), update course progress
     if (status === 'GRADED' && finalScore !== undefined) {
