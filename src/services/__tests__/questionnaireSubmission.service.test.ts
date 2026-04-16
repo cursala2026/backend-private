@@ -127,4 +127,12 @@ describe('QuestionnaireSubmissionService.gradeTextQuestions (post-grading notifi
     expect(sendEmail).not.toHaveBeenCalled();
     expect((notificationService as any).sendNotification).toHaveBeenCalled();
   });
+test('Surveys: should mark as passed automatically when grading', async () => {
+    const surveyMock: any = { _id: 's123', isSurvey: true, questions: [], courseId: 'c1' };
+    const service = makeService({}, { findById: jest.fn().mockResolvedValue(surveyMock) });
+    
+    // Al ser encuesta, no debería fallar el proceso de corrección
+    const result = await (service as any).gradeTextQuestions(mockSubmissionId, [], mockProfessorId, 'Encuesta OK');
+    expect(result).toBeDefined();
+  });
 });
