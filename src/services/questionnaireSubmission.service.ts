@@ -271,7 +271,8 @@ class QuestionnaireSubmissionService {
     // Notificar al alumno y enviar email (el transporte decide si realmente envía)
     try {
       try {
-        if (submission.studentEmail) {
+        // AUDITORÍA FIX: Solo enviamos emails reales en producción
+        if (submission.studentEmail && process.env.NODE_ENV === 'production') {
           const frontendBase = (config.FRONTEND_DOMAIN || '').split(',')[0] || '';
           const questionnaireTitle = questionnaire.title || 'Tu cuestionario';
           await sendEmail({
@@ -297,8 +298,10 @@ class QuestionnaireSubmissionService {
               </div>
             `,
           });
-        } else {
+        } else if (!submission.studentEmail) {
           logger.warn('No student email available; skipping sendEmail');
+        } else {
+          logger.info('Development environment detected; skipping sendEmail');
         }
       } catch (emailErr) {
         logger.error('Error enviando email de corrección al alumno', { error: (emailErr as Error).message });
