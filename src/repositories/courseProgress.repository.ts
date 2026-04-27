@@ -433,7 +433,8 @@ class CourseProgressRepository {
     userId: string,
     courseId: string,
     questionnaireId: string,
-    score: number
+    score: number,
+    forceCompleted?: boolean
   ): Promise<ICourseProgress> {
     const now = new Date();
     const questionnaireObjId = new Types.ObjectId(questionnaireId) as unknown as Schema.Types.ObjectId;
@@ -441,8 +442,9 @@ class CourseProgressRepository {
     // Get questionnaire to check passingScore
     const questionnaire = await this.Questionnaire.findById(questionnaireId);
     const passingScore = questionnaire?.passingScore;
-    // Only mark as completed if score >= passingScore (or if no passingScore is set, always complete)
-    const isPassed = !passingScore || score >= passingScore;
+    // Only mark as completed if score >= passingScore (or if no passingScore is set, always complete).
+    // forceCompleted=true ignores passingScore: el profesor ha marcado explícitamente como aprobado.
+    const isPassed = forceCompleted || !passingScore || score >= passingScore;
 
     // Buscar progreso existente
     let progress = await this.findByUserAndCourse(userId, courseId);
@@ -472,7 +474,7 @@ class CourseProgressRepository {
         questionnairesProgress: [
           {
             questionnaireId: questionnaireObjId,
-            completed: isPassed,
+            completed: isPassed, // isPassed ya incorpora forceCompleted
             bestScore: score,
             attempts: 1,
             lastAttemptAt: now,
@@ -509,8 +511,10 @@ class CourseProgressRepository {
         // Convert to plain object to avoid Mongoose subdocument issues
         progress.questionnairesProgress[existingQuestionnaireIndex] = {
           questionnaireId: existing.questionnaireId,
-          completed: isPassed,
-          bestScore: score,
+          // `completed` es adhesivo: una vez aprobado no se revierte aunque el reintento falle
+          completed: existing.completed || isPassed,
+          // `bestScore` guarda el máximo histórico, no el último intento
+          bestScore: Math.max(existing.bestScore || 0, score),
           attempts: (existing.attempts || 0) + 1,
           lastAttemptAt: now,
         };

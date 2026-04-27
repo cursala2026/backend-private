@@ -198,13 +198,9 @@ class CourseProgressService {
         
         // Buscar si hay un envío con estado SUBMITTED (pendiente de calificación manual)
         const pendingSubmission = submissions.find(s => s.status === 'SUBMITTED');
-        if (pendingSubmission && !questionnaire.isSurvey) { // <--- CAMBIO AQUÍ
-  return { 
-    canAccess: false, 
-    reason: 'Debes esperar a que el profesor califique el examen antes de continuar' 
-  };
-}
-        if (pendingSubmission) {
+        // Las encuestas (isSurvey) siempre quedan GRADED, nunca SUBMITTED,
+        // pero se guarda la condición por claridad semántica
+        if (pendingSubmission && !questionnaire.isSurvey) {
           return { 
             canAccess: false, 
             reason: 'Debes esperar a que el profesor califique el examen antes de continuar' 
@@ -299,7 +295,13 @@ class CourseProgressService {
              
              return { ...progress, questionnairesProgress, overallProgress };
            }
+           // qpIndex < 0: el cuestionario no estaba en el array de progreso todavía;
+           // nada que desmarcar, devolver el progreso actual sin tocar nada
+           return progress;
          }
+         // progress es null: no existe registro de progreso — nada que desmarcar.
+         // Crear un registro vacío con completed=false para consistencia.
+         return courseProgressRepository.updateQuestionnaireProgress(userId, courseId, itemId, 0);
       }
 
       // Si se está marcando como completado: crear una submission GRADED para que el alumno
@@ -342,11 +344,14 @@ class CourseProgressService {
         });
       }
 
+      // forceCompleted=true: el profesor está marcando explícitamente como aprobado,
+      // independientemente del passingScore configurado en el cuestionario.
       return courseProgressRepository.updateQuestionnaireProgress(
         userId,
         courseId,
         itemId,
-        finalScore
+        finalScore,
+        true
       );
     }
   }
