@@ -11,6 +11,7 @@ export interface CreateTicketPayload {
   userName: string;
   subject: string;
   message: string;
+  imageUrl?: string;
 }
 
 class SupportTicketService {
@@ -27,6 +28,7 @@ class SupportTicketService {
         userName: payload.userName,
         subject: payload.subject,
         message: payload.message,
+        imageUrl: payload.imageUrl,
         status: TicketStatus.PENDING,
       });
 

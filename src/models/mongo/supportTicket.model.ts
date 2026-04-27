@@ -20,6 +20,7 @@ export interface ISupportTicket {
   userName: string;
   subject: string;
   message: string;
+  imageUrl?: string;
   status: TicketStatus;
   priority?: TicketPriority;
   resolvedBy?: Schema.Types.ObjectId;
@@ -61,6 +62,10 @@ export const SupportTicketSchema: Schema<SupportTicketModel> = new Schema<Suppor
       required: true,
       trim: true,
       maxlength: 2000,
+    },
+    imageUrl: {
+      type: String,
+      trim: true,
     },
     status: {
       type: String,
