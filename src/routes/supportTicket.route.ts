@@ -1,7 +1,21 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { supportTicketController } from '@/controllers';
 import { authorize } from '@/middlewares/auth.middleware';
 import { requireAdmin } from '@/middlewares/adminSecurity.middleware';
+
+const ticketImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten imágenes (JPG, PNG, GIF, WebP)'));
+    }
+  },
+});
 
 const router = Router();
 
@@ -9,8 +23,8 @@ const router = Router();
 // RUTAS DE USUARIO (autenticadas)
 // =====================================
 
-// POST /support-tickets - Crear nuevo ticket
-router.post('/', authorize, supportTicketController.createTicket);
+// POST /support-tickets - Crear nuevo ticket (con imagen opcional)
+router.post('/', authorize, ticketImageUpload.single('image'), supportTicketController.createTicket);
 
 // GET /support-tickets/my-tickets - Obtener mis tickets
 router.get('/my-tickets', authorize, supportTicketController.getMyTickets);

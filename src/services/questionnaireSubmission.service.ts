@@ -129,10 +129,20 @@ class QuestionnaireSubmissionService {
     const updated = await this.submissionRepository.update(submissionId, {
       answers: gradedAnswers,
       status,
-      autoGradedScore: questionnaire.isSurvey ? 100 : autoGradedScore, // <--- CAMBIO AQUÍ
-      finalScore,
+      autoGradedScore: questionnaire.isSurvey ? 100 : autoGradedScore,
+      finalScore, // <--- Esto ahora valdrá 100 si es encuesta
       submittedAt: new Date(),
     });
+
+    // Auditoría: Esto es clave para que el alumno pueda ver su certificado
+    if (status === 'GRADED' && finalScore !== undefined) {
+      await courseProgressRepository.updateQuestionnaireProgress(
+        submission.studentId.toString(),
+        submission.courseId.toString(),
+        submission.questionnaireId.toString(),
+        finalScore // Mandará 100, marcando el ítem como completado con éxito
+      );
+    }
 
     // If fully graded (no text questions), update course progress
     if (status === 'GRADED' && finalScore !== undefined) {
@@ -263,7 +273,8 @@ class QuestionnaireSubmissionService {
     // Notificar al alumno y enviar email (el transporte decide si realmente envía)
     try {
       try {
-        if (submission.studentEmail) {
+        // AUDITORÍA FIX: Solo enviamos emails reales en producción
+        if (submission.studentEmail && process.env.NODE_ENV === 'production') {
           const frontendBase = (config.FRONTEND_DOMAIN || '').split(',')[0] || '';
           const questionnaireTitle = questionnaire.title || 'Tu cuestionario';
           await sendEmail({
@@ -289,8 +300,10 @@ class QuestionnaireSubmissionService {
               </div>
             `,
           });
-        } else {
+        } else if (!submission.studentEmail) {
           logger.warn('No student email available; skipping sendEmail');
+        } else {
+          logger.info('Development environment detected; skipping sendEmail');
         }
       } catch (emailErr) {
         logger.error('Error enviando email de corrección al alumno', { error: (emailErr as Error).message });

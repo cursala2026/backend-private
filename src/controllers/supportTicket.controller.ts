@@ -1,11 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import SupportTicketService from '@/services/supportTicket.service';
+import BunnyService from '@/services/bunny.service';
 import { logger, prepareResponse } from '@/utils';
 import { IUser } from '@/models/user.model';
 import { TicketStatus } from '@/models/mongo/supportTicket.model';
 
 class SupportTicketController {
-  constructor(private readonly supportTicketService: SupportTicketService) {}
+  private readonly bunnyService: BunnyService;
+
+  constructor(private readonly supportTicketService: SupportTicketService) {
+    this.bunnyService = BunnyService.getInstance();
+  }
 
   /**
    * POST /support-tickets
@@ -21,12 +26,21 @@ class SupportTicketController {
         return;
       }
 
+      // Subir imagen adjunta a Bunny si existe
+      let imageUrl: string | undefined;
+      const file = req.file as Express.Multer.File | undefined;
+      if (file) {
+        const uniqueFileName = this.bunnyService.generateUniqueFileName(file.originalname, 'ticket');
+        imageUrl = await this.bunnyService.uploadFile(file.buffer, uniqueFileName, 'support-ticket-images');
+      }
+
       const ticket = await this.supportTicketService.createTicket({
         userId: user._id.toString(),
         userEmail: user.email,
         userName: `${user.firstName} ${user.lastName}`,
         subject,
         message,
+        imageUrl,
       });
 
       res.json(prepareResponse(201, 'Ticket de soporte creado exitosamente', ticket));
