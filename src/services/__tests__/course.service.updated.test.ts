@@ -73,4 +73,20 @@ describe('CourseService - teachers notifications', () => {
     // notification removed; only ensure function completes without throwing and email attempted
     expect(sendEmail).toHaveBeenCalled();
   });
+  describe('Progress Update with Surveys', () => {
+    test('should update progress correctly when a survey is completed', async () => {
+      const updateData = {
+        lastModuleCompleted: 'survey-101',
+        progressPercentage: 100
+      };
+
+      // Simulamos que el repositorio acepta la actualización del progreso
+      mockCourseRepository.update.mockResolvedValue({ id: '1', ...updateData });
+
+      const result = await courseService.update('1', updateData as any);
+
+      expect(result.progressPercentage).toBe(100);
+      expect(mockCourseRepository.update).toHaveBeenCalled();
+    });
+  });
 });
