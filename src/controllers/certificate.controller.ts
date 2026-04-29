@@ -56,7 +56,7 @@ export default class CertificateController {
    */
   validateCertificate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { verificationCode } = req.params;
+      const { verificationCode } = req.params as { verificationCode: string };
 
       if (!verificationCode) {
         return res.status(400).json(prepareResponse(400, 'Código de verificación requerido'));
@@ -85,7 +85,7 @@ export default class CertificateController {
    */
   checkCertificateExists = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { studentId, courseId } = req.params;
+      const { studentId, courseId } = req.params as { studentId: string; courseId: string };
 
       if (!studentId || !courseId) {
         return res.status(400).json(prepareResponse(400, 'studentId y courseId son requeridos'));
@@ -122,7 +122,7 @@ export default class CertificateController {
    */
   getCertificatesByCourse = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const { courseId } = req.params as { courseId: string };
 
       if (!courseId) {
         return res.status(400).json(prepareResponse(400, 'ID del curso requerido'));
@@ -141,7 +141,7 @@ export default class CertificateController {
    */
   getCertificatesByStudent = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { studentId } = req.params;
+      const { studentId } = req.params as { studentId: string };
 
       if (!studentId) {
         return res.status(400).json(prepareResponse(400, 'ID del estudiante requerido'));
@@ -160,7 +160,7 @@ export default class CertificateController {
    */
   deleteCertificate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { certificateId } = req.params;
+      const { certificateId } = req.params as { certificateId: string };
       const authUser = (req as Request & { user?: { id?: string; _id?: string } }).user;
       const userId = authUser?.id || authUser?._id;
 
@@ -191,7 +191,7 @@ export default class CertificateController {
    */
   regenerateCertificate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { certificateId } = req.params;
+      const { certificateId } = req.params as { certificateId: string };
       const authUser = (req as Request & { user?: { id?: string; _id?: string } }).user;
       const userId = authUser?.id || authUser?._id;
 
@@ -246,7 +246,7 @@ export default class CertificateController {
    */
   downloadCertificate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { verificationCode } = req.params;
+      const { verificationCode } = req.params as { verificationCode: string };
 
       if (!verificationCode) {
         return res.status(400).json(prepareResponse(400, 'Código de verificación requerido'));

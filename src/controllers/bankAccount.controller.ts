@@ -59,7 +59,7 @@ export default class BankAccountController {
    */
   updateBankAccount = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const updateData = req.body;
 
       const updatedAccount = await this.bankAccountService.updateBankAccount(id, updateData);
