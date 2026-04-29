@@ -17,10 +17,11 @@ RUN npm ci --include=dev
 COPY . .
 
 # Build the project (runs build.ts then tsc)
+# NOTE: do NOT add '|| ...' here — a build failure must fail the Docker build
 RUN npm run build && \
     echo "Build completed. Checking dist folder:" && \
     ls -la dist/ && \
-    ls -la dist/src/ || echo "Build failed or dist not created"
+    ls -la dist/src/
 
 FROM node:24-alpine AS runner
 WORKDIR /app

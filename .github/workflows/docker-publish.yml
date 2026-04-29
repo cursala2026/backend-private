@@ -4,10 +4,33 @@ on:
   push:
     branches:
       - main
+      - development
   workflow_dispatch:
 
 jobs:
+  typecheck:
+    name: TypeScript build check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify TypeScript compiles (production code only)
+        run: npx tsc --project ./ --noEmit
+
   build-and-push:
+    name: Build and push Docker image
+    needs: typecheck
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
