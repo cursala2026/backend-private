@@ -33,5 +33,6 @@
     "require": ["tsconfig-paths/register"]
   },
   "include": ["src/**/*", "tests/**/*", "jest.config.js", "jest.setup.ts"],
+  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.spec.ts", "tests/**"],
   "files": ["src/types/passport.d.ts"]
 }
