@@ -156,28 +156,7 @@ export default class Server implements NodeServer {
       };
     }
 
-    // Asegurar que el middleware de CORS se aplique primero
     this.app.use(cors(corsOptions));
-    this.app.use((req, res, next) => {
-      res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-      }
-      next();
-    });
-
-    // Middleware global para garantizar CORS
-    this.app.use((req, res, next) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      if (req.method === 'OPTIONS') {
-        return res.status(204).end();
-      }
-      next();
-    });
 
     // ⭐ CAMBIO 1: Configurar timeouts del servidor para mitigar DoS por conexiones largas
     this.server.setTimeout(2 * 60 * 1000); // 2 minutos

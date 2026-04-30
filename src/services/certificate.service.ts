@@ -56,15 +56,14 @@ export default class CertificateService {
     });
 
     const algorithm = 'aes-256-cbc';
+    if (!process.env.CERTIFICATE_ENCRYPTION_KEY) {
+      throw new Error('CERTIFICATE_ENCRYPTION_KEY must be defined');
+    }
     const key = crypto.scryptSync(
-      process.env.CERTIFICATE_ENCRYPTION_KEY || 'default-key-32-characters-long!!',
+      process.env.CERTIFICATE_ENCRYPTION_KEY,
       'salt',
       32
     );
-    // En producción, exigir que se configure CERTIFICATE_ENCRYPTION_KEY
-    if (config.NODE_ENV === 'production' && !process.env.CERTIFICATE_ENCRYPTION_KEY) {
-      throw new Error('CERTIFICATE_ENCRYPTION_KEY must be defined in production');
-    }
     const iv = crypto.randomBytes(16);
 
     const cipher = crypto.createCipheriv(algorithm, key, iv);
@@ -94,30 +93,17 @@ export default class CertificateService {
         return JSON.parse(decrypted);
       }
     } catch (envError) {
-      // Si falla con la clave del entorno, intentar con la clave por defecto
-      logger.warn('Failed to decrypt with environment key, trying default key', envError);
+      logger.error('Failed to decrypt verification code', envError);
     }
 
-    // Intentar con la clave por defecto
-    try {
-      const algorithm = 'aes-256-cbc';
-      const key = crypto.scryptSync('default-key-32-characters-long!!', 'salt', 32);
-      const [ivHex, encryptedText] = encryptedCode.split(':');
-      const iv = Buffer.from(ivHex, 'hex');
-      const decipher = crypto.createDecipheriv(algorithm, key, iv);
-      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      return JSON.parse(decrypted);
-    } catch (defaultError) {
-      logger.error('Failed to decrypt with default key', defaultError);
-      throw new Error('Código de verificación inválido');
-    }
+    throw new Error('Código de verificación inválido');
   }
 
   /**
    * Email del director de Cursala. Su firma siempre se incluye en todos los certificados.
+   * Configurable vía variable de entorno DIRECTOR_EMAIL.
    */
-  private static readonly DIRECTOR_EMAIL = 'luchovarelator@gmail.com';
+  private static readonly DIRECTOR_EMAIL = config.DIRECTOR_EMAIL ?? '';
 
   /**
    * Agrega la firma del director de Cursala al final del array de profesores.
