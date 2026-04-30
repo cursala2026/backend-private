@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
+    "ignoreDeprecations": "6.0",
     "module": "commonjs",
     "rootDir": ".",
     "moduleResolution": "node",
@@ -26,13 +27,14 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node"]
   },
   "ts-node": {
     "transpileOnly": true,
     "require": ["tsconfig-paths/register"]
   },
-  "include": ["src/**/*", "tests/**/*", "jest.config.js", "jest.setup.ts"],
-  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.spec.ts", "tests/**"],
+  "include": ["src/**/*"],
+  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.spec.ts", "src/**/__mocks__/**", "tests/**", "jest.setup.ts", "jest.config.js"],
   "files": ["src/types/passport.d.ts"]
 }

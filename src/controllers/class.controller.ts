@@ -49,7 +49,7 @@ export default class ClassController {
   };
 
   cleanupChunks = async (req: Request, res: Response) => {
-    const { uploadId } = req.params;
+    const { uploadId } = req.params as { uploadId: string };
     if (!uploadId) {
       return res.status(400).json({ message: 'uploadId es requerido' });
     }
@@ -63,7 +63,7 @@ export default class ClassController {
 
   findOneById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
       const classData = await this.classService.findOneById(classId);
       if (!classData) {
         return res.status(404).json(prepareResponse(404, 'Class not found'));
@@ -273,7 +273,7 @@ export default class ClassController {
 
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
 
       const existingClass = await this.classService.findOneById(classId);
       if (!existingClass) {
@@ -762,7 +762,7 @@ export default class ClassController {
 
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
       const deletedClass = await this.classService.delete(classId);
       if (!deletedClass) {
         return res.status(404).json(prepareResponse(404, 'Class not found'));
@@ -775,7 +775,7 @@ export default class ClassController {
 
   findAllByCourse = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const { courseId } = req.params as { courseId: string };
       const classes = await this.classService.findAllByCourse(courseId);
       return res.json(prepareResponse(200, 'Classes fetched successfully', classes));
     } catch (error) {
@@ -785,7 +785,7 @@ export default class ClassController {
 
   findAllByTeacherCourses = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { teacherId } = req.params;
+      const { teacherId } = req.params as { teacherId: string };
       
       if (!this.courseService) {
         return res.status(500).json(prepareResponse(500, 'Course service not available', null));
@@ -822,7 +822,7 @@ export default class ClassController {
 
   changeStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
       const { status } = req.body;
       const updatedClass = await this.classService.changeStatus(classId, status);
       if (!updatedClass) {
@@ -836,7 +836,7 @@ export default class ClassController {
 
   moveUpOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
       const updatedClass = await this.classService.moveUpOrder(classId);
       if (!updatedClass) {
         return res.status(404).json(prepareResponse(404, 'Class not found'));
@@ -849,7 +849,7 @@ export default class ClassController {
 
   moveDownOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
       const updatedClass = await this.classService.moveDownOrder(classId);
       if (!updatedClass) {
         return res.status(404).json(prepareResponse(404, 'Class not found'));
@@ -862,7 +862,7 @@ export default class ClassController {
 
   getClassImage = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { imageFileName } = req.params;
+      const { imageFileName } = req.params as { imageFileName: string };
       const fileBuffer = await this.classService.getClassImage(imageFileName);
       if (!fileBuffer) {
         return res.status(404).json(prepareResponse(404, 'Image not found'));
@@ -893,8 +893,8 @@ export default class ClassController {
 
   getClassVideo = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { videoFileName } = req.params;
-      const { range } = req.headers;
+      const { videoFileName } = req.params as { videoFileName: string };
+      const { range } = req.headers as { range: string };
 
       logger.info(`Solicitando video de clase: ${videoFileName}`);
 
@@ -938,7 +938,7 @@ export default class ClassController {
    */
   updateExamConfig = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
       const { examLink, examVisible, examStartDate, examEndDate } = req.body;
 
       // Determinar si es activación o desactivación
@@ -999,7 +999,7 @@ export default class ClassController {
    */
   getExamConfig = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
 
       const examConfig = await this.classService.getExamConfig(classId);
 
@@ -1023,7 +1023,7 @@ export default class ClassController {
    */
   deleteClassMedia = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { classId, mediaType, fileName } = req.params;
+      const { classId, mediaType, fileName } = req.params as { classId: string; mediaType: string; fileName?: string };
 
       // Validar parámetros
       if (!classId || !mediaType) {
@@ -1244,7 +1244,7 @@ export default class ClassController {
    */
   getUploadProgress = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { classId } = req.params;
+      const { classId } = req.params as { classId: string };
 
       if (!classId) {
         return res.status(400).json({ message: 'classId es requerido' });
