@@ -62,4 +62,7 @@ export default {
   // Bunny Stream configuration
   BUNNY_STREAM_API_KEY: process.env.BUNNY_STREAM_API_KEY,
   BUNNY_STREAM_LIBRARY_ID: process.env.BUNNY_STREAM_LIBRARY_ID,
+
+  // Certificados
+  DIRECTOR_EMAIL: process.env.DIRECTOR_EMAIL,
 };
