@@ -19,6 +19,3 @@ El backend actúa como la capa de persistencia y servicios para la plataforma de
 *   **Framework:** Express.
 *   **Base de Datos:** MongoDB mediante Mongoose.
 *   **Calidad:** Testing con Jest y herramientas de análisis estático.
-
----
-*Para instrucciones sobre cómo configurar el entorno completo, consulte el [README principal](../README.md).*
