@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import prepareResponse from '@/utils/api-response';
 import QuestionnaireSubmissionService from '@/services/questionnaireSubmission.service';
+import { ensureString } from '@/utils/type-guards';
 
 export default class QuestionnaireSubmissionController {
   constructor(private readonly submissionService: QuestionnaireSubmissionService) {}
@@ -15,7 +16,7 @@ export default class QuestionnaireSubmissionController {
         return res.status(401).json(prepareResponse(401, 'Not authenticated'));
       }
 
-      const { questionnaireId } = req.params;
+      const questionnaireId = ensureString(req.params.questionnaireId);
       const submission = await this.submissionService.startSubmission(user._id.toString(), questionnaireId);
 
       return res.status(201).json(prepareResponse(201, 'Submission started successfully', submission));
@@ -29,7 +30,7 @@ export default class QuestionnaireSubmissionController {
    */
   submitAnswers = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { submissionId } = req.params;
+      const submissionId = ensureString(req.params.submissionId);
       const { answers } = req.body;
 
       if (!answers || !Array.isArray(answers)) {
@@ -53,7 +54,7 @@ export default class QuestionnaireSubmissionController {
         return res.status(401).json(prepareResponse(401, 'Not authenticated'));
       }
 
-      const { submissionId } = req.params;
+      const submissionId = ensureString(req.params.submissionId);
       const { gradedAnswers, overallFeedback } = req.body;
 
       if (!gradedAnswers || !Array.isArray(gradedAnswers)) {
@@ -78,7 +79,8 @@ export default class QuestionnaireSubmissionController {
    */
   getStudentSubmissions = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { questionnaireId, studentId } = req.params;
+      const questionnaireId = ensureString(req.params.questionnaireId);
+      const studentId = ensureString(req.params.studentId);
 
       // Recuperar studentId si el frontend envío un objeto accidentalmente (por ejemplo '[object Object]')
       let sid: any = studentId;
@@ -105,7 +107,7 @@ export default class QuestionnaireSubmissionController {
    */
   getGradeReport = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { questionnaireId } = req.params;
+      const questionnaireId = ensureString(req.params.questionnaireId);
 
       const report = await this.submissionService.getGradeReport(questionnaireId);
       return res.json(prepareResponse(200, 'Grade report fetched successfully', report));
@@ -119,7 +121,7 @@ export default class QuestionnaireSubmissionController {
    */
   getSubmissionById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { submissionId } = req.params;
+      const submissionId = ensureString(req.params.submissionId);
 
       const submission = await this.submissionService.getSubmissionById(submissionId);
       if (!submission) {
@@ -137,8 +139,8 @@ export default class QuestionnaireSubmissionController {
    */
   resetStudentAttempts = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { questionnaireId } = req.params;
-      let studentId: any = req.params.studentId;
+      const questionnaireId = ensureString(req.params.questionnaireId);
+      let studentId: any = ensureString(req.params.studentId);
 
       // If frontend accidentally passed an object, try to recover from body or query
       if (!studentId || String(studentId) === '[object Object]') {

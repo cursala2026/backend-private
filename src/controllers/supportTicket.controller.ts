@@ -4,6 +4,7 @@ import BunnyService from '@/services/bunny.service';
 import { logger, prepareResponse } from '@/utils';
 import { IUser } from '@/models/user.model';
 import { TicketStatus } from '@/models/mongo/supportTicket.model';
+import { ensureString } from '@/utils/type-guards';
 
 class SupportTicketController {
   private readonly bunnyService: BunnyService;
@@ -109,7 +110,7 @@ class SupportTicketController {
    */
   getTicketById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
 
       const ticket = await this.supportTicketService.getTicketById(id);
 
@@ -132,7 +133,7 @@ class SupportTicketController {
   resolveTicket = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = req.user as IUser;
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const { adminNotes } = req.body;
 
       const ticket = await this.supportTicketService.resolveTicket(
@@ -159,7 +160,7 @@ class SupportTicketController {
    */
   updateStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const { status } = req.body;
 
       if (!status || !Object.values(TicketStatus).includes(status)) {
@@ -187,7 +188,7 @@ class SupportTicketController {
    */
   updateNotes = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const { adminNotes } = req.body;
 
       if (!adminNotes) {
@@ -230,7 +231,7 @@ class SupportTicketController {
    */
   deleteTicket = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
 
       const deleted = await this.supportTicketService.deleteTicket(id);
 

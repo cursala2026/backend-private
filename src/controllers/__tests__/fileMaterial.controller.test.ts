@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
 import { FileMaterialController } from '../fileMaterial.controller';
 import { fileMaterialService } from '@/services';
-import { uploadFiles } from '@utils/fileUpload.util';
-import { FileMaterialType, FileMaterialCategory } from '@models/mongo';
-import { UserStatus } from '@models/enums';
+import { uploadFiles } from '@/utils/fileUpload.util';
+import { FileMaterialType, FileMaterialCategory, UserStatus } from '@/models';
 
 // Mock dependencies
 jest.mock('@/services', () => ({
@@ -21,8 +20,9 @@ jest.mock('@/services', () => ({
     },
 }));
 
-jest.mock('@utils/fileUpload.util', () => ({
-    uploadFiles: {
+jest.mock('@/utils/fileUpload.util', () => ({
+
+uploadFiles: {
         single: jest.fn(),
     },
 }));

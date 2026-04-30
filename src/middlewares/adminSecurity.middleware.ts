@@ -5,6 +5,7 @@ import config from '@/config';
 import { logger } from '../utils';
 import { IUser } from '../models/user.model';
 import { userRepository } from '@/repositories';
+import { ensureString } from '@/utils/type-guards';
 
 // Cache para el rol de admin (evita consultas repetidas a la BD)
 // Antes el código resolvía el _id de ADMIN y lo comparaba contra los roles de usuario.
@@ -326,7 +327,7 @@ export function requireAdminOrSelf(req: Request, res: Response, next: NextFuncti
       }
 
       // No es admin, verificar si está actualizando su propio perfil
-      const targetUserId = req.params.userId || req.params.id;
+      const targetUserId = ensureString(req.params.userId);
       if (!targetUserId) {
         return res.status(400).json({ success: false, message: 'ID de usuario no especificado' });
       }
@@ -396,7 +397,7 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
       }
 
       // No es admin, verificar si es uno de los profesores del curso
-      const courseId = req.params.id || req.params.courseId;
+      const courseId = ensureString(req.params.courseId);
       if (!courseId) {
         return res.status(400).json({ success: false, message: 'ID de curso no especificado' });
       }

@@ -118,7 +118,7 @@ export default class UserController {
 
   toggleUserStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = ensureString(req.params.userId || req.params.id);
+      const userId = ensureString(req.params.userId);
 
       if (!userId) {
         return res.status(400).json(prepareResponse(400, 'ID de usuario requerido'));
@@ -539,7 +539,7 @@ export default class UserController {
 
   getUserProfileImage = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const imageFileName = ensureString(req.params.imageFileName || req.params.filename);
+      const imageFileName = ensureString(req.query.imageFileName);
       if (!imageFileName) {
         return res.status(400).json(prepareResponse(400, 'Image file name required', null));
       }
