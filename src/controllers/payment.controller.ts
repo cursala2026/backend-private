@@ -421,7 +421,7 @@ export default class PaymentController {
   // Endpoint para obtener lista de pagos de MercadoPago
   getAllPayments = async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const limit = parseInt(ensureString(req.query.limit)) || 50;
       const payments = await this.mercadoPagoPaymentService.getAllPayments(limit);
 
       return res.json(prepareResponse(200, 'Payments retrieved successfully', payments));

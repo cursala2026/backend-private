@@ -85,9 +85,9 @@ class SupportTicketController {
    */
   getAllTickets = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
-      const status = req.query.status as TicketStatus | undefined;
+      const page = parseInt(ensureString(req.query.page)) || 1;
+      const limit = parseInt(ensureString(req.query.limit)) || 20;
+      const status = ensureString(req.query.status) as TicketStatus || undefined;
 
       const result = await this.supportTicketService.getAllTickets({
         page,
