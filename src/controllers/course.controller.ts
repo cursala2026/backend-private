@@ -12,30 +12,30 @@ export default class CourseController {
   constructor(private readonly courseService: CourseService) { }
 
   findOneById = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { courseId } = req.params;
-      const course = await this.courseService.findOneById(courseId);
-      if (!course) {
-        return res.status(404).json(prepareResponse(404, 'Course not found'));
-      }
-      return res.json(prepareResponse(200, 'Course fetched successfully', course));
-    } catch (error) {
-      return next(error);
+  try {
+    const courseId = ensureString(req.params.courseId);
+    const course = await this.courseService.findOneById(courseId);
+    if (!course) {
+      return res.status(404).json(prepareResponse(404, 'Course not found'));
     }
-  };
+    return res.json(prepareResponse(200, 'Course fetched successfully', course));
+  } catch (error) {
+    return next(error);
+  }
+};
 
-  findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { courseId } = req.params;
-      const course = await this.courseService.findOneById(courseId);
-      if (!course) {
-        return res.status(404).json(prepareResponse(404, 'Course not found'));
-      }
-      return res.json(prepareResponse(200, 'Course fetched successfully', course));
-    } catch (error) {
-      return next(error);
+findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const courseId = ensureString(req.params.courseId);
+    const course = await this.courseService.findOneById(courseId);
+    if (!course) {
+      return res.status(404).json(prepareResponse(404, 'Course not found'));
     }
-  };
+    return res.json(prepareResponse(200, 'Course fetched successfully', course));
+  } catch (error) {
+    return next(error);
+  }
+};
 
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
