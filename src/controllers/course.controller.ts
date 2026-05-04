@@ -1,13 +1,22 @@
 import { NextFunction, Request, Response } from 'express';
 import { logger, prepareResponse } from '../utils';
 import CourseService from '@/services/course.service';
-import { categoryService } from '@/services';
+import { categoryService, courseService } from '@/services';
 import { ICourse } from '@/models';
 import { courseUploadFiles } from '@/services/course-upload.service';
-import { ensureString } from '@/utils/type-guards';
+import { ensureString } from '../utils/type-guards';
 // Re-exportar para compatibilidad con rutas
 export { courseUploadFiles as uploadFiles } from '@/services/course-upload.service';
-
+export const getClassDetails = async (req: Request, res: Response) => {
+    // APLICACIÓN DEL CONTROL:
+    // Aunque visualmente veas { classId: 'class-123' }, para el compilador es ambiguo.
+    const classId = ensureString(req.params.classId); 
+    
+    // Ahora 'classId' es estrictamente 'string'. 
+    // La "Prueba Sustantiva" (el build) pasará sin errores TS2345.
+    const result = await courseService.findOneById(classId);
+    res.status(200).json(result);
+};
 export default class CourseController {
   constructor(private readonly courseService: CourseService) { }
 

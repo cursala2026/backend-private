@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prepareResponse from '../utils/api-response';
 import IWantToTrainService from '@/services/iwanttotrain.service';
-
+import { ensureString } from '@/utils/type-guards';
 export default class IWantToTrainController {
   constructor(private readonly iwantToTrainService: IWantToTrainService) {}
 
@@ -16,7 +16,7 @@ export default class IWantToTrainController {
 
   getIWantToTrainById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const data = await this.iwantToTrainService.getIWantToTrainById(id);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));
@@ -38,7 +38,7 @@ export default class IWantToTrainController {
 
   updateIWantToTrainById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const data = await this.iwantToTrainService.updateIWantToTrainById(id, req.body);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));
@@ -51,7 +51,7 @@ export default class IWantToTrainController {
 
   deleteIWantToTrainById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const data = await this.iwantToTrainService.deleteIWantToTrainById(id);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));

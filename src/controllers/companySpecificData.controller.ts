@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import prepareResponse from '../utils/api-response';
 import CompanySpecificDataService from '@/services/companySpecificData.service';
+import { ensureString } from '@/utils/type-guards';
 
 export default class CompanySpecificDataController {
   constructor(private readonly companySpecificDataService: CompanySpecificDataService) {}
@@ -22,10 +23,11 @@ export default class CompanySpecificDataController {
    */
   updateCompanySpecificData = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const updateData = req.body;
 
       const updatedData = await this.companySpecificDataService.updateCompanySpecificData(id, updateData);
+
 
       return res.json(prepareResponse(200, 'Datos específicos de la compañía actualizados correctamente', updatedData));
     } catch (error) {
@@ -38,7 +40,7 @@ export default class CompanySpecificDataController {
    */
   uploadCertificateLogo = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const file = req.file as Express.Multer.File | undefined;
 
       if (!file) {
@@ -60,22 +62,21 @@ export default class CompanySpecificDataController {
    * Remove a certificate partner logo by index
    */
   removeCertificateLogo = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id, index } = req.params;
-      const logoIndex = parseInt(index, 10);
-
-      if (isNaN(logoIndex) || logoIndex < 0) {
-        return res.status(400).json(prepareResponse(400, 'Índice de logo inválido'));
-      }
-
-      const updatedData = await this.companySpecificDataService.removeCertificateLogo(id, logoIndex);
-      return res.json(prepareResponse(200, 'Logo eliminado exitosamente', updatedData));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('Índice')) {
-        return res.status(400).json(prepareResponse(400, message));
-      }
-      return next(error);
+  try {
+    const id = ensureString(req.params.id);
+    const logoIndex = parseInt(ensureString(req.params.index), 10);
+    if (isNaN(logoIndex) || logoIndex < 0) {
+      return res.status(400).json(prepareResponse(400, 'Índice de logo inválido'));
     }
-  };
+
+    const updatedData = await this.companySpecificDataService.removeCertificateLogo(id, logoIndex);
+    return res.json(prepareResponse(200, 'Logo eliminado exitosamente', updatedData));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Índice')) {
+      return res.status(400).json(prepareResponse(400, message));
+    }
+    return next(error);
+  }
+};
 }

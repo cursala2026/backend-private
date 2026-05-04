@@ -36,42 +36,7 @@ export default class UserController {
     }
   };
 
-  getUsersPaginated = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      // FIX: Removed unused `pageNum` variable
-      const { page, limit, sort, dir, search, role } = req.query;
-      const rawCourseId = (req.query.courseId || req.query.course || req.query.course_id) as string | undefined;
-
-      const result = await this.userService.getUsersPaginated({
-        page: Number(page) || 1,
-        limit: Number(limit) || 10,
-        sort: (sort as string) || 'createdAt',
-        dir: dir === 'ASC' ? 1 : -1,
-        search: search as string,
-        role: role as string,
-        courseId: rawCourseId,
-      });
-
-      // FIX: Extracted total resolution to a cleaner helper expression
-      const total =
-        typeof result?.pagination?.total === 'number'
-          ? result.pagination.total
-          : typeof (result as any)?.total === 'number'
-          ? (result as any).total
-          : -1;
-
-      logger.debug('GET /api/v1/user - query: %o - pagination.total: %d', req.query, total);
-
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-
-      return res.json(prepareResponse(200, 'Users fetched successfully', result));
-    } catch (error) {
-      return next(error);
-    }
-  };
-
+  
   getTeachers = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const teachers = await this.userService.getTeachers();
@@ -568,4 +533,25 @@ export default class UserController {
       return next(error);
     }
   };
+  getUsersPaginated = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = parseInt(ensureString(req.query.page) || '1', 10);
+    const limit = parseInt(ensureString(req.query.limit) || '10', 10);
+    const sort = ensureString(req.query.sort) || 'createdAt';
+    const dir = ensureString(req.query.dir) === 'ASC' ? 1 : -1;
+    const courseId = ensureString(req.query.courseId) || undefined;
+
+    const resp = await this.userService.getUsersPaginated({
+      page,
+      limit,
+      sort,
+      dir,
+      courseId: courseId === 'none' ? undefined : courseId,
+    });
+
+    return res.json(prepareResponse(200, 'Users fetched successfully', resp));
+  } catch (error) {
+    return next(error);
+  }
+};
 }

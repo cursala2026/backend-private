@@ -8,10 +8,18 @@
  * Si recibe un array (ej. ?id=1&id=2), toma el primero.
  * Si es undefined, devuelve un string vacío (o podrías lanzar un error).
  */
-export const ensureString = (value: any): string => {
-  if (Array.isArray(value)) return String(value[0]);
-  return value ? String(value) : '';
-};
+import { ParsedQs } from 'qs';
+type QueryValue = string | string[] | ParsedQs | ParsedQs[] | (string | ParsedQs)[] | undefined;
+export function ensureString(value: QueryValue): string {
+  if (Array.isArray(value)) {
+    const first = value[0];
+    if (typeof first === 'string') return first;
+    return '';
+  }
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null) return '';
+  return '';
+}
 
 /**
  * Garantiza que el valor sea un número válido.
