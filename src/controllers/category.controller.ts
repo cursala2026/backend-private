@@ -8,7 +8,7 @@ export default class CategoryController {
 
   findOneById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { categoryId } = req.params;
+      const { categoryId } = req.params as { categoryId: string };
       const category = await this.categoryService.findOneById(categoryId);
       return res.json(prepareResponse(200, 'Category fetched successfully', category));
     } catch (error) {
@@ -37,7 +37,7 @@ export default class CategoryController {
 
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
 
       // Buscar la categoría existente
       const existingCategory = await this.categoryService.findById(id);
@@ -69,7 +69,7 @@ export default class CategoryController {
 
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { categoryId } = req.params;
+      const { categoryId } = req.params as { categoryId: string };
       const category = await this.categoryService.delete(categoryId);
       return res.json(prepareResponse(200, 'Categoría eliminada correctamente', category));
     } catch (error) {

@@ -16,7 +16,7 @@ export default class BusinessTrainingController {
 
   getBusinessTrainingById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const data = await this.businessTrainingService.getBusinessTrainingById(id);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));
@@ -38,7 +38,7 @@ export default class BusinessTrainingController {
 
   updateBusinessTrainingById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const data = await this.businessTrainingService.updateBusinessTrainingById(id, req.body);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));
@@ -51,7 +51,7 @@ export default class BusinessTrainingController {
 
   deleteBusinessTrainingById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const data = await this.businessTrainingService.deleteBusinessTrainingById(id);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));
