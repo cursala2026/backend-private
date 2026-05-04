@@ -5,6 +5,7 @@
     "module": "commonjs",
     "rootDir": ".",
     "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
@@ -32,7 +33,15 @@
     "transpileOnly": true,
     "require": ["tsconfig-paths/register"]
   },
-  "include": ["src/**/*", "tests/**/*", "jest.config.js", "jest.setup.ts"],
-  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.spec.ts", "tests/**"],
+  "include": ["src/**/*"],
+  "exclude": [
+    "src/**/__tests__/**",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/__mocks__/**",
+    "tests/**",
+    "jest.config.js",
+    "jest.setup.ts"
+  ],
   "files": ["src/types/passport.d.ts"]
 }
