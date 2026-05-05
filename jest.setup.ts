@@ -1,8 +1,12 @@
 /// <reference types="jest" />
+import path from 'path';
 
 /* eslint-env jest */
-// Setup file executed before test suites
-// Mock the database connection to avoid opening real connections during unit/integration tests
+process.env.NODE_ENV = 'test';
+process.env.EMAIL_USE_ETHEREAL = 'false';
+process.env.DIR_ERRORS = path.resolve(__dirname, 'src/config/errors/error.yml');
+
+// Mock the database connection
 jest.mock('@/config/databases', () => ({
   __esModule: true,
   default: {
@@ -19,9 +23,7 @@ jest.mock('@/config/databases', () => ({
   },
 }));
 
-afterAll(() => {
-  // noop by default. Add explicit tear-down if your tests open connections.
-});
+afterAll(() => {});
 
 jest.mock('uuid', () => ({
   v4: () => 'test-uuid',

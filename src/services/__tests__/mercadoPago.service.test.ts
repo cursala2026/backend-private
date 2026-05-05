@@ -48,12 +48,20 @@ describe('MercadoPago Service', () => {
         items: [{ id: 'item1', title: 'Test Item', description: 'Desc', quantity: 1, currency_id: 'ARS', unit_price: 100 }],
         payer: { first_name: 'John', last_name: 'Doe', email: 'john@example.com' },
       };
-      const mockResponse = { id: 'pref-id', init_point: 'init-point', sandbox_init_point: 'sandbox-init' };
-
+      const mockResponse = {
+        id: 'pref-id',
+        init_point: 'init-point',
+        sandbox_init_point: 'sandbox-init',
+      };
       mockCreate.mockResolvedValue(mockResponse);
 
       const result = await createPaymentPreference(data);
-      expect(result).toEqual(mockResponse);
+      expect(result).toEqual({
+        id: 'pref-id',
+        initPoint: 'init-point',
+        sandboxInitPoint: 'sandbox-init',
+        mode: 'production',
+      });
       expect(mockCreate).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalled();
     });

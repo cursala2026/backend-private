@@ -85,7 +85,7 @@ describe('UserController', () => {
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 200, data: mockResult }));
         });
 
-        it('should forward courseId=none to service', async () => {
+        it('should convert courseId=none to undefined', async () => {
             const mockResult = { data: [], pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 } };
             mockUserService.getUsersPaginated.mockResolvedValue(mockResult as any);
 
@@ -93,7 +93,7 @@ describe('UserController', () => {
 
             await userController.getUsersPaginated(req as Request, res as Response, next);
 
-            expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: 'none' }));
+            expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: undefined }));
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 200, data: mockResult }));
         });
     });

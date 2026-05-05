@@ -1,16 +1,62 @@
-
 /* eslint-env jest */
+
+jest.mock('@/config', () => ({
+  __esModule: true,
+  default: {
+    NODE_ENV: 'production',
+    JWT_SECRET: 'test-secret',
+    EMAIL_HOST: 'smtp.test.com',
+    EMAIL_PORT: 587,
+    EMAIL_FROM: 'test@cursala.com',
+    EMAIL_PASSWORD: 'test-pass',
+    EXPIRE_TIME_TOKEN_USER_LOGGED: '1h',
+    EXPIRE_TIME_TOKEN_RESET_PASSWORD: '15m',
+    DIR_ERRORS: require('path').resolve(__dirname, '../../../config/errors/error.yml'),
+  }
+}));
+jest.mock('@/config/errors', () => ({
+  __esModule: true,
+  default: {
+    login: {
+      users: {
+        not_found: { status: 404, message: 'User not found', key: 'login.users.not_found' },
+        unregistered: { status: 404, message: 'Unregistered', key: 'login.users.unregistered' },
+      },
+      accounts: {
+        unauthorized: { status: 401, message: 'Unauthorized', key: 'login.accounts.unauthorized' },
+      },
+    },
+    register: {
+      users: {
+        already_exists: { 
+          status: 400, 
+          message: 'El usuario con el email ingresado ya existe.', 
+          key: 'register.users.already_exists', 
+          message_eng: 'User with email recived is already exists.' 
+        },
+      },
+    },
+    password_reset: {
+      token_invalid: { status: 400, message: 'Token inválido', key: 'password_reset.token_invalid' },
+    },
+  }
+}));
+jest.mock('@/utils/emailer', () => ({
+  sendEmail: jest.fn().mockResolvedValue({ messageId: 'test-id' }),
+}));
+
+jest.mock('nodemailer');
+
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import config from '@/config';
 import AuthService from '@/services/auth.service';
 import errors from '@/config/errors';
-// Mock nodemailer
-jest.mock('nodemailer');
 // Mocks para repositorios
 const mockUserRepository: any = {
   findOne: jest.fn(),
+  findOneByUsername: jest.fn().mockResolvedValue(null),
   findOneByEmail: jest.fn(),
   findOneById: jest.fn(),
   updatePasswordResetToken: jest.fn(),
@@ -108,7 +154,8 @@ describe('AuthService - Password Reset', () => {
     expect(typeof result.expiresIn).toBe('number');
     expect(mockUserRepository.findOneByEmail).toHaveBeenCalledWith('test@example.com');
     expect(mockUserRepository.updatePasswordResetToken).toHaveBeenCalled();
-    expect(mockSendMail).toHaveBeenCalled();
+    const { sendEmail } = require('@/utils/emailer');
+    expect(sendEmail).toHaveBeenCalled();
   });
 
   test('generateResetPasswordToken throws error for unregistered email', async () => {
@@ -120,7 +167,7 @@ describe('AuthService - Password Reset', () => {
 
   test('resetPassword updates user password with valid token', async () => {
     const userId = '507f1f77bcf86cd799439011';
-    const token = jwt.sign({ userId }, config.JWT_SECRET, { expiresIn: '15m' });
+    const token = jwt.sign({ userId }, 'test-secret', { expiresIn: '15m' });
     const newPassword = 'NewPassword123!';
     const userDoc: any = {
       _id: userId,
@@ -148,7 +195,7 @@ describe('AuthService - Password Reset', () => {
 
   test('resetPassword throws error for user not found', async () => {
     const userId = '507f1f77bcf86cd799439011';
-    const token = jwt.sign({ userId }, config.JWT_SECRET, { expiresIn: '15m' });
+    const token = jwt.sign({ userId }, 'test-secret', { expiresIn: '15m' });
     const newPassword = 'NewPassword123!';
     mockUserRepository.findOneById.mockResolvedValue(null);
     try {
@@ -221,14 +268,14 @@ describe('AuthService - register', () => {
 
   test('register throws error for existing username', async () => {
     const newUser = {
-      email: 'new@example.com',
-      username: 'existinguser',
-      password: 'ValidPassword123!',
-      firstName: 'New',
-      lastName: 'User',
+        email: 'new@example.com',
+        username: 'existinguser',
+        password: 'ValidPassword123!',
+        firstName: 'New',
+        lastName: 'User',
     };
     mockUserRepository.findOneByEmail.mockResolvedValue(null);
-    mockUserRepository.findOne.mockResolvedValue({ _id: 'existing-id' });
+    mockUserRepository.findOneByUsername.mockResolvedValue({ _id: 'existing-id' }); // cambio clave
     await expect(authService.register(newUser)).rejects.toEqual(errors.register.users.already_exists);
   });
 });

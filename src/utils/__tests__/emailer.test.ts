@@ -1,14 +1,28 @@
+process.env.NODE_ENV = 'production';
+process.env.EMAIL_USE_ETHEREAL = 'false';
+
+jest.mock('@/config', () => ({
+  __esModule: true,
+  default: {
+    NODE_ENV: 'production',
+    EMAIL_HOST: 'smtp.test.com',
+    EMAIL_PORT: 587,
+    EMAIL_FROM: 'test@cursala.com',
+    EMAIL_PASSWORD: 'test-pass',
+  }
+}));
+
+jest.mock('nodemailer');
+
 import { sendEmail, EmailAttachment } from '../emailer';
 import nodemailer from 'nodemailer';
-
-// Mock nodemailer
-jest.mock('nodemailer');
 
 describe('emailer', () => {
     let mockSendMail: jest.Mock;
     let mockCreateTransport: jest.Mock;
 
     beforeEach(() => {
+        jest.clearAllMocks();
         mockSendMail = jest.fn().mockResolvedValue({ messageId: 'test-message-id' });
         mockCreateTransport = jest.fn().mockReturnValue({
             sendMail: mockSendMail,
@@ -19,6 +33,7 @@ describe('emailer', () => {
     afterEach(() => {
         jest.clearAllMocks();
     });
+    // resto del archivo igual...
 
     describe('sendEmail', () => {
         test('should send email with basic parameters', async () => {
