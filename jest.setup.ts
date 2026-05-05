@@ -1,6 +1,7 @@
 /* eslint-env jest */
 // Setup file executed before test suites
 // Mock the database connection to avoid opening real connections during unit/integration tests
+/// <reference types="jest" />
 jest.mock('@/config/databases', () => ({
   __esModule: true,
   default: {

@@ -7,10 +7,7 @@ const router = Router();
 
 // GET routes (ordered by importance)
 // 🔴 DEBUG: Only available in development environment
-if (process.env.NODE_ENV === 'development') {
-    router.get('/debug/:userId', authorize, requireAdmin, userController.debugGetUserData);
-    router.get('/test', userController.testEndpoint);
-}
+
 
 // 🟠 ALTO: Consultas administrativas de usuarios
 // IMPORTANTE: Las rutas estáticas deben estar ANTES de las rutas con parámetros dinámicos

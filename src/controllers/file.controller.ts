@@ -9,6 +9,7 @@ import FileService from '@/services/file.service';
 import BunnyService from '@/services/bunny.service';
 import config from '@/config';
 import { getClientIP } from '@/utils/fileSecurity.util';
+import { ensureString } from '@/utils/type-guards';
 
 export default class FileController {
   private readonly bunnyService: BunnyService;
@@ -19,7 +20,7 @@ export default class FileController {
 
   getFileImage = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { imageFileName } = req.params;
+      const imageFileName = ensureString(req.params.imageFileName);
       const clientIP = getClientIP(req);
 
       const fileBuffer = await this.fileService.getFileImage(imageFileName, clientIP);
@@ -56,7 +57,7 @@ export default class FileController {
 
   getFileVideo = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { videoFileName } = req.params;
+      const videoFileName = ensureString(req.params.videoFileName);
 
       const videoPath = path.join(__dirname, '../static/videos', videoFileName);
 
@@ -166,7 +167,7 @@ export default class FileController {
 
   getFile = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { fileName } = req.params;
+      const fileName = ensureString(req.params.fileName);
       const filePath = path.join(__dirname, '../static/supportMaterials', fileName);
 
       if (!fs.existsSync(filePath)) {
@@ -196,7 +197,7 @@ export default class FileController {
 
   getPublicFile = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { publicFile } = req.params;
+      const publicFile = ensureString(req.params.publicFile);
       const clientIP = getClientIP(req);
 
       // Usar el servicio que ahora tiene validación de seguridad

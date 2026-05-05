@@ -7,6 +7,7 @@ import { mercadoPagoRepository } from '@/repositories';
 import * as MercadoPagoService from '@/services/mercadoPago.service';
 import { uploadPaymentTicket } from '@/services/payment-upload.service';
 import { promotionalCodeService } from '@/services';
+import { ensureString } from '@/utils/type-guards';
 
 // Re-exportar para compatibilidad con rutas
 export { uploadPaymentTicket } from '@/services/payment-upload.service';
@@ -93,7 +94,7 @@ export default class PaymentController {
   // Endpoint para verificar estado de pago
   getPaymentStatus = async (req: Request, res: Response) => {
     try {
-      const { paymentId } = req.params;
+      const paymentId = ensureString(req.params.paymentId);
 
       if (!paymentId) {
         return res.status(400).json(prepareResponse(400, 'Payment ID is required'));
@@ -124,7 +125,7 @@ export default class PaymentController {
   // Endpoint para obtener detalles de pago
   getPaymentDetails = async (req: Request, res: Response) => {
     try {
-      const { paymentId } = req.params;
+      const paymentId = ensureString(req.params.paymentId);
 
       if (!paymentId) {
         return res.status(400).json(prepareResponse(400, 'Payment ID is required'));
@@ -420,7 +421,7 @@ export default class PaymentController {
   // Endpoint para obtener lista de pagos de MercadoPago
   getAllPayments = async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const limit = parseInt(ensureString(req.query.limit)) || 50;
       const payments = await this.mercadoPagoPaymentService.getAllPayments(limit);
 
       return res.json(prepareResponse(200, 'Payments retrieved successfully', payments));
@@ -435,7 +436,7 @@ export default class PaymentController {
   // Endpoint para verificar si un pago existe
   checkPaymentExists = async (req: Request, res: Response) => {
     try {
-      const { paymentId } = req.params;
+      const paymentId = ensureString(req.params.paymentId);
 
       if (!paymentId) {
         return res.status(400).json(prepareResponse(400, 'Payment ID is required'));
@@ -476,7 +477,7 @@ export default class PaymentController {
   // Endpoint para eliminar un pago específico
   deletePayment = async (req: Request, res: Response) => {
     try {
-      const { paymentId } = req.params;
+      const paymentId = ensureString(req.params.paymentId);
 
       if (!paymentId) {
         return res.status(400).json(prepareResponse(400, 'ID de pago requerido'));

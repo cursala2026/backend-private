@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { logger, prepareResponse } from '../utils';
 import PromotionalCodeService from '@/services/promotionalCode.service';
 import { DiscountType, PromotionalCodeStatus } from '@/models/mongo/promotionalCode.model';
+import { ensureString } from '@/utils/type-guards';
 
 export default class PromotionalCodeController {
   constructor(private readonly promotionalCodeService: PromotionalCodeService) {}
@@ -92,7 +93,7 @@ export default class PromotionalCodeController {
   // Obtener código promocional por ID
   getPromotionalCodeById = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
 
       if (!id) {
         return res.status(400).json(prepareResponse(400, 'ID del código promocional es requerido'));
@@ -115,7 +116,7 @@ export default class PromotionalCodeController {
   // Actualizar código promocional
   updatePromotionalCode = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const updateData = req.body;
 
       if (!id) {
@@ -162,7 +163,7 @@ export default class PromotionalCodeController {
   // Pausar código promocional
   pausePromotionalCode = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
 
       if (!id) {
         return res.status(400).json(prepareResponse(400, 'ID del código promocional es requerido'));
@@ -193,7 +194,7 @@ export default class PromotionalCodeController {
   // Actualizar parcialmente código promocional (PATCH)
   patchPromotionalCode = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const updateData = req.body;
 
       if (!id) {
@@ -272,7 +273,7 @@ export default class PromotionalCodeController {
   // Activar código promocional
   activatePromotionalCode = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
 
       if (!id) {
         return res.status(400).json(prepareResponse(400, 'ID del código promocional es requerido'));
@@ -303,7 +304,7 @@ export default class PromotionalCodeController {
   // Eliminar código promocional
   deletePromotionalCode = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
 
       if (!id) {
         return res.status(400).json(prepareResponse(400, 'ID del código promocional es requerido'));

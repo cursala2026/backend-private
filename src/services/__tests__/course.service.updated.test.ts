@@ -85,7 +85,7 @@ describe('CourseService - teachers notifications', () => {
 
       const result = await courseService.update('1', updateData as any);
 
-      expect(result.progressPercentage).toBe(100);
+      expect((result as any).progressPercentage).toBe(100);
       expect(mockCourseRepository.update).toHaveBeenCalled();
     });
   });

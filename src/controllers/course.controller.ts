@@ -1,41 +1,50 @@
 import { NextFunction, Request, Response } from 'express';
 import { logger, prepareResponse } from '../utils';
 import CourseService from '@/services/course.service';
-import { categoryService } from '@/services';
+import { categoryService, courseService } from '@/services';
 import { ICourse } from '@/models';
 import { courseUploadFiles } from '@/services/course-upload.service';
-
+import { ensureString } from '../utils/type-guards';
 // Re-exportar para compatibilidad con rutas
 export { courseUploadFiles as uploadFiles } from '@/services/course-upload.service';
-
+export const getClassDetails = async (req: Request, res: Response) => {
+    // APLICACIÓN DEL CONTROL:
+    // Aunque visualmente veas { classId: 'class-123' }, para el compilador es ambiguo.
+    const classId = ensureString(req.params.classId); 
+    
+    // Ahora 'classId' es estrictamente 'string'. 
+    // La "Prueba Sustantiva" (el build) pasará sin errores TS2345.
+    const result = await courseService.findOneById(classId);
+    res.status(200).json(result);
+};
 export default class CourseController {
   constructor(private readonly courseService: CourseService) { }
 
   findOneById = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { courseId } = req.params;
-      const course = await this.courseService.findOneById(courseId);
-      if (!course) {
-        return res.status(404).json(prepareResponse(404, 'Course not found'));
-      }
-      return res.json(prepareResponse(200, 'Course fetched successfully', course));
-    } catch (error) {
-      return next(error);
+  try {
+    const courseId = ensureString(req.params.courseId);
+    const course = await this.courseService.findOneById(courseId);
+    if (!course) {
+      return res.status(404).json(prepareResponse(404, 'Course not found'));
     }
-  };
+    return res.json(prepareResponse(200, 'Course fetched successfully', course));
+  } catch (error) {
+    return next(error);
+  }
+};
 
-  findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { courseId } = req.params;
-      const course = await this.courseService.findOneById(courseId);
-      if (!course) {
-        return res.status(404).json(prepareResponse(404, 'Course not found'));
-      }
-      return res.json(prepareResponse(200, 'Course fetched successfully', course));
-    } catch (error) {
-      return next(error);
+findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const courseId = ensureString(req.params.courseId);
+    const course = await this.courseService.findOneById(courseId);
+    if (!course) {
+      return res.status(404).json(prepareResponse(404, 'Course not found'));
     }
-  };
+    return res.json(prepareResponse(200, 'Course fetched successfully', course));
+  } catch (error) {
+    return next(error);
+  }
+};
 
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -187,7 +196,7 @@ export default class CourseController {
         }
 
         try {
-          const { id } = req.params;
+          const id = ensureString(req.params.courseId);
           const existingCourse = await this.courseService.findOneById(id);
           if (!existingCourse) {
             return res.status(404).json({ message: 'Course not found' });
@@ -382,7 +391,7 @@ export default class CourseController {
 
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       
       // Eliminar curso con todos sus archivos usando el servicio
       const deletedCourse = await this.courseService.deleteCourseWithFiles(courseId);
@@ -395,7 +404,7 @@ export default class CourseController {
 
   findAll = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const categoryId = req.query.categoryId as string | undefined;
+      const categoryId = ensureString(req.query.categoryId);
       let courses = await this.courseService.findAll();
 
       if (categoryId) {
@@ -441,7 +450,7 @@ export default class CourseController {
 
   changeStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const { status } = req.body;
       const course = await this.courseService.changeStatus(courseId, status);
       return res.json(prepareResponse(200, 'Course status updated successfully', course));
@@ -452,7 +461,7 @@ export default class CourseController {
 
   moveUpOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const course = await this.courseService.moveUpOrder(courseId);
       return res.json(prepareResponse(200, 'Course order moved up successfully', course));
     } catch (error) {
@@ -462,7 +471,7 @@ export default class CourseController {
 
   moveDownOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const course = await this.courseService.moveDownOrder(courseId);
       return res.json(prepareResponse(200, 'Course order moved down successfully', course));
     } catch (error) {
@@ -472,7 +481,7 @@ export default class CourseController {
 
   getCourseImage = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { imageFileName } = req.params;
+      const imageFileName = ensureString(req.params.imageFileName);
       const fileBuffer = await this.courseService.getCourseImage(imageFileName);
       if (!fileBuffer) {
         return res.status(404).json({ message: 'Image not found' });
@@ -512,7 +521,7 @@ export default class CourseController {
 
   changeShowOnHome = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const course = await this.courseService.changeShowOnHome(courseId);
       return res.json(prepareResponse(200, 'Course show on home status updated successfully', course));
     } catch (error) {
@@ -524,7 +533,7 @@ export default class CourseController {
 
   changePublishedStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const { isPublished } = req.body;
 
       
@@ -559,7 +568,7 @@ export default class CourseController {
 
   findByTeacherId = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { teacherId } = req.params;
+      const teacherId = ensureString(req.params.teacherId);
       const courses = await this.courseService.findByTeacherId(teacherId);
       return res.json(prepareResponse(200, 'Teacher courses fetched successfully', courses));
     } catch (error) {
@@ -573,7 +582,7 @@ export default class CourseController {
    */
   updateTeachers = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const { add, remove } = req.body as { add?: string[]; remove?: string[] };
 
       if (!courseId) return res.status(400).json(prepareResponse(400, 'Course ID is required'));
@@ -592,7 +601,7 @@ export default class CourseController {
 
   enrollStudent = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const userId = (req.user as any)?._id; // Obtenido del middleware de autenticación
 
       if (!userId) {
@@ -632,7 +641,8 @@ export default class CourseController {
 
   enrollStudentByAdmin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId, userId } = req.params;
+      const courseId = ensureString(req.params.courseId);
+      const userId = ensureString(req.params.userId);
       const { startDate, endDate } = req.body;
 
       if (!courseId) {
@@ -695,7 +705,7 @@ export default class CourseController {
 
   unenrollStudent = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const userId = (req.user as any)?._id; // Obtenido del middleware de autenticación
 
       if (!userId) {
@@ -730,7 +740,8 @@ export default class CourseController {
 
   unenrollStudentByAdmin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId, userId } = req.params;
+      const courseId = ensureString(req.params.courseId);
+      const userId = ensureString(req.params.userId);
 
       if (!courseId) {
         return res.status(400).json(prepareResponse(400, 'Course ID is required'));
@@ -767,7 +778,7 @@ export default class CourseController {
 
   duplicateCourse = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
 
       if (!courseId) {
         return res.status(400).json(prepareResponse(400, 'Course ID is required'));

@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import prepareResponse from '../utils/api-response';
 import FAQService from '@/services/faq.service';
+import { ensureString } from '../utils/type-guards'; // Importación crítica del control de tipos
 
 export default class FAQController {
   constructor(private readonly faqService: FAQService) {}
@@ -10,7 +11,8 @@ export default class FAQController {
    */
   getAllFAQs = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { activeOnly } = req.query;
+      // req.query.activeOnly también es string | string[] | ParsedQs...
+      const activeOnly = req.query.activeOnly;
       const isActiveOnly = activeOnly === 'true';
 
       const faqs = await this.faqService.getAllFAQs(isActiveOnly);
@@ -25,9 +27,9 @@ export default class FAQController {
    */
   getFAQsByCategory = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { category } = req.params;
-      const { activeOnly } = req.query;
-      const isActiveOnly = activeOnly === 'true';
+      // APLICACIÓN DE CONTROL: Línea 46 del log de error
+      const category = ensureString(req.params.category);
+      const isActiveOnly = req.query.activeOnly === 'true';
 
       const faqs = await this.faqService.getFAQsByCategory(category, isActiveOnly);
       return res.json(prepareResponse(200, 'FAQs fetched successfully', faqs));
@@ -41,7 +43,8 @@ export default class FAQController {
    */
   getFAQById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      // APLICACIÓN DE CONTROL: Línea 32 del log de error
+      const id = ensureString(req.params.id);
 
       const faq = await this.faqService.getFAQById(id);
       return res.json(prepareResponse(200, 'FAQ fetched successfully', faq));
@@ -56,7 +59,6 @@ export default class FAQController {
   createFAQ = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const faqData = req.body;
-
       const newFAQ = await this.faqService.createFAQ(faqData);
       return res.status(201).json(prepareResponse(201, 'FAQ created successfully', newFAQ));
     } catch (error) {
@@ -69,7 +71,8 @@ export default class FAQController {
    */
   updateFAQ = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      // APLICACIÓN DE CONTROL: Línea 75 del log de error
+      const id = ensureString(req.params.id);
       const updateData = req.body;
 
       const updatedFAQ = await this.faqService.updateFAQ(id, updateData);
@@ -84,7 +87,8 @@ export default class FAQController {
    */
   deleteFAQ = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      // APLICACIÓN DE CONTROL: Línea 89 del log de error
+      const id = ensureString(req.params.id);
 
       const deletedFAQ = await this.faqService.deleteFAQ(id);
       return res.json(prepareResponse(200, 'FAQ deleted successfully', deletedFAQ));
@@ -111,7 +115,6 @@ export default class FAQController {
   updateFAQOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { orderUpdates } = req.body;
-
       const result = await this.faqService.updateFAQOrder(orderUpdates);
       return res.json(prepareResponse(200, 'FAQ order updated successfully', result));
     } catch (error) {
