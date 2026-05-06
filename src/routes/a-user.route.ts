@@ -54,7 +54,7 @@ router.patch('/updateUser/:userId', authorize, requireAdmin, userController.upda
 router.patch('/updateUserData/:userId', authorize, requireAdminOrSelf, userController.updateUserData);
 router.patch('/updateLastConnection/:userId', authorize, userController.updateLastConnection);
 router.patch('/:userId/toggle-status', authorize, requireAdmin, userController.toggleUserStatus);
-
+router.patch('/:userId/interests', authorize, requireAdminOrSelf, userController.saveUserInterests);
 // DELETE routes
 // 🔴 CRÍTICO: Eliminar usuario requiere verificación de email
 router.delete('/deleteUser/:userId', authorize, requireAdmin, userController.deleteUser);
