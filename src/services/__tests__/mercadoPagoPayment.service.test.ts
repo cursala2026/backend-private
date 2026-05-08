@@ -1,6 +1,10 @@
 
 /* eslint-env jest */
 // Set environment variables before importing anything
+jest.mock('@/config/errors', () => ({
+  __esModule: true,
+  default: {}
+}));
 process.env.MERCADOPAGO_ACCESS_TOKEN = 'TEST-token';
 process.env.NODE_ENV = 'test';
 

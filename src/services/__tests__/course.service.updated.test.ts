@@ -75,18 +75,19 @@ describe('CourseService - teachers notifications', () => {
   });
   describe('Progress Update with Surveys', () => {
     test('should update progress correctly when a survey is completed', async () => {
-      const updateData = {
+    const updateData = {
         lastModuleCompleted: 'survey-101',
         progressPercentage: 100
-      };
+    };
 
-      // Simulamos que el repositorio acepta la actualización del progreso
-      mockCourseRepository.update.mockResolvedValue({ id: '1', ...updateData });
+    // Agregar este mock que faltaba
+    mockCourseRepository.findOneById.mockResolvedValue({ _id: '1', teachers: [] });
+    mockCourseRepository.update.mockResolvedValue({ id: '1', ...updateData });
 
-      const result = await courseService.update('1', updateData as any);
+    const result = await courseService.update('1', updateData as any);
 
-      expect(result.progressPercentage).toBe(100);
-      expect(mockCourseRepository.update).toHaveBeenCalled();
-    });
+    expect((result as any).progressPercentage).toBe(100);
+    expect(mockCourseRepository.update).toHaveBeenCalled();
+});
   });
 });

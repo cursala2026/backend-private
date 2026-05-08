@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
-import { FileMaterialType, FileMaterialCategory } from '@models/mongo';
-import { UserStatus } from '@models/enums';
+import { FileMaterialType, FileMaterialCategory } from '@/models';
+import { UserStatus } from '@/models';
 import { uploadFiles } from '@utils/fileUpload.util';
 import { logger } from '../utils';
 import { fileMaterialService } from '@/services';
+import { ensureString } from '@utils/type-guards';
 
 export class FileMaterialController {
   /**
@@ -159,7 +160,7 @@ export class FileMaterialController {
    */
   getMaterialById = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
 
       const material = await fileMaterialService.getFileMaterialById(id);
 
@@ -227,7 +228,7 @@ export class FileMaterialController {
    */
   updateMaterial = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const { name, description, isPublic, status } = req.body;
       const authUser = (req as Request & { user?: { _id?: string } }).user;
       const userId = authUser?._id;
@@ -283,7 +284,7 @@ export class FileMaterialController {
    */
   deleteMaterial = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const authUser = (req as Request & { user?: { _id?: string } }).user;
       const userId = authUser?._id;
 
@@ -326,7 +327,7 @@ export class FileMaterialController {
    */
   downloadMaterial = async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const authUser = (req as Request & { user?: { _id?: string } }).user;
       const userId = authUser?._id;
 

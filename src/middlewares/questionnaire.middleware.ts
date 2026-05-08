@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 import { hasAdminRole } from '@/middlewares/adminSecurity.middleware';
 import { Course } from '@/models/mongo/course.model';
+import { IUser } from '@/models/user.model';
+import { ensureString } from '@/utils/type-guards';
 
 /**
  * Middleware para verificar si el usuario es admin o dueño del cuestionario
@@ -12,7 +14,7 @@ export function requireAdminOrQuestionnaireOwner(questionnaireRepository: Questi
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { user } = req as any;
-      const questionnaireId = req.params.id || req.params.questionnaireId;
+      const questionnaireId = ensureString(req.params.questionnaireId);
 
       if (!user) {
         return res.status(401).json({ success: false, message: 'Not authenticated' });

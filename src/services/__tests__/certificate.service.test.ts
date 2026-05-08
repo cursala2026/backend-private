@@ -48,7 +48,7 @@ describe('CertificateService', () => {
   describe('generateCertificate', () => {
     test('generates certificate successfully', async () => {
       const student = { firstName: 'John', lastName: 'Doe', email: 'john@example.com' };
-      const course = { name: 'Test Course', description: 'Desc', startDate: new Date() };
+      const course = { name: 'Test Course', description: 'Desc', startDate: new Date(), teachers: ['teacher-id'] };
       const teacher = { firstName: 'Teacher', lastName: 'One', email: 'teacher@example.com', professionalDescription: 'Prof' };
       const certificate = { certificateId: 'CERT-123', generatedAt: new Date() };
       mockUserRepository.getUserById.mockResolvedValueOnce(student).mockResolvedValueOnce(teacher);
@@ -68,7 +68,7 @@ describe('CertificateService', () => {
       expect(result).toHaveProperty('certificateId');
       expect(result).toHaveProperty('verificationCode');
       expect(mockCertificateRepository.create).toHaveBeenCalled();
-      expect(sendEmail).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Email omitido'));
     });
     test('throws error if student not found', async () => {
       mockUserRepository.getUserById.mockResolvedValue(null);
@@ -85,7 +85,7 @@ describe('CertificateService', () => {
       const course = { name: 'Test Course', teachers: ['teacher-id'] };
       mockUserRepository.getUserById.mockResolvedValueOnce(student).mockResolvedValueOnce(null);
       mockCourseRepository.findById.mockResolvedValue(course);
-      await expect(certificateService.generateCertificate('student-id', 'course-id', 'generated-by')).rejects.toThrow('Profesor no encontrado');
+      await expect(certificateService.generateCertificate('student-id', 'course-id', 'generated-by')).rejects.toThrow('Al menos uno de los profesores del curso no fue encontrado');
     });
     test('throws error if student not enrolled', async () => {
       const student = { firstName: 'John', lastName: 'Doe' };

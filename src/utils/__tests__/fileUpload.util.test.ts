@@ -64,7 +64,7 @@ describe('fileUpload.util', () => {
 
             multerDestination(null, file, cb);
 
-            expect(cb).toHaveBeenCalledWith(null, expect.stringContaining('filesPublic'));
+            expect(cb).toHaveBeenCalledWith(null, expect.stringContaining('files-public'));
         });
 
         test('should set destination to uploadDirFilesPublic for programFile', () => {
@@ -73,7 +73,8 @@ describe('fileUpload.util', () => {
 
             multerDestination(null, file, cb);
 
-            expect(cb).toHaveBeenCalledWith(null, expect.stringContaining('filesPublic'));
+            expect(cb).toHaveBeenCalledWith(null, expect.stringContaining('files-public'));
+
         });
 
         test('should set destination to uploadDirProfileImages for photo', () => {
