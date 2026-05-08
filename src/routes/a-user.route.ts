@@ -7,10 +7,7 @@ const router = Router();
 
 // GET routes (ordered by importance)
 // 🔴 DEBUG: Only available in development environment
-if (process.env.NODE_ENV === 'development') {
-    router.get('/debug/:userId', authorize, requireAdmin, userController.debugGetUserData);
-    router.get('/test', userController.testEndpoint);
-}
+
 
 // 🟠 ALTO: Consultas administrativas de usuarios
 // IMPORTANTE: Las rutas estáticas deben estar ANTES de las rutas con parámetros dinámicos
@@ -57,7 +54,7 @@ router.patch('/updateUser/:userId', authorize, requireAdmin, userController.upda
 router.patch('/updateUserData/:userId', authorize, requireAdminOrSelf, userController.updateUserData);
 router.patch('/updateLastConnection/:userId', authorize, userController.updateLastConnection);
 router.patch('/:userId/toggle-status', authorize, requireAdmin, userController.toggleUserStatus);
-
+router.patch('/:userId/interests', authorize, requireAdminOrSelf, userController.saveUserInterests);
 // DELETE routes
 // 🔴 CRÍTICO: Eliminar usuario requiere verificación de email
 router.delete('/deleteUser/:userId', authorize, requireAdmin, userController.deleteUser);

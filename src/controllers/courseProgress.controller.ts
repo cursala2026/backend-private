@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { courseProgressService } from '@/services/courseProgress.service';
 import { IUser } from '@/models';
 import { ManualUpdateProgressParams } from '@/models/params.model';
+import { ensureString } from '@/utils/type-guards';
 
 class CourseProgressController {
   /**
@@ -11,7 +12,7 @@ class CourseProgressController {
   async getProgress(req: Request, res: Response): Promise<void> {
     try {
       const user = req.user as IUser;
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const { userId: queryUserId } = req.query;
 
       if (!user?._id) {
@@ -81,7 +82,7 @@ class CourseProgressController {
   async updateProgress(req: Request, res: Response): Promise<void> {
     try {
       const user = req.user as IUser;
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
       const { classId, watchTime, duration, completed } = req.body;
 
       if (!user?._id) {
@@ -124,7 +125,8 @@ class CourseProgressController {
   async markCompleted(req: Request, res: Response): Promise<void> {
     try {
       const user = req.user as IUser;
-      const { courseId, classId } = req.params;
+      const courseId = ensureString(req.params.courseId);
+      const classId = ensureString(req.params.classId);
 
       if (!user?._id) {
         res.status(401).json({ success: false, message: 'No autorizado' });
@@ -156,7 +158,8 @@ class CourseProgressController {
   async getClassProgress(req: Request, res: Response): Promise<void> {
     try {
       const user = req.user as IUser;
-      const { courseId, classId } = req.params;
+      const courseId = ensureString(req.params.courseId);
+      const classId = ensureString(req.params.classId);
 
       if (!user?._id) {
         res.status(401).json({ success: false, message: 'No autorizado' });
@@ -188,7 +191,8 @@ class CourseProgressController {
   async canAccessClass(req: Request, res: Response): Promise<void> {
     try {
       const user = req.user as IUser;
-      const { courseId, classId } = req.params;
+      const courseId = ensureString(req.params.courseId);
+      const classId = ensureString(req.params.classId);
 
       if (!user?._id) {
         res.status(401).json({ success: false, message: 'No autorizado' });
@@ -219,7 +223,8 @@ class CourseProgressController {
    */
   async resetStudentProgress(req: Request, res: Response): Promise<void> {
     try {
-      const { courseId, userId } = req.params;
+      const courseId = ensureString(req.params.courseId);
+      const userId = ensureString(req.params.userId);
 
       if (!userId || !courseId) {
         res.status(400).json({

@@ -5,6 +5,7 @@ import questionMediaUploadProgressService from '@/services/question-media-upload
 import { EventEmitter } from 'events';
 import fs from 'fs';
 import { Readable } from 'stream';
+import { ensureString } from '@/utils/type-guards';
 
 export default class QuestionnaireController {
   constructor(private readonly questionnaireService: QuestionnaireService) {}
@@ -77,7 +78,7 @@ export default class QuestionnaireController {
    */
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString (req.params.id);
       const body = req.body || {};
       const allowedTopFields = [
         'title',
@@ -132,7 +133,7 @@ export default class QuestionnaireController {
    */
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
 
       await this.questionnaireService.delete(id);
       return res.json(prepareResponse(200, 'Questionnaire deleted successfully'));
@@ -146,7 +147,7 @@ export default class QuestionnaireController {
    */
   findById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const user = (req as any).user;
 
       // Only pass studentId if user is a student (ALUMNO), not if they're a professor or admin
@@ -175,7 +176,7 @@ export default class QuestionnaireController {
    */
   findByCourse = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { courseId } = req.params;
+      const courseId = ensureString(req.params.courseId);
 
       const questionnaires = await this.questionnaireService.findByCourseId(courseId);
       return res.json(prepareResponse(200, 'Questionnaires fetched successfully', questionnaires));
@@ -189,7 +190,7 @@ export default class QuestionnaireController {
    */
   findByProfessor = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { professorId } = req.params;
+      const professorId = ensureString(req.params.professorId);
 
       const questionnaires = await this.questionnaireService.findByProfessorId(professorId);
       return res.json(prepareResponse(200, 'Questionnaires fetched successfully', questionnaires));
