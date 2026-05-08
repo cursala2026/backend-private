@@ -3,11 +3,6 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
-  globals: {
-    'ts-jest': {
-      tsconfig: 'tsconfig.test.json'
-    }
-  },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@models/(.*)$': '<rootDir>/src/models/$1',
@@ -19,8 +14,10 @@ module.exports = {
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
   },
   transform: {
-  '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }],
-},
+    '^.+\\.ts$': ['ts-jest', {
+      tsconfig: './tsconfig.test.json',
+    }],
+  },
   transformIgnorePatterns: ['node_modules/(?!(uuid)/)'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.ts$',

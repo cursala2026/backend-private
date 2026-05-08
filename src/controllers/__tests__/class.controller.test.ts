@@ -2,12 +2,35 @@ import { Request, Response, NextFunction } from 'express';
 import { fileUploadService } from '@/services/file-upload.service';
 import ClassController from '../class.controller';
 import ClassService from '@/services/class.service';
+import fs from 'fs';
 
 // Mock dependencies
 jest.mock('@/services/class.service');
 jest.mock('@/services/file-upload.service');
-jest.mock('../../services/file-upload.service'); // Mock relative path too
+jest.mock('../../services/file-upload.service');
 
+// Mockear BunnyService para evitar llamadas reales
+jest.mock('@/services/bunny.service', () => {
+    const mockBunnyInstance = {
+        generateUniqueFileName: jest.fn().mockReturnValue('unique-file.jpg'),
+        uploadFile: jest.fn().mockResolvedValue('https://bunny.cdn/image.jpg'),
+        uploadFilePreserveOriginal: jest.fn().mockResolvedValue('https://bunny.cdn/file.pdf'),
+        uploadVideoToStream: jest.fn().mockResolvedValue('https://bunny.cdn/video.mp4'),
+        deleteFile: jest.fn().mockResolvedValue(true),
+        deleteVideoFromStream: jest.fn().mockResolvedValue(true),
+        isBunnyCdnUrl: jest.fn().mockReturnValue(false),
+        isStreamUrl: jest.fn().mockReturnValue(false),
+        normalizeOriginalName: jest.fn((name: string) => name),
+    };
+
+    const MockBunnyService = jest.fn().mockImplementation(() => mockBunnyInstance) as any;
+    MockBunnyService.getInstance = jest.fn().mockReturnValue(mockBunnyInstance);
+
+    return {
+        __esModule: true,
+        default: MockBunnyService,
+    };
+});
 jest.mock('@/utils', () => ({
     logger: {
         info: jest.fn(),
@@ -19,6 +42,24 @@ jest.mock('@/utils', () => ({
         message,
         data,
     }),
+}));
+
+// Mockear servicios de progreso de video
+jest.mock('@/services/video-upload-progress.service', () => ({
+    videoUploadProgressService: {
+        startTracking: jest.fn(),
+        updateProgress: jest.fn(),
+        finishTracking: jest.fn(),
+        setError: jest.fn(),
+    },
+}));
+
+jest.mock('@/services/video-upload-queue.service', () => ({
+    videoUploadQueueService: {
+        enqueue: jest.fn(),
+        isProcessing: jest.fn().mockReturnValue(false),
+        hasPending: jest.fn().mockReturnValue(false),
+    },
 }));
 
 describe('ClassController Standard', () => {
@@ -60,9 +101,9 @@ describe('ClassController Standard', () => {
             };
 
             const mockResolvedFiles = {
-                imageUrl: 'image.jpg',
-                videoUrl: 'video.mp4',
-                supportMaterials: ['material.pdf'],
+                imageUrl: undefined,   // sin imagen — evita el bloque de Bunny upload
+                videoUrl: undefined,   // sin video — evita el bloque de background upload
+                supportMaterials: [],
                 errors: [],
                 uploadIdsToClean: ['img-123'],
             };
@@ -87,7 +128,7 @@ describe('ClassController Standard', () => {
                 name: 'Test Class',
                 description: 'Test Description',
                 courseId: 'course-123',
-                imageFileId: 'img-123', // Added to pass validation
+                imageFileId: 'img-123',
             };
             const mockResolvedFiles = {
                 imageUrl: undefined,
@@ -115,7 +156,7 @@ describe('ClassController Standard', () => {
             };
 
             const mockResolvedFiles = {
-                imageUrl: 'new-image.jpg',
+                imageUrl: undefined,   // sin imagen nueva — evita bloque Bunny
                 videoUrl: undefined,
                 supportMaterials: [],
                 errors: [],
@@ -124,7 +165,10 @@ describe('ClassController Standard', () => {
             };
 
             (fileUploadService.resolveClassFilesForUpdate as jest.Mock).mockReturnValue(mockResolvedFiles);
-            mockClassService.findOneById.mockResolvedValue({ imageUrl: 'old-image.jpg' } as any);
+            mockClassService.findOneById.mockResolvedValue({ 
+                imageUrl: 'old-image.jpg',
+                supportMaterials: [],
+            } as any);
             mockClassService.update.mockResolvedValue({ _id: 'class-123', ...req.body } as any);
 
             await classController.update(req as Request, res as Response, next);
