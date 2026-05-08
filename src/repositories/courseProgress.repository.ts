@@ -175,10 +175,12 @@ class CourseProgressRepository {
 
       // Recalcular progreso usando los valores correctos de la base de datos
       const actualTotalClasses = await this.getTotalClasses(courseId);
-      const totalQuestionnaires = await this.Questionnaire.countDocuments({
+      const activeQuestionnaires = await this.Questionnaire.find({
         courseId: new Types.ObjectId(courseId),
         status: 'ACTIVE',
-      });
+      }).lean();
+      
+      const totalQuestionnaires = activeQuestionnaires.length;
 
       // Obtener el progreso actualizado para calcular correctamente
       const updatedProgress = existingClassIndex >= 0 
@@ -202,6 +204,9 @@ class CourseProgressRepository {
             }],
           };
 
+      // Obtener los IDs de cuestionarios activos para filtrar los completados válidos
+      const activeQuestionnaireIds = new Set(activeQuestionnaires.map(q => q._id.toString()));
+
       // Filtrar clases duplicadas usando un Set de IDs únicos
       const completedClassIds = new Set<string>();
       updatedProgress.classesProgress.forEach((cp) => {
@@ -211,12 +216,15 @@ class CourseProgressRepository {
       });
       const completedClasses = completedClassIds.size;
       
-      // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+      // Filtrar cuestionarios duplicados usando un Set de IDs únicos y asegurando que sigan siendo activos
       const completedQuestionnaireIds = new Set<string>();
       if (updatedProgress.questionnairesProgress) {
         updatedProgress.questionnairesProgress.forEach((qp) => {
           if (qp.completed && qp.questionnaireId) {
-            completedQuestionnaireIds.add(String(qp.questionnaireId));
+            const qid = String(qp.questionnaireId);
+            if (activeQuestionnaireIds.has(qid)) {
+              completedQuestionnaireIds.add(qid);
+            }
           }
         });
       }
@@ -535,10 +543,13 @@ class CourseProgressRepository {
       // Usar getTotalClasses para obtener el valor correcto
       const actualTotalClasses = await this.getTotalClasses(courseId);
 
-      const totalQuestionnaires = await this.Questionnaire.countDocuments({
+      const activeQuestionnaires = await this.Questionnaire.find({
         courseId: new Types.ObjectId(courseId),
         status: 'ACTIVE',
-      });
+      }).lean();
+      
+      const totalQuestionnaires = activeQuestionnaires.length;
+      const activeQuestionnaireIds = new Set(activeQuestionnaires.map(q => q._id.toString()));
 
       // Filtrar clases duplicadas usando un Set de IDs únicos
       const completedClassIds = new Set<string>();
@@ -549,12 +560,15 @@ class CourseProgressRepository {
       });
       const completedClasses = completedClassIds.size;
       
-      // Filtrar cuestionarios duplicados usando un Set de IDs únicos
+      // Filtrar cuestionarios duplicados usando un Set de IDs únicos y asegurando que sigan siendo activos
       const completedQuestionnaireIds = new Set<string>();
       if (progress.questionnairesProgress) {
         progress.questionnairesProgress.forEach((qp) => {
           if (qp.completed && qp.questionnaireId) {
-            completedQuestionnaireIds.add(String(qp.questionnaireId));
+            const qid = String(qp.questionnaireId);
+            if (activeQuestionnaireIds.has(qid)) {
+              completedQuestionnaireIds.add(qid);
+            }
           }
         });
       }
