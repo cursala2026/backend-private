@@ -664,4 +664,16 @@ export default class UserService {
     // Obtener los alumnos de todos los cursos
     return this.userRepository.getStudentsByTeacherCourses(courseIds);
   }
+  async shouldShowInterestsForm(userId: string): Promise<boolean> {
+    try {
+      const user = await this.userRepository.getUserById(userId);
+      if (!user || user.hasCompletedInterestsForm) return false;
+
+      const assignedCourses = await this.getAssignedCourses(userId);
+      return assignedCourses.length === 0;
+    } catch (error) {
+      logger.error(`❌ Error en validación de intereses para usuario ${userId}:`, error);
+      return false;
+    }
+  }
 }
