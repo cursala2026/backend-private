@@ -205,7 +205,7 @@ class CourseProgressRepository {
           };
 
       // Obtener los IDs de cuestionarios activos para filtrar los completados válidos
-      const activeQuestionnaireIds = new Set(activeQuestionnaires.map(q => q._id.toString()));
+      const activeQuestionnaireIds = new Set(activeQuestionnaires.map((q: any) => q._id.toString()));
 
       // Filtrar clases duplicadas usando un Set de IDs únicos
       const completedClassIds = new Set<string>();
@@ -549,7 +549,7 @@ class CourseProgressRepository {
       }).lean();
       
       const totalQuestionnaires = activeQuestionnaires.length;
-      const activeQuestionnaireIds = new Set(activeQuestionnaires.map(q => q._id.toString()));
+      const activeQuestionnaireIds = new Set(activeQuestionnaires.map((q: any) => q._id.toString()));
 
       // Filtrar clases duplicadas usando un Set de IDs únicos
       const completedClassIds = new Set<string>();
