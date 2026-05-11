@@ -2,12 +2,16 @@ import { NextFunction, Request, Response } from 'express';
 import prepareResponse from '@/utils/api-response';
 import QuestionnaireService from '@/services/questionnaire.service';
 import questionMediaUploadProgressService from '@/services/question-media-upload-progress.service';
+import CourseService from '@/services/course.service';
 import { EventEmitter } from 'events';
 import fs from 'fs';
 import { Readable } from 'stream';
 
 export default class QuestionnaireController {
-  constructor(private readonly questionnaireService: QuestionnaireService) {}
+  constructor(
+    private readonly questionnaireService: QuestionnaireService,
+    private readonly courseService: CourseService
+  ) {}
 
   /**
    * Crear nuevo cuestionario
@@ -66,6 +70,12 @@ export default class QuestionnaireController {
 
       const questionnaire = await this.questionnaireService.create(questionnaireData, user._id.toString());
 
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(questionnaire.courseId.toString());
+      } catch (fetchError) {
+        console.error('Error fetching created questionnaire:', fetchError);
+      }
+
       return res.status(201).json(prepareResponse(201, 'Questionnaire created successfully', questionnaire));
     } catch (error) {
       return next(error);
@@ -121,6 +131,13 @@ export default class QuestionnaireController {
       }
 
       const updated = await this.questionnaireService.update(id, updateData);
+
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(updated.courseId.toString());
+      } catch (fetchError) {
+        console.error('Error fetching updated questionnaire:', fetchError);
+      }
+
       return res.json(prepareResponse(200, 'Questionnaire updated successfully', updated));
     } catch (error) {
       return next(error);
@@ -134,7 +151,20 @@ export default class QuestionnaireController {
     try {
       const { id } = req.params;
 
+      // Obtener el cuestionario antes de eliminar para obtener el courseId
+      const questionnaire = await this.questionnaireService.findById(id);
+      if (!questionnaire) {
+        return res.status(404).json(prepareResponse(404, 'Questionnaire not found'));
+      }
+
       await this.questionnaireService.delete(id);
+
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(questionnaire.courseId.toString());
+      } catch (fetchError) {
+        console.error('Error fetching deleted questionnaire:', fetchError);
+      }
+
       return res.json(prepareResponse(200, 'Questionnaire deleted successfully'));
     } catch (error) {
       return next(error);
