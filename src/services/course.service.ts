@@ -1,4 +1,5 @@
 import fs from 'fs';
+import axios from 'axios';
 import path from 'path';
 import { ICourse, Types } from '@/models';
 import { IUser } from '@/models/user.model';
@@ -31,6 +32,18 @@ export default class CourseService {
     }
     
     return course;
+  }
+
+  async checkPdfStatus(courseId: string): Promise<boolean> {
+    const course = await this.courseRepository.findOneById(courseId);
+    if (!course || !course.programUrl) return false;
+
+    try {
+      const response = await axios.get(course.programUrl, { headers: { AccessKey: config.BUNNY_STORAGE_API_KEY }});
+      return response.status === 200;
+    } catch (error: any) {
+      return false;
+    }
   }
 
   /**
@@ -143,7 +156,7 @@ export default class CourseService {
         const generator = new ProgramGeneratorService();
         const pdfUrl = await generator.generateAndUploadProgramPDF(programData, fullData.programUrl);
         // Actualizar el curso con la URL del nuevo PDF generado
-        await this.courseRepository.update(courseId, { orderedContent: ordered, programUrl: pdfUrl });
+        await this.courseRepository.update(courseId, { orderedContent: ordered, programUrl: pdfUrl, pdfSynced: true });
       } catch (err) {
         logger.error('Error generating/uploading program PDF after rebuilding orderedContent', { courseId, error: (err as Error).message });
       }
@@ -207,6 +220,7 @@ export default class CourseService {
       const pdfUrl = await generator.generateAndUploadProgramPDF(programData, course.programUrl);
       updateData.programUrl = pdfUrl;
       updateData.programOriginalName = `${programData.course?.name}.pdf`;
+      updateData.pdfSynced = true;
 
       // Actualizar el curso con las URLs de los archivos
       if (Object.keys(updateData).length > 0) {
@@ -253,6 +267,7 @@ export default class CourseService {
     const pdfUrl = await generator.generateAndUploadProgramPDF(programData, existingCourse.programUrl);
     updateData.programUrl = pdfUrl;
     updateData.programOriginalName = `${programData.course?.name}.pdf`;
+    updateData.pdfSynced = true;
 
     // Realizar la actualización
     const updated = await this.courseRepository.update(id, updateData, unsetFields);
@@ -325,7 +340,7 @@ export default class CourseService {
     const pdfUrl = await generator.generateAndUploadProgramPDF(programData, existingCourse.programUrl);
     updateData.programUrl = pdfUrl;
     updateData.programOriginalName = `${programData.course?.name}.pdf`;
-
+    updateData.pdfSynced = true;
     return updated;
   }
 

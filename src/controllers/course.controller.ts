@@ -5,46 +5,55 @@ import { categoryService, courseService } from '@/services';
 import { ICourse } from '@/models';
 import { courseUploadFiles } from '@/services/course-upload.service';
 import { ensureString } from '../utils/type-guards';
+
 // Re-exportar para compatibilidad con rutas
 export { courseUploadFiles as uploadFiles } from '@/services/course-upload.service';
+
 export const getClassDetails = async (req: Request, res: Response) => {
-    // APLICACIÓN DEL CONTROL:
-    // Aunque visualmente veas { classId: 'class-123' }, para el compilador es ambiguo.
-    const classId = ensureString(req.params.classId); 
-    
-    // Ahora 'classId' es estrictamente 'string'. 
-    // La "Prueba Sustantiva" (el build) pasará sin errores TS2345.
-    const result = await courseService.findOneById(classId);
-    res.status(200).json(result);
+  // APLICACIÓN DEL CONTROL:
+  // Aunque visualmente veas { classId: 'class-123' }, para el compilador es ambiguo.
+  const classId = ensureString(req.params.classId); 
+  
+  // Ahora 'classId' es estrictamente 'string'. 
+  // La "Prueba Sustantiva" (el build) pasará sin errores TS2345.
+  const result = await courseService.findOneById(classId);
+  res.status(200).json(result);
 };
+
 export default class CourseController {
   constructor(private readonly courseService: CourseService) { }
 
   findOneById = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const courseId = ensureString(req.params.courseId);
-    const course = await this.courseService.findOneById(courseId);
-    if (!course) {
-      return res.status(404).json(prepareResponse(404, 'Course not found'));
-    }
-    return res.json(prepareResponse(200, 'Course fetched successfully', course));
-  } catch (error) {
-    return next(error);
-  }
-};
+    try {
+      const courseId = ensureString(req.params.courseId);
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
 
-findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const courseId = ensureString(req.params.courseId);
-    const course = await this.courseService.findOneById(courseId);
-    if (!course) {
-      return res.status(404).json(prepareResponse(404, 'Course not found'));
+      // Integración de la lógica del commit: Verificación de sincronización del PDF
+      const pdfIsSynced = await this.courseService.checkPdfStatus(courseId);
+      return res.json(prepareResponse(200, 'Course fetched successfully', { ...course, pdfSynced: pdfIsSynced }));
+    } catch (error) {
+      return next(error);
     }
-    return res.json(prepareResponse(200, 'Course fetched successfully', course));
-  } catch (error) {
-    return next(error);
-  }
-};
+  };
+
+  findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const courseId = ensureString(req.params.courseId);
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
+
+      // Integración de la lógica del commit: Verificación de sincronización del PDF
+      const pdfIsSynced = await this.courseService.checkPdfStatus(courseId);
+      return res.json(prepareResponse(200, 'Course fetched successfully', { ...course, pdfSynced: pdfIsSynced }));
+    } catch (error) {
+      return next(error);
+    }
+  };
 
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -207,8 +216,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
             return res.status(404).json({ message: 'Course not found' });
           }
 
-          // Nota: la migración desde `mainTeacher` a `teachers` ya no es necesaria.
-
           const updateData: Partial<ICourse> = {};
           const unsetFields: string[] = [];
           const {
@@ -231,10 +238,8 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
             teachers,
           } = req.body;
 
-          // Solo actualizar campos si están presentes en req.body
           if (name !== undefined) updateData.name = name;
           if (description !== undefined) updateData.description = description;
-          // Manejar category: aceptar string o objeto; permitir limpiar con '' o null
           if (category !== undefined) {
             if (category === '' || category === null) {
               unsetFields.push('category');
@@ -251,7 +256,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
             }
           }
           if (time !== undefined) updateData.time = time;
-          // Manejar startDate: si no se envía (undefined) o está vacío, eliminarlo de la base de datos
           if (startDate !== undefined) {
             if (startDate === '' || startDate === null) {
               unsetFields.push('startDate');
@@ -259,10 +263,8 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
               updateData.startDate = new Date(startDate);
             }
           } else {
-            // Si startDate es undefined (no se envió), eliminarlo de la base de datos
             unsetFields.push('startDate');
           }
-          // Manejar registrationOpenDate: si no se envía (undefined) o está vacío, eliminarlo de la base de datos
           if (registrationOpenDate !== undefined) {
             if (registrationOpenDate === '' || registrationOpenDate === null) {
               unsetFields.push('registrationOpenDate');
@@ -270,7 +272,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
               updateData.registrationOpenDate = new Date(registrationOpenDate);
             }
           } else {
-            // Si registrationOpenDate es undefined (no se envió), eliminarlo de la base de datos
             unsetFields.push('registrationOpenDate');
           }
           if (modality !== undefined) updateData.modality = modality;
@@ -279,29 +280,24 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
           if (interestFree !== undefined) updateData.interestFree = interestFree === 'true' || interestFree === true;
           if (showOnHome !== undefined) updateData.showOnHome = showOnHome === 'true' || showOnHome === true;
           
-          // Solo actualizar numberOfClasses si es un número válido (>= 1)
           if (numberOfClasses !== undefined) {
             const numValue = Number(numberOfClasses);
             if (numValue > 0) {
               updateData.numberOfClasses = numValue;
             } else if (numberOfClasses === '' || numberOfClasses === null) {
-              // Si está vacío o null, eliminarlo
               unsetFields.push('numberOfClasses');
             }
           }
           
-          // Solo actualizar duration si es un número válido (>= 0.5)
           if (duration !== undefined) {
             const durValue = Number(duration);
             if (durValue >= 0.5) {
               updateData.duration = durValue;
             } else if (duration === '' || duration === null) {
-              // Si está vacío o null, eliminarlo
               unsetFields.push('duration');
             }
           }
 
-          // Procesar teachers si se proporciona
           if (teachers !== undefined) {
             let teachersArray: string[] = [];
             if (teachers) {
@@ -312,14 +308,12 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
               }
             }
 
-            // Validar que haya entre 1 y 3 profesores
             if (teachersArray.length < 1 || teachersArray.length > 3) {
               return res.status(400).json({ 
                 message: 'El curso debe tener entre 1 y 3 profesores asignados' 
               });
             }
 
-            // Convertir a ObjectIds
             const { Types } = require('mongoose');
             const teachersObjectIds = teachersArray.map(id => {
               if (!Types.ObjectId.isValid(id)) {
@@ -334,11 +328,9 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
           const files = req.files as Record<string, Express.Multer.File[]>;
           const imageFile = files?.imageFile?.[0];
           
-          // Si se solicita eliminar la imagen y no hay nueva imagen, agregar a unsetFields
           if (deleteImage === 'true' || deleteImage === true) {
             if (!imageFile && existingCourse.imageUrl) {
               unsetFields.push('imageUrl');
-              // Eliminar imagen del CDN
               const courseUploadService = require('@/services/courseUpload.service').default;
               await courseUploadService.deleteCourseImage(existingCourse.imageUrl);
             }
@@ -346,12 +338,10 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
           
           const hasUpdates = Object.keys(updateData).length > 0 || unsetFields.length > 0 || imageFile;
 
-          // Validar que se reciba al menos un campo para actualizar
           if (!hasUpdates) {
             return res.status(400).json({ message: 'At least one field must be provided for update' });
           }
 
-          // Actualizar curso con archivos usando el servicio
           const updatedCourse = await this.courseService.updateCourseWithFiles(
             id, 
             updateData, 
@@ -369,9 +359,7 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
         } catch (error) {
           logger.error(`Update course error: ${(error as Error).message}`);
           
-          // Manejar errores de MongoDB específicos
           if (error && typeof error === 'object' && 'code' in error) {
-            // Error de duplicado (código 11000 en MongoDB)
             if (error.code === 11000) {
               return res.status(400).json({ 
                 message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' 
@@ -379,14 +367,12 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
             }
           }
 
-          // Error de validación de Mongoose
           if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
             return res.status(400).json({ 
               message: 'Error de validación: ' + (error as Error).message 
             });
           }
 
-          // Error genérico
           return res.status(500).json({ 
             message: 'Error inesperado al actualizar el curso', 
             error: (error as Error).message 
@@ -401,8 +387,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
-      
-      // Eliminar curso con todos sus archivos usando el servicio
       const deletedCourse = await this.courseService.deleteCourseWithFiles(courseId);
 
       try {
@@ -429,7 +413,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
             const parsed = JSON.parse(c.category);
             return String(parsed.id) === categoryId;
           } catch (_err) {
-            // Si category no es JSON, comparar directamente
             return c.category === categoryId || c.category.includes(categoryId);
           }
         });
@@ -441,9 +424,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
     }
   };
 
-  /**
-   * Devuelve las categorías (id, name, description) para poblar selects en el frontend
-   */
   getCategoriesForSelect = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const cats = await categoryService.findAll();
@@ -523,7 +503,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
         return res.status(404).json({ message: 'Image not found' });
       }
 
-      // Determinar el tipo de contenido basado en la extensión del archivo
       let contentType = 'image/jpeg';
       if (imageFileName.endsWith('.png')) {
         contentType = 'image/png';
@@ -533,12 +512,11 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
         contentType = 'image/jpeg';
       }
 
-      // Headers CORS para permitir la carga de imágenes
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET');
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache por 1 día
+      res.setHeader('Cache-Control', 'public, max-age=86400');
 
       res.send(fileBuffer);
     } catch (error) {
@@ -572,30 +550,24 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
     }
   };
 
-  // `mainTeacher` endpoint removed; use course update (`teachers` array) instead.
-
   changePublishedStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
       const { isPublished } = req.body;
 
-      // Validar que courseId existe
       if (!courseId) {
         return res.status(400).json(prepareResponse(400, 'Course ID is required'));
       }
 
-      // Validar que isPublished es un boolean
       if (typeof isPublished !== 'boolean') {
         return res.status(400).json(prepareResponse(400, 'isPublished must be a boolean'));
       }
 
-      // Verificar que el curso existe
       const existingCourse = await this.courseService.findOneById(courseId);
       if (!existingCourse) {
         return res.status(404).json(prepareResponse(404, 'Course not found'));
       }
 
-      // Actualizar solo el campo isPublished
       const updatedCourse = await this.courseService.update(courseId, { isPublished }, []);
 
       try {
@@ -621,10 +593,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
     }
   };
 
-  /**
-   * Endpoint atómico para añadir/remover teachers del curso.
-   * Body: { add?: string[], remove?: string[] }
-   */
   updateTeachers = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
@@ -632,7 +600,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
 
       if (!courseId) return res.status(400).json(prepareResponse(400, 'Course ID is required'));
 
-      // Validación mínima: al menos add o remove
       if ((!Array.isArray(add) || add.length === 0) && (!Array.isArray(remove) || remove.length === 0)) {
         return res.status(400).json(prepareResponse(400, 'add or remove array must be provided'));
       }
@@ -654,7 +621,7 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
   enrollStudent = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
-      const userId = (req.user as any)?._id; // Obtenido del middleware de autenticación
+      const userId = (req.user as any)?._id;
 
       if (!userId) {
         return res.status(401).json(prepareResponse(401, 'User not authenticated'));
@@ -664,20 +631,16 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
         return res.status(400).json(prepareResponse(400, 'Course ID is required'));
       }
 
-      // Verificar que el curso existe
       const course = await this.courseService.findOneById(courseId);
       if (!course) {
         return res.status(404).json(prepareResponse(404, 'Course not found'));
       }
 
-      // Verificar que el curso es gratis
       if (course.price && course.price > 0) {
         return res.status(400).json(prepareResponse(400, 'Cannot enroll in paid courses through this endpoint'));
       }
 
-      // Inscribir al estudiante
       const updatedCourse = await this.courseService.enrollStudent(courseId, userId.toString());
-
       return res.json(prepareResponse(200, 'Student enrolled successfully', updatedCourse));
     } catch (error) {
       logger.error('Error enrolling student:', error);
@@ -705,17 +668,14 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
         return res.status(400).json(prepareResponse(400, 'User ID is required'));
       }
 
-      // Verificar que el curso existe
       const course = await this.courseService.findOneById(courseId);
       if (!course) {
         return res.status(404).json(prepareResponse(404, 'Course not found'));
       }
 
-      // Convertir fechas si vienen como string
       const parsedStartDate = startDate ? new Date(startDate) : undefined;
       const parsedEndDate = endDate ? new Date(endDate) : undefined;
 
-      // Inscribir manualmente al estudiante
       const updatedCourse = await this.courseService.enrollStudentByAdmin(
         courseId,
         userId,
@@ -758,7 +718,7 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
   unenrollStudent = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
-      const userId = (req.user as any)?._id; // Obtenido del middleware de autenticación
+      const userId = (req.user as any)?._id;
 
       if (!userId) {
         return res.status(401).json(prepareResponse(401, 'User not authenticated'));
@@ -768,15 +728,12 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
         return res.status(400).json(prepareResponse(400, 'Course ID is required'));
       }
 
-      // Verificar que el curso existe
       const course = await this.courseService.findOneById(courseId);
       if (!course) {
         return res.status(404).json(prepareResponse(404, 'Course not found'));
       }
 
-      // Desuscribir al estudiante
       const updatedCourse = await this.courseService.unenrollStudent(courseId, userId.toString());
-
       return res.json(prepareResponse(200, 'Student unenrolled successfully', updatedCourse));
     } catch (error) {
       logger.error('Error unenrolling student:', error);
@@ -803,15 +760,12 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
         return res.status(400).json(prepareResponse(400, 'User ID is required'));
       }
 
-      // Verificar que el curso existe
       const course = await this.courseService.findOneById(courseId);
       if (!course) {
         return res.status(404).json(prepareResponse(404, 'Course not found'));
       }
 
-      // Desasociar completamente al estudiante del curso
       const updatedCourse = await this.courseService.unenrollStudentByAdmin(courseId, userId);
-
       return res.json(prepareResponse(200, 'Student completely unenrolled from course', updatedCourse));
     } catch (error) {
       logger.error('Error unenrolling student by admin:', error);
@@ -836,13 +790,11 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
         return res.status(400).json(prepareResponse(400, 'Course ID is required'));
       }
 
-      // Verificar que el curso existe
       const course = await this.courseService.findOneById(courseId);
       if (!course) {
         return res.status(404).json(prepareResponse(404, 'Course not found'));
       }
 
-      // Duplicar el curso con todas sus clases y cuestionarios
       const duplicatedCourse = await this.courseService.duplicateCourse(courseId);
 
       try {
