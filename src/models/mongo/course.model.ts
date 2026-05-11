@@ -47,6 +47,7 @@ export interface ICourse {
   price?: number;
   programUrl?: string;
   programOriginalName?: string; // Added original program PDF filename
+  pdfSynced?: boolean; // Campo para indicar si el PDF está sincronizado
   maxInstallments: number;
   interestFree: boolean;
   showOnHome?: boolean;
@@ -128,6 +129,7 @@ export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
     price: { type: Number, min: 0 },
     programUrl: { type: String, match: /\.pdf$/i },
     programOriginalName: { type: String, trim: true }, // Added schema for original program PDF filename
+    pdfSynced: { type: Boolean, default: false }, // Campo para indicar si el PDF está sincronizado
     maxInstallments: { type: Number, min: 1 },
     interestFree: { type: Boolean },
     showOnHome: { type: Boolean, default: false },
