@@ -6,7 +6,7 @@ interface IAssignedCourseEdit {
   courseId: Types.ObjectId;
 }
 
-interface IUser {
+export interface IUser {
   _id: Types.ObjectId;
   username: string;
   email: string;
@@ -26,18 +26,22 @@ interface IUser {
   professionalDescription?: string;
   profilePhotoUrl?: string;
   professionalSignatureUrl?: string;
+  // Implementación Issue #15
+  hasCompletedInterestsForm: boolean;
+  interests: Types.ObjectId[];
+  interestsSuggestions?: string;
 }
 
-interface UserModel extends IUser { }
+export interface UserModel extends IUser { }
 
-const AssignedCoursesEditSchema = new Schema<IAssignedCourseEdit>(
+export const AssignedCoursesEditSchema = new Schema<IAssignedCourseEdit>(
   {
     courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
   },
   { _id: false }
 );
 
-const UserSchema: Schema<UserModel> = new Schema<UserModel>(
+export const UserSchema: Schema<UserModel> = new Schema<UserModel>(
   {
     username: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
@@ -48,7 +52,6 @@ const UserSchema: Schema<UserModel> = new Schema<UserModel>(
     birthDate: { type: Date, required: false },
     dni: { type: String, required: false },
     status: { type: String, enum: Object.values(UserStatus) },
-    // Roles ahora se almacenan como códigos string (e.g. 'ADMIN','ALUMNO')
     roles: [{ type: String }],
     resetPasswordToken: String,
     assignedCoursesEdit: [AssignedCoursesEditSchema],
@@ -56,17 +59,22 @@ const UserSchema: Schema<UserModel> = new Schema<UserModel>(
     professionalDescription: { type: String, required: false },
     profilePhotoUrl: { type: String, required: false },
     professionalSignatureUrl: { type: String, required: false },
+    
+    // UBICACIÓN CORRECTA ISSUE #15
+    hasCompletedInterestsForm: { 
+      type: Boolean, 
+      default: false 
+    },
+    interests: [{ 
+      type: Schema.Types.ObjectId, 
+      ref: 'Course' 
+    }],
+    interestsSuggestions: { 
+      type: String, 
+      required: false 
+    },
   },
   { timestamps: true }
 );
 
-const User = model<UserModel>('User', UserSchema, 'users');
-
-export {
-  User,
-  IUser,
-  UserModel,
-  IAssignedCourseEdit,
-  UserSchema,
-  AssignedCoursesEditSchema,
-};
+export const User = model<UserModel>('User', UserSchema, 'users');
