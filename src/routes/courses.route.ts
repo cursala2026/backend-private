@@ -34,7 +34,7 @@ router.delete('/:courseId/unenroll/:userId', authorize, requireAdmin, courseCont
 router.post('/:courseId/duplicate', authorize, requireAdmin, courseController.duplicateCourse);
 router.post('/course', authorize, requireAdmin, courseController.create);
 router.patch('/:courseId/teachers', authorize, requireAdminOrCourseOwner(courseRepository), courseController.updateTeachers);
-router.patch('/:id', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);
+router.patch('/:courseId', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);
 router.delete('/:courseId/delete', authorize, requireAdmin, courseController.delete);
 router.patch('/:courseId/status', authorize, requireAdmin, courseController.changeStatus);
 router.patch('/:courseId/up', authorize, requireAdmin, courseController.moveUpOrder);
