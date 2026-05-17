@@ -267,20 +267,47 @@ class QuestionnaireService {
 
       // Validate new questions structure and handle correctOptionId conversion
       for (let i = 0; i < updateData.questions!.length; i++) {
-        const question = updateData.questions![i];
-        if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
-          if (!question.options || question.options.length < 2) {
-            throw new Error(`Multiple choice question "${question.questionText}" must have at least 2 options`);
-          }
-         if (!data.isSurvey) { 
-          const hasSingle = question.correctOptionId !== undefined && question.correctOptionId !== null;
-          const hasArray = Array.isArray((question as any).correctOptionIds) && (question as any).correctOptionIds.length > 0;
-          if (!hasSingle && !hasArray) {
-            throw new Error(`Multiple choice question "${question.questionText}" must have at least one correct answer`);
-          }
-        }
+  const question = updateData.questions![i];
+  if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
+    if (!question.options || question.options.length < 2) {
+      throw new Error(`Multiple choice question "${question.questionText}" must have at least 2 options`);
+    }
+
+    const hasSingle = question.correctOptionId !== undefined && question.correctOptionId !== null;
+    const hasArray = Array.isArray((question as any).correctOptionIds) && (question as any).correctOptionIds.length > 0;
+
+    if (!data.isSurvey) {
+      if (!hasSingle && !hasArray) {
+        throw new Error(`Multiple choice question "${question.questionText}" must have at least one correct answer`);
       }
+    }
+
+    // ✅ Convertir índices a correctOptionIndices (igual que create())
+    if (hasArray) {
+      const arr = (question as any).correctOptionIds as any[];
+      const indices: number[] = [];
+      for (const v of arr) {
+        const idx = typeof v === 'number' ? v : parseInt(v as any);
+        if (!isNaN(idx)) indices.push(idx);
       }
+      if (indices.length > 0) {
+        correctOptionIndices[i] = indices;
+        delete (question as any).correctOptionIds;
+      }
+    }
+
+    if (hasSingle) {
+      const correctIndex = typeof question.correctOptionId === 'number'
+        ? question.correctOptionId
+        : parseInt(question.correctOptionId as any);
+
+      if (!isNaN(correctIndex)) {
+        correctOptionIndices[i] = [correctIndex];
+        delete question.correctOptionId;
+      }
+    }
+  }
+}
 
       // existingQuestionnaire already retrieved above
 

@@ -554,4 +554,33 @@ export default class UserController {
     return next(error);
   }
 };
+  saveUserInterests = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = ensureString(req.params.userId);
+      const { interests, interestsSuggestions } = req.body;
+
+      // Auditoría: Verificamos que no venga vacío
+      if (!interests && !interestsSuggestions) {
+        return res.status(400).json(prepareResponse(400, 'Datos insuficientes', null));
+      }
+
+      const updateData = {
+        interests: interests || [],
+        interestsSuggestions: interestsSuggestions || '',
+        hasCompletedInterestsForm: true 
+      };
+
+      logger.info(`📝 Usuario ${userId} completando formulario de intereses`);
+      
+      const updatedUser = await this.userService.updateUser(userId, updateData);
+
+      if (!updatedUser) {
+        return res.status(404).json(prepareResponse(404, 'Usuario no encontrado'));
+      }
+
+      return res.json(prepareResponse(200, 'Intereses registrados con éxito', updatedUser));
+    } catch (error) {
+      return next(error);
+    }
+  };
 }
