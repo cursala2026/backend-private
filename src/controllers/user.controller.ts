@@ -583,4 +583,20 @@ export default class UserController {
       return next(error);
     }
   };
+
+  checkInterestsRequirement = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = ensureString(req.params.userId);
+      const user = await this.userService.getUserById(userId);
+
+      if (!user) {
+        return res.status(404).json(prepareResponse(404, 'Usuario no encontrado'));
+      }
+
+      const shouldShowInterests = !user.hasCompletedInterestsForm;
+      return res.json(prepareResponse(200, 'Interests requirement checked', { shouldShowInterests }));
+    } catch (error) {
+      return next(error);
+    }
+  };
 }

@@ -2,7 +2,7 @@ import { Schema, model } from 'mongoose';
 import { Types } from '@/models';
 import { UserStatus } from './enums';
 
-interface IAssignedCourseEdit {
+export interface IAssignedCourseEdit {
   courseId: Types.ObjectId;
 }
 
