@@ -59,10 +59,10 @@ export default passport;
  */
 const handleAuthError = (info: Record<string, string>) => {
   if (info && info.name === 'TokenExpiredError') {
-    return { status: 401, message: 'Token expired' };
+    return { status: 401, message: 'token expired' };
   }
   if (info && info.name === 'JsonWebTokenError') {
-    return { status: 401, message: 'Unauthorized' };
+    return { status: 401, message: 'invalid signature' };
   }
   return { status: 401, message: 'Unauthorized' };
 };
