@@ -7,10 +7,7 @@ const router = Router();
 
 // GET routes (ordered by importance)
 // 🔴 DEBUG: Only available in development environment
-if (process.env.NODE_ENV === 'development') {
-    router.get('/debug/:userId', authorize, requireAdmin, userController.debugGetUserData);
-    router.get('/test', userController.testEndpoint);
-}
+
 
 // 🟠 ALTO: Consultas administrativas de usuarios
 // IMPORTANTE: Las rutas estáticas deben estar ANTES de las rutas con parámetros dinámicos
@@ -28,11 +25,11 @@ router.get('/getUnassignedCoursesEdit/:userId', authorize, requireAdmin, userCon
 // 🟢 BAJO: Accesibilidad de cursos (cualquier usuario autenticado)
 router.get('/isCourseAccessible/:courseId', authorize, userController.isCourseAccessibleForUser);
 router.get('/course-access-info/:courseId', authorize, userController.getCourseAccessInfo);
-
+router.get('/:userId/should-show-interests', authorize, requireAdminOrSelf, userController.checkInterestsRequirement);
 // Rutas con parámetros dinámicos - DEBEN estar al FINAL para evitar capturar rutas estáticas
 router.get('/getUserById/:userId', authorize, requireAdmin, userController.getUserById);
 router.get('/:userId', authorize, requireAdminOrSelf, userController.getUserById);
-
+router.get('/getUserById/:userId', authorize, requireAdmin, userController.getUserById);
 // POST routes (ordered by importance)
 // 🔴 CRÍTICO: Modificar roles requiere verificación de email
 // 🔴 CRÍTICO: Modificar roles requiere verificación de email
@@ -57,7 +54,7 @@ router.patch('/updateUser/:userId', authorize, requireAdmin, userController.upda
 router.patch('/updateUserData/:userId', authorize, requireAdminOrSelf, userController.updateUserData);
 router.patch('/updateLastConnection/:userId', authorize, userController.updateLastConnection);
 router.patch('/:userId/toggle-status', authorize, requireAdmin, userController.toggleUserStatus);
-
+router.patch('/:userId/interests', authorize, requireAdminOrSelf, userController.saveUserInterests);
 // DELETE routes
 // 🔴 CRÍTICO: Eliminar usuario requiere verificación de email
 router.delete('/deleteUser/:userId', authorize, requireAdmin, userController.deleteUser);

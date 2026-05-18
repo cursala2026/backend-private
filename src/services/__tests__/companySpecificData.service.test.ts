@@ -36,7 +36,7 @@ describe('CompanySpecificDataService', () => {
     });
 
     test('throws error if privacyPolicy not provided', async () => {
-      await expect(companySpecificDataService.updateCompanySpecificData('1', {})).rejects.toThrow('Debes proporcionar la política de privacidad para actualizar.');
+      await expect(companySpecificDataService.updateCompanySpecificData('1', {})).rejects.toThrow('Error al actualizar los datos específicos de la compañía: Debes proporcionar al menos un campo para actualizar.');
     });
 
     test('throws error if document not found', async () => {

@@ -267,9 +267,9 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
 
     return {
       id: response.id,
-      initPoint: preferredInitPoint || response.init_point || response.sandbox_init_point,
+      initPoint: response.init_point,
       sandboxInitPoint: response.sandbox_init_point,
-      mode: mode,
+      mode,
     };
   } catch (error: unknown) {
     const err = error as { message?: string; cause?: unknown; apiResponse?: unknown; status?: number; details?: unknown; stack?: string };

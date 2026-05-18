@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prepareResponse from '../utils/api-response';
 import RequestACourseService from '@/services/requestACourse.service';
+import { ensureString } from '@/utils/type-guards';
 
 export default class RequestACourseController {
   constructor(private readonly requestACourseService: RequestACourseService) {}
@@ -16,7 +17,7 @@ export default class RequestACourseController {
 
   getRequestACourseById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const data = await this.requestACourseService.getRequestACourseById(id);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));
@@ -38,7 +39,7 @@ export default class RequestACourseController {
 
   updateRequestACourseById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const data = await this.requestACourseService.updateRequestACourseById(id, req.body);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));
@@ -51,7 +52,7 @@ export default class RequestACourseController {
 
   deleteRequestACourseById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = ensureString(req.params.id);
       const data = await this.requestACourseService.deleteRequestACourseById(id);
       if (!data) {
         return res.status(404).json(prepareResponse(404, 'Resource not found', null));
