@@ -264,6 +264,12 @@ export default class ClassController {
         videoUploadQueueService.enqueue(classId, job);
       }
 
+      try {
+        await this.courseService?.rebuildOrderedContentForCourse(newClass.courseId.toString());
+      } catch (fetchError) {
+        console.error('Error fetching updated class:', fetchError);
+      }
+
       return res.json(prepareResponse(201, 'Clase creada exitosamente', newClass));
     } catch (error) {
       logger.error(`Error en create class: ${(error as Error).message}`);
@@ -753,6 +759,12 @@ export default class ClassController {
       // Limpiar mapeo
       fileUploadService.cleanupAssembledFilesMappings(uploadIdsToClean);
 
+      try {
+        await this.courseService?.rebuildOrderedContentForCourse(updatedClass.courseId.toString());
+      } catch (fetchError) {
+        console.error('Error fetching updated class:', fetchError);
+      }
+
       return res.json(prepareResponse(200, 'Class updated successfully', updatedClass));
     } catch (error) {
       logger.error(`Error en update class: ${(error as Error).message}`);
@@ -767,6 +779,13 @@ export default class ClassController {
       if (!deletedClass) {
         return res.status(404).json(prepareResponse(404, 'Class not found'));
       }
+
+      try {
+        await this.courseService?.rebuildOrderedContentForCourse(deletedClass.courseId!.toString());
+      } catch (fetchError) {
+        console.error('Error fetching deleted class:', fetchError);
+      }
+
       return res.json(prepareResponse(200, 'Class deleted successfully', deletedClass));
     } catch (error) {
       return next(error);
@@ -828,6 +847,13 @@ export default class ClassController {
       if (!updatedClass) {
         return res.status(404).json(prepareResponse(404, 'Class not found'));
       }
+
+      try {
+        await this.courseService?.rebuildOrderedContentForCourse(updatedClass.courseId.toString());
+      } catch (fetchError) {
+        console.error('Error fetching updated class after status change:', fetchError);
+      }
+
       return res.json(prepareResponse(200, 'Class status updated successfully', updatedClass));
     } catch (error) {
       return next(error);
@@ -841,6 +867,13 @@ export default class ClassController {
       if (!updatedClass) {
         return res.status(404).json(prepareResponse(404, 'Class not found'));
       }
+
+      try {
+        await this.courseService?.rebuildOrderedContentForCourse(updatedClass.courseId.toString());
+      } catch (fetchError) {
+        console.error('Error fetching updated class after moveUpOrder:', fetchError);
+      }
+
       return res.json(prepareResponse(200, 'Class order moved up successfully', updatedClass));
     } catch (error) {
       return next(error);
@@ -854,6 +887,13 @@ export default class ClassController {
       if (!updatedClass) {
         return res.status(404).json(prepareResponse(404, 'Class not found'));
       }
+
+      try {
+        await this.courseService?.rebuildOrderedContentForCourse(updatedClass.courseId.toString());
+      } catch (fetchError) {  
+        console.error('Error fetching updated class after moveDownOrder:', fetchError);
+      }
+
       return res.json(prepareResponse(200, 'Class order moved down successfully', updatedClass));
     } catch (error) {
       return next(error);
@@ -973,6 +1013,12 @@ export default class ClassController {
         if (!updatedClass) {
           res.status(404).json(prepareResponse(404, 'Clase no encontrada', null));
           return;
+        }
+
+        try {
+          await this.courseService?.rebuildOrderedContentForCourse(updatedClass.courseId.toString());
+        } catch (fetchError) {
+          console.error('Error fetching updated class after exam config change:', fetchError);
         }
 
         res.status(200).json(prepareResponse(200, 'Examen configurado y activado correctamente', updatedClass));
@@ -1144,6 +1190,12 @@ export default class ClassController {
       logger.info(`Clase actualizada después de eliminación de media`);
 
       logger.info(`Media eliminado exitosamente de la clase`);
+
+      try {
+        await this.courseService?.rebuildOrderedContentForCourse(updatedClass.courseId.toString());
+      } catch (fetchError) {
+        console.error('Error fetching updated class after media deletion:', fetchError);
+      }
 
       return res.json(
         prepareResponse(200, `${mediaType} eliminado correctamente`, {
@@ -1337,6 +1389,12 @@ export default class ClassController {
 
       await this.classService.reorderClasses(reorderData, courseId);
 
+      try {
+        await this.courseService?.rebuildOrderedContentForCourse(courseId);
+      } catch (fetchError) {
+        console.error('Error fetching course after reordering classes:', fetchError);
+      }
+      
       return res.json(prepareResponse(200, 'Clases reordenadas exitosamente'));
     } catch (error) {
       logger.error(`Error en reorder classes: ${(error as Error).message}`);

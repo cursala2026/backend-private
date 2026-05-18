@@ -1,6 +1,8 @@
 import fs from 'fs';
+import axios from 'axios';
 import path from 'path';
 import { ICourse, Types } from '@/models';
+import { IUser } from '@/models/user.model';
 import { logger } from '@/utils';
 import CourseRepository from '@/repositories/course.repository';
 import UserRepository from '@/repositories/user.repository';
@@ -9,7 +11,7 @@ import { sendEmail } from '@/utils/emailer';
 import PromotionalCodeService from './promotionalCode.service';
 // NotificationType removed; usar literales 'success' | 'warning' donde corresponda
 import { courseProgressRepository, questionnaireSubmissionRepository, certificateRepository } from '@/repositories';
-import { courseUploadService } from './course-upload.service';
+import { courseUploadService, ProgramGeneratorService, mapCourseToPdfData } from './course-upload.service';
 import config from '@/config';
 
 export default class CourseService {
@@ -30,6 +32,18 @@ export default class CourseService {
     }
     
     return course;
+  }
+
+  async checkPdfStatus(courseId: string): Promise<boolean> {
+    const course = await this.courseRepository.findOneById(courseId);
+    if (!course || !course.programUrl) return false;
+
+    try {
+      const response = await axios.get(course.programUrl, { headers: { AccessKey: config.BUNNY_STORAGE_API_KEY }});
+      return response.status === 200;
+    } catch (error: any) {
+      return false;
+    }
   }
 
   /**
@@ -87,6 +101,36 @@ export default class CourseService {
     return orderedContent;
   }
 
+  async buildFullProgramData(courseId: string): Promise<any> {
+    const course = await this.courseRepository.findOneById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    // Recuperar clases y cuestionarios
+    const classes = course.classes || [];
+    const questionnaires = course.questionnaires || [];
+
+    // Recuperar profesores vinculados
+    const teacherIds = (course.teachers || []).map((t: any) => String(t));
+    const teacherResults = await Promise.all(teacherIds.map(id => this.userRepository.getUserById(id)));
+    const teachers = teacherResults.filter((t): t is IUser => !!t);
+
+    // Respetar el orderedContent
+    const orderedContent = this.buildOrderedContent(classes, questionnaires);
+
+    // Construir objeto final
+    return {
+      ...course,
+      teachers: teachers
+        .filter(Boolean)
+        .map(t => ({
+          id: t._id.toString(),
+          name: `${t.firstName} ${t.lastName}`,
+          email: t.email,
+        })),
+      orderedContent,
+    };
+  }
+
   /**
    * Reconstruye y persiste `orderedContent` del curso especificado.
    * Usa `findOneById` para obtener las clases y cuestionarios actuales,
@@ -104,6 +148,18 @@ export default class CourseService {
 
       // Persistir el orderedContent en el documento del curso
       await this.courseRepository.update(courseId, { orderedContent: ordered });
+
+      // Generar PDF con el programa del curso actualizado
+      try {
+        const fullData = await this.buildFullProgramData(courseId);
+        const programData = await mapCourseToPdfData(fullData);
+        const generator = new ProgramGeneratorService();
+        const pdfUrl = await generator.generateAndUploadProgramPDF(programData, fullData.programUrl);
+        // Actualizar el curso con la URL del nuevo PDF generado
+        await this.courseRepository.update(courseId, { orderedContent: ordered, programUrl: pdfUrl, pdfSynced: true });
+      } catch (err) {
+        logger.error('Error generating/uploading program PDF after rebuilding orderedContent', { courseId, error: (err as Error).message });
+      }
     } catch (err) {
       logger.error('Error rebuilding orderedContent for course', { courseId, error: (err as Error).message });
     }
@@ -142,8 +198,7 @@ export default class CourseService {
    */
   async createCourseWithFiles(
     courseData: Partial<ICourse>,
-    imageFile?: Express.Multer.File,
-    programFile?: Express.Multer.File
+    imageFile?: Express.Multer.File
   ): Promise<ICourse> {
     // Paso 1: Crear el curso en la base de datos
     let course = await this.courseRepository.create(courseData);
@@ -160,11 +215,12 @@ export default class CourseService {
       }
 
       // Subir PDF a Bunny CDN si se proporcionó
-      if (programFile) {
-        const programUrl = await courseUploadService.uploadProgramFile(programFile);
-        updateData.programUrl = programUrl;
-        updateData.programOriginalName = programFile.originalname;
-      }
+      const programData = await mapCourseToPdfData(course);
+      const generator = new ProgramGeneratorService();
+      const pdfUrl = await generator.generateAndUploadProgramPDF(programData, course.programUrl);
+      updateData.programUrl = pdfUrl;
+      updateData.programOriginalName = `${programData.course?.name}.pdf`;
+      updateData.pdfSynced = true;
 
       // Actualizar el curso con las URLs de los archivos
       if (Object.keys(updateData).length > 0) {
@@ -186,8 +242,7 @@ export default class CourseService {
     id: string,
     updateData: Partial<ICourse>,
     unsetFields: string[] = [],
-    imageFile?: Express.Multer.File,
-    programFile?: Express.Multer.File
+    imageFile?: Express.Multer.File
   ): Promise<ICourse> {
     const existingCourse = await this.courseRepository.findOneById(id);
     if (!existingCourse) {
@@ -206,18 +261,13 @@ export default class CourseService {
       }
     }
 
-    // Procesar archivo de programa si se proporciona uno nuevo
-    if (programFile) {
-      // Subir el PDF a Bunny CDN
-      const programUrl = await courseUploadService.uploadProgramFile(programFile);
-      updateData.programUrl = programUrl;
-      updateData.programOriginalName = programFile.originalname;
-
-      // Eliminar programa anterior
-      if (existingCourse.programUrl) {
-        await courseUploadService.deleteProgramFile(existingCourse.programUrl);
-      }
-    }
+    // Generar y subir nuevo PDF automaticamente
+    const programData = await mapCourseToPdfData(existingCourse);
+    const generator = new ProgramGeneratorService();
+    const pdfUrl = await generator.generateAndUploadProgramPDF(programData, existingCourse.programUrl);
+    updateData.programUrl = pdfUrl;
+    updateData.programOriginalName = `${programData.course?.name}.pdf`;
+    updateData.pdfSynced = true;
 
     // Realizar la actualización
     const updated = await this.courseRepository.update(id, updateData, unsetFields);
@@ -284,6 +334,13 @@ export default class CourseService {
       logger.error('Error handling teacher assignment notifications', { error: (err as Error).message });
     }
 
+    const updateData: Partial<ICourse> = {};
+    const programData = await mapCourseToPdfData(existingCourse);
+    const generator = new ProgramGeneratorService();
+    const pdfUrl = await generator.generateAndUploadProgramPDF(programData, existingCourse.programUrl);
+    updateData.programUrl = pdfUrl;
+    updateData.programOriginalName = `${programData.course?.name}.pdf`;
+    updateData.pdfSynced = true;
     return updated;
   }
 
@@ -557,6 +614,13 @@ export default class CourseService {
 
     // Duplicar el curso con todas sus clases y cuestionarios
     const duplicatedCourse = await this.courseRepository.duplicateCourse(courseId);
+
+    const updateData: Partial<ICourse> = {};
+    const programData = await mapCourseToPdfData(duplicatedCourse);
+    const generator = new ProgramGeneratorService();
+    const pdfUrl = await generator.generateAndUploadProgramPDF(programData, duplicatedCourse.programUrl);
+    updateData.programUrl = pdfUrl;
+    updateData.programOriginalName = `${programData.course?.name}.pdf`;
 
     logger.info(`Course duplicated successfully: ${courseId} -> ${duplicatedCourse._id}`, {
       originalCourseId: courseId,

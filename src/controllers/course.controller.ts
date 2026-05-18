@@ -21,30 +21,34 @@ export default class CourseController {
   constructor(private readonly courseService: CourseService) { }
 
   findOneById = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const courseId = ensureString(req.params.courseId);
-    const course = await this.courseService.findOneById(courseId);
-    if (!course) {
-      return res.status(404).json(prepareResponse(404, 'Course not found'));
-    }
-    return res.json(prepareResponse(200, 'Course fetched successfully', course));
-  } catch (error) {
-    return next(error);
-  }
-};
+    try {
+      const courseId = ensureString(req.params.courseId);
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
 
-findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const courseId = ensureString(req.params.courseId);
-    const course = await this.courseService.findOneById(courseId);
-    if (!course) {
-      return res.status(404).json(prepareResponse(404, 'Course not found'));
+      const pdfIsSynced = await this.courseService.checkPdfStatus(courseId);
+      return res.json(prepareResponse(200, 'Course fetched successfully', { ...course, pdfSynced: pdfIsSynced }));
+    } catch (error) {
+      return next(error);
     }
-    return res.json(prepareResponse(200, 'Course fetched successfully', course));
-  } catch (error) {
-    return next(error);
+  };
+
+  findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const courseId = ensureString(req.params.courseId);
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
+
+      const pdfIsSynced = await this.courseService.checkPdfStatus(courseId);
+      return res.json(prepareResponse(200, 'Course fetched successfully', { ...course, pdfSynced: pdfIsSynced }));
+    } catch (error) {
+      return next(error);
+    }
   }
-};
 
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -122,12 +126,19 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
           teachers: teachersObjectIds,
         };
 
-        // Obtener archivos (si vienen)
+        // Obtener imagenes (si vienen)
         const imageFile = files?.imageFile?.[0];
-        const programFile = files?.programFile?.[0];
 
         // Crear curso con archivos usando el servicio
-        const course = await this.courseService.createCourseWithFiles(courseData, imageFile, programFile);
+        const course = await this.courseService.createCourseWithFiles(courseData, imageFile);
+
+        // Regenerar PDF automáticamente después de crear el curso
+        try {
+          await this.courseService.rebuildOrderedContentForCourse(course._id.toString());
+          logger.info('PDF generated successfully', { courseId: course._id });
+        } catch (error) {
+          logger.error('Error generating PDF for course', { error, courseId: course._id });
+        }
         return res.json(prepareResponse(201, 'Course created successfully', course));
       };
 
@@ -136,7 +147,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
       if (typeof contentType === 'string' && contentType.includes('multipart/form-data')) {
         courseUploadFiles.fields([
           { name: 'imageFile', maxCount: 1 },
-          { name: 'programFile', maxCount: 1 },
         ])(req, res, async (err: unknown) => {
           if (err) {
             const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -188,7 +198,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
     try {
       courseUploadFiles.fields([
         { name: 'imageFile', maxCount: 1 },
-        { name: 'programFile', maxCount: 1 },
       ])(req, res, async (err: unknown) => {
         if (err) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -328,7 +337,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
 
           const files = req.files as Record<string, Express.Multer.File[]>;
           const imageFile = files?.imageFile?.[0];
-          const programFile = files?.programFile?.[0];
           
           // Si se solicita eliminar la imagen y no hay nueva imagen, agregar a unsetFields
           if (deleteImage === 'true' || deleteImage === true) {
@@ -340,7 +348,7 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
             }
           }
           
-          const hasUpdates = Object.keys(updateData).length > 0 || unsetFields.length > 0 || imageFile || programFile;
+          const hasUpdates = Object.keys(updateData).length > 0 || unsetFields.length > 0 || imageFile;
 
           // Validar que se reciba al menos un campo para actualizar
           if (!hasUpdates) {
@@ -352,9 +360,14 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
             id, 
             updateData, 
             unsetFields,
-            imageFile,
-            programFile
+            imageFile
           );
+
+          try {
+            await this.courseService.rebuildOrderedContentForCourse(updatedCourse._id.toString());
+          } catch (error) {
+            console.error('Error rebuilding orderedContent after course update', (error as Error).message);
+          }
           
           return res.json(prepareResponse(200, 'Course updated successfully', updatedCourse));
         } catch (error) {
@@ -395,6 +408,12 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
       
       // Eliminar curso con todos sus archivos usando el servicio
       const deletedCourse = await this.courseService.deleteCourseWithFiles(courseId);
+
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(courseId.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after course deletion', (error as Error).message);
+      }
       
       return res.json(prepareResponse(200, 'Course deleted successfully', deletedCourse));
     } catch (error) {
@@ -453,6 +472,13 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
       const courseId = ensureString(req.params.courseId);
       const { status } = req.body;
       const course = await this.courseService.changeStatus(courseId, status);
+
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(courseId.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after course status change', (error as Error).message);
+      }
+
       return res.json(prepareResponse(200, 'Course status updated successfully', course));
     } catch (error) {
       return next(error);
@@ -463,6 +489,13 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
       const course = await this.courseService.moveUpOrder(courseId);
+      
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(courseId.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after moving course up', (error as Error).message);
+      }
+
       return res.json(prepareResponse(200, 'Course order moved up successfully', course));
     } catch (error) {
       return next(error);
@@ -473,6 +506,13 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
       const course = await this.courseService.moveDownOrder(courseId);
+      
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(courseId.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after moving course down', (error as Error).message);
+      }
+
       return res.json(prepareResponse(200, 'Course order moved down successfully', course));
     } catch (error) {
       return next(error);
@@ -523,6 +563,13 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
       const course = await this.courseService.changeShowOnHome(courseId);
+
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(courseId.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after course show on home change', (error as Error).message);
+      }
+
       return res.json(prepareResponse(200, 'Course show on home status updated successfully', course));
     } catch (error) {
       return next(error);
@@ -535,8 +582,6 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const courseId = ensureString(req.params.courseId);
       const { isPublished } = req.body;
-
-      
 
       // Validar que courseId existe
       if (!courseId) {
@@ -557,7 +602,11 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
       // Actualizar solo el campo isPublished
       const updatedCourse = await this.courseService.update(courseId, { isPublished }, []);
 
-      
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(courseId.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after course published status change', (error as Error).message);
+      }
 
       return res.json(prepareResponse(200, 'Course published status updated successfully', updatedCourse));
     } catch (error) {
@@ -593,6 +642,13 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
       }
 
       const updated = await this.courseService.updateTeachers(courseId, { add, remove });
+
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(courseId.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after course teachers update', (error as Error).message);
+      }
+      
       return res.json(prepareResponse(200, 'Course teachers updated successfully', updated));
     } catch (error) {
       return next(error);
@@ -792,6 +848,12 @@ findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
 
       // Duplicar el curso con todas sus clases y cuestionarios
       const duplicatedCourse = await this.courseService.duplicateCourse(courseId);
+
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(duplicatedCourse._id.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after course duplication', (error as Error).message);
+      }
 
       return res.json(prepareResponse(201, 'Course duplicated successfully', duplicatedCourse));
     } catch (error) {
