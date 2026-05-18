@@ -89,6 +89,7 @@ class AuthService {
       professionalDescription: userDoc.professionalDescription,
       profilePhotoUrl: userDoc.profilePhotoUrl,
       professionalSignatureUrl: userDoc.professionalSignatureUrl,
+      hasCompletedInterestsForm: userDoc.hasCompletedInterestsForm,
     };
 
     return { token, userInfo };
