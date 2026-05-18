@@ -338,6 +338,12 @@ export function requireAdminOrSelf(req: Request, res: Response, next: NextFuncti
         return next();
       }
 
+      logger.warn(`requireAdminOrSelf: Authorization failed`, {
+        authenticatedUserId: userIdString,
+        targetUserId: targetUserIdString,
+        roles: (user as any).roles
+      });
+
       return res.status(403).json({ 
         success: false, 
         message: 'Acceso denegado. Solo puedes actualizar tu propio perfil o necesitas ser administrador.' 

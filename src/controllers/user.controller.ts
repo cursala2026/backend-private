@@ -586,14 +586,23 @@ export default class UserController {
 
   checkInterestsRequirement = async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Extraer el userId de los parámetros de la URL (lo que el frontend envía)
       const userId = ensureString(req.params.userId);
+
+      if (!userId) {
+        return res.status(400).json(prepareResponse(400, 'ID de usuario no proporcionado'));
+      }
+
       const user = await this.userService.getUserById(userId);
 
       if (!user) {
         return res.status(404).json(prepareResponse(404, 'Usuario no encontrado'));
       }
 
-      const shouldShowInterests = !user.hasCompletedInterestsForm;
+      const shouldShowInterests = user.hasCompletedInterestsForm !== true;
+      
+      logger.info(`🔍 Checking interests for user ${userId}: hasCompleted=${user.hasCompletedInterestsForm}, shouldShow=${shouldShowInterests}`);
+
       return res.json(prepareResponse(200, 'Interests requirement checked', { shouldShowInterests }));
     } catch (error) {
       return next(error);

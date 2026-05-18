@@ -274,7 +274,7 @@ class UserRepository {
     pipeline.push({
       $lookup: {
         from: 'courses',
-        let: { userId: '$_id', assignedCoursesEdit: { $ifNull: ['$assignedCoursesEdit', []] } },
+        let: { userId: '$_id', assignedCoursesEdit: { $ifNull: ['$assignedCoursesEdit', []] }, interests: { $ifNull: ['$interests', []] } },
         pipeline: [
           {
             $match: {
@@ -296,7 +296,8 @@ class UserRepository {
                   },
                   {
                     $in: ['$_id', { $map: { input: '$$assignedCoursesEdit', as: 'ac', in: '$$ac.courseId' } }]
-                  }
+                  },
+                  { $in: ['$_id', '$$interests'] }
                 ]
               }
             }
@@ -307,11 +308,31 @@ class UserRepository {
               name: 1,
               title: '$name',
               imageUrl: 1,
-              status: 1
+              status: 1,
+              isInterest: { $in: ['$_id', '$$interests'] }
             }
           }
         ],
-        as: 'enrolledCourses',
+        as: 'allRelevantCourses',
+      }
+    });
+
+    pipeline.push({
+      $addFields: {
+        enrolledCourses: {
+          $filter: {
+            input: '$allRelevantCourses',
+            as: 'c',
+            cond: { $ne: ['$$c.isInterest', true] }
+          }
+        },
+        interestsDetails: {
+          $filter: {
+            input: '$allRelevantCourses',
+            as: 'c',
+            cond: { $eq: ['$$c.isInterest', true] }
+          }
+        }
       }
     });
 
@@ -321,6 +342,7 @@ class UserRepository {
         password: 0,
         resetPasswordToken: 0,
         enrolledCoursesFromCourses: 0,
+        allRelevantCourses: 0,
       },
     });
 
@@ -813,7 +835,8 @@ class UserRepository {
     Object.keys(userData).forEach(key => {
       const value = (userData as any)[key];
       // Incluir valores que no sean undefined ni strings vacíos. `null` se conserva intencionalmente.
-      if (value !== undefined && value !== '') {
+      // Los booleanos (como false) deben incluirse siempre.
+      if (value !== undefined && (value !== '' || typeof value === 'boolean')) {
         cleanedData[key] = value;
       }
     });
