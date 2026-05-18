@@ -5,7 +5,6 @@ import questionMediaUploadProgressService from '@/services/question-media-upload
 import CourseService from '@/services/course.service';
 import { EventEmitter } from 'events';
 import fs from 'fs';
-import { Readable } from 'stream';
 import { ensureString } from '@/utils/type-guards';
 
 export default class QuestionnaireController {
