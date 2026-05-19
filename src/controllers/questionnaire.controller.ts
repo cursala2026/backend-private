@@ -87,7 +87,7 @@ export default class QuestionnaireController {
    */
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = ensureString (req.params.id);
+      const id = ensureString(req.params.questionnaireId);
       const body = req.body || {};
       const allowedTopFields = [
         'title',
@@ -149,7 +149,7 @@ export default class QuestionnaireController {
    */
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = ensureString(req.params.id);
+      const id = ensureString(req.params.questionnaireId);
 
       // Obtener el cuestionario antes de eliminar para obtener el courseId
       const questionnaire = await this.questionnaireService.findById(id);
@@ -176,7 +176,7 @@ export default class QuestionnaireController {
    */
   findById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = ensureString(req.params.id);
+      const id = ensureString(req.params.questionnaireId);
       const user = (req as any).user;
 
       // Only pass studentId if user is a student (ALUMNO), not if they're a professor or admin
