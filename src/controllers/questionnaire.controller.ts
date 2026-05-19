@@ -48,6 +48,8 @@ export default class QuestionnaireController {
       if (Array.isArray(questionnaireData.questions)) {
         questionnaireData.questions = questionnaireData.questions.map((q: any) => {
           const allowedQuestionFields = [
+            '_id',
+            'id',
             'type',
             'questionText',
             'promptType',
@@ -110,6 +112,8 @@ export default class QuestionnaireController {
       if (Array.isArray(updateData.questions)) {
         updateData.questions = updateData.questions.map((q: any) => {
           const allowedQuestionFields = [
+            '_id',
+            'id',
             'type',
             'questionText',
             'promptType',
