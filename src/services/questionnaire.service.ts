@@ -61,8 +61,11 @@ class QuestionnaireService {
           const arr = (question as any).correctOptionIds as any[];
           const indices: number[] = [];
           for (const v of arr) {
-            const idx = typeof v === 'number' ? v : parseInt(v as any);
-            if (!isNaN(idx)) indices.push(idx);
+            const vStr = v?.toString?.() || String(v);
+            if (!Types.ObjectId.isValid(vStr)) {
+              const idx = typeof v === 'number' ? v : parseInt(vStr);
+              if (!isNaN(idx)) indices.push(idx);
+            }
           }
           if (indices.length > 0) {
             correctOptionIndices[i] = indices;
@@ -70,14 +73,17 @@ class QuestionnaireService {
           }
         }
 
-        if (hasSingle) {
-          const correctIndex = typeof question.correctOptionId === 'number'
-            ? question.correctOptionId
-            : parseInt(question.correctOptionId as any);
+        if (hasSingle && question.correctOptionId !== undefined && question.correctOptionId !== null) {
+          const correctOptionIdStr = question.correctOptionId.toString();
+          if (!Types.ObjectId.isValid(correctOptionIdStr)) {
+            const correctIndex = typeof question.correctOptionId === 'number'
+              ? question.correctOptionId
+              : parseInt(correctOptionIdStr);
 
-          if (!isNaN(correctIndex)) {
-            correctOptionIndices[i] = [correctIndex];
-            delete question.correctOptionId;
+            if (!isNaN(correctIndex)) {
+              correctOptionIndices[i] = [correctIndex];
+              delete question.correctOptionId;
+            }
           }
         }
       }
@@ -127,227 +133,114 @@ class QuestionnaireService {
    * Actualizar un cuestionario
    */
   async update(id: string, data: Partial<IQuestionnaire>): Promise<QuestionnaireDoc> {
-    // Get existing questionnaire to check for submissions and compare questions
     const existingQuestionnaire = await this.questionnaireRepository.findById(id);
     if (!existingQuestionnaire) {
       throw new Error('Questionnaire not found');
     }
 
-    // Validate position if being updated
     if (data.position) {
       if (data.position.type === 'BETWEEN_CLASSES' && !data.position.afterClassId) {
         throw new Error('afterClassId is required when position type is BETWEEN_CLASSES');
       }
-      // Si el tipo es FINAL_EXAM, no debe tener afterClassId
       if (data.position.type === 'FINAL_EXAM' && data.position.afterClassId) {
         delete data.position.afterClassId;
       }
     }
 
-    // Separate questions from other fields
-    const { questions, ...otherFields } = data;
     const hasSubmissions = await this.submissionRepository.hasSubmissions(id);
 
-    // Only prevent modifying questions if there are submissions
-    if (questions && hasSubmissions) {
-      // Log what we're comparing
-      // Check if only correctOptionId changed (allow this even with submissions)
-      const onlyCorrectOptionIdChanged = this.onlyCorrectOptionIdChanged(existingQuestionnaire.questions, questions);
-      
-      if (onlyCorrectOptionIdChanged) {
-        
-        // Process questions to update only correctOptionId
-        const updateData = { ...data };
-        if (updateData.questions) {
-          // For each question, preserve all fields but update correctOptionId
-          for (let i = 0; i < updateData.questions.length; i++) {
-            const newQuestion = updateData.questions[i];
-            const existingQuestion = existingQuestionnaire.questions[i];
-            
-            if ((newQuestion.type === 'MULTIPLE_CHOICE' || newQuestion.type === 'MULTIPLE_SELECT') && (existingQuestion.type === 'MULTIPLE_CHOICE' || existingQuestion.type === 'MULTIPLE_SELECT')) {
-              // Handle correctOptionId conversion from index to ObjectId if needed
-              // Normalize possible single or multiple correct answers
-              if ((newQuestion as any).correctOptionIds && Array.isArray((newQuestion as any).correctOptionIds)) {
-                const arr = (newQuestion as any).correctOptionIds as any[];
-                const resolvedIds: any[] = [];
-                for (const v of arr) {
-                  const vStr = v?.toString?.() || String(v);
-                  if (!Types.ObjectId.isValid(vStr) && newQuestion.options) {
-                    const index = parseInt(vStr);
-                    if (!isNaN(index) && index >= 0 && index < newQuestion.options.length) {
-                      const selectedOption = newQuestion.options[index];
-                      if (selectedOption._id) resolvedIds.push(selectedOption._id);
-                    }
-                  } else if (Types.ObjectId.isValid(vStr)) {
-                    resolvedIds.push(new Types.ObjectId(vStr));
-                  }
-                }
-                if (resolvedIds.length > 0) {
-                  (newQuestion as any).correctOptionIds = resolvedIds;
-                  newQuestion.correctOptionId = resolvedIds[0];
-                }
-              } else if (newQuestion.correctOptionId !== undefined && newQuestion.correctOptionId !== null) {
-                const correctOptionIdStr = newQuestion.correctOptionId.toString();
-                
-                // If it's an index, convert to ObjectId
-                if (!Types.ObjectId.isValid(correctOptionIdStr) && newQuestion.options) {
-                  const index = parseInt(correctOptionIdStr);
-                  if (!isNaN(index) && index >= 0 && index < newQuestion.options.length) {
-                    const selectedOption = newQuestion.options[index];
-                    if (selectedOption._id) {
-                      newQuestion.correctOptionId = selectedOption._id;
-                      (newQuestion as any).correctOptionIds = [selectedOption._id];
-                    }
-                  }
-                } else if (Types.ObjectId.isValid(correctOptionIdStr)) {
-                  // It's already an ObjectId, use it directly
-                  newQuestion.correctOptionId = new Types.ObjectId(correctOptionIdStr);
-                  (newQuestion as any).correctOptionIds = [newQuestion.correctOptionId];
-                }
-              }
-              
-              // Preserve existing option _ids
-              if (newQuestion.options && existingQuestion.options) {
-                for (let j = 0; j < newQuestion.options.length; j++) {
-                  const newOpt = newQuestion.options[j] as any;
-                  const existingOpt = existingQuestion.options[j];
-                  
-                  if (!newOpt._id && existingOpt?._id) {
-                    newOpt._id = existingOpt._id;
-                  }
-                }
-              }
-            }
-          }
-        }
-        
-        const updated = await this.questionnaireRepository.update(id, updateData);
-        try {
-          const cid = updated.courseId ? String(updated.courseId) : undefined;
-          if (cid) {
-            const svc = await import('./index');
-            const cs = svc && (svc.courseService as any);
-            if (cs) await cs.rebuildOrderedContentForCourse(cid);
-            else logger.warn('courseService not available to rebuildOrderedContent after questionnaire update', { courseId: cid });
-          }
-        } catch (err) {
-          logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
-        }
-        return updated;
-      }
-      
-      // Check if questions actually changed by comparing structure (excluding correctOptionId)
-      const questionsChanged = this.haveQuestionsChanged(existingQuestionnaire.questions, questions);
-
-      if (questionsChanged) {
+    if (data.questions && hasSubmissions) {
+      const allowed = this.areQuestionChangesAllowed(existingQuestionnaire.questions, data.questions);
+      if (!allowed) {
         throw new Error(
-          'Cannot modify questions after students have submitted. Create a new version of this questionnaire instead.'
+          'Cannot modify questions after students have submitted. You can only edit correct answers or add new questions.'
         );
       }
-
-      // If questions haven't changed, allow update of other fields only
-      const updated = await this.questionnaireRepository.update(id, otherFields);
-      try {
-        const cid = updated.courseId ? String(updated.courseId) : undefined;
-        if (cid) {
-          const { courseService } = await import('./index');
-          await courseService.rebuildOrderedContentForCourse(cid);
-        }
-      } catch (err) {
-        logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
-      }
-      return updated;
     }
 
-    // If no questions in update or no submissions, proceed with normal update
-    if (questions) {
-      // Store correct option indices temporarily (for new questions or when updating)
+    if (data.questions) {
       const correctOptionIndices: { [key: number]: number[] } = {};
       const updateData = { ...data };
 
-      // Validate new questions structure and handle correctOptionId conversion
+      // Validate and convert indices
       for (let i = 0; i < updateData.questions!.length; i++) {
-  const question = updateData.questions![i];
-  if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
-    if (!question.options || question.options.length < 2) {
-      throw new Error(`Multiple choice question "${question.questionText}" must have at least 2 options`);
-    }
+        const question = updateData.questions![i];
+        if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
+          if (!question.options || question.options.length < 2) {
+            throw new Error(`Multiple choice question "${question.questionText}" must have at least 2 options`);
+          }
 
-    const hasSingle = question.correctOptionId !== undefined && question.correctOptionId !== null;
-    const hasArray = Array.isArray((question as any).correctOptionIds) && (question as any).correctOptionIds.length > 0;
+          const hasSingle = question.correctOptionId !== undefined && question.correctOptionId !== null;
+          const hasArray = Array.isArray((question as any).correctOptionIds) && (question as any).correctOptionIds.length > 0;
 
-    if (!data.isSurvey) {
-      if (!hasSingle && !hasArray) {
-        throw new Error(`Multiple choice question "${question.questionText}" must have at least one correct answer`);
-      }
-    }
+          if (!data.isSurvey && existingQuestionnaire.isSurvey !== true) {
+            if (!hasSingle && !hasArray) {
+              throw new Error(`Multiple choice question "${question.questionText}" must have at least one correct answer`);
+            }
+          }
 
-    // ✅ Convertir índices a correctOptionIndices (igual que create())
-    if (hasArray) {
-      const arr = (question as any).correctOptionIds as any[];
-      const indices: number[] = [];
-      for (const v of arr) {
-        const idx = typeof v === 'number' ? v : parseInt(v as any);
-        if (!isNaN(idx)) indices.push(idx);
-      }
-      if (indices.length > 0) {
-        correctOptionIndices[i] = indices;
-        delete (question as any).correctOptionIds;
-      }
-    }
-
-    if (hasSingle) {
-      const correctIndex = typeof question.correctOptionId === 'number'
-        ? question.correctOptionId
-        : parseInt(question.correctOptionId as any);
-
-      if (!isNaN(correctIndex)) {
-        correctOptionIndices[i] = [correctIndex];
-        delete question.correctOptionId;
-      }
-    }
-  }
-}
-
-      // existingQuestionnaire already retrieved above
-
-      // Preserve existing option _ids when updating
-      // First, try to use _ids from frontend. If not present, try to match by position
-      if (updateData.questions) {
-        for (let i = 0; i < updateData.questions.length; i++) {
-          const newQuestion = updateData.questions[i];
-          const existingQuestion = existingQuestionnaire.questions[i];
-          
-              if ((newQuestion.type === 'MULTIPLE_CHOICE' || newQuestion.type === 'MULTIPLE_SELECT') && newQuestion.options) {
-            for (let j = 0; j < newQuestion.options.length; j++) {
-              const newOption = newQuestion.options[j] as any;
-              
-              // If newOption doesn't have _id, try to find matching option in existing question
-              if (!newOption._id && existingQuestion?.options) {
-                // Try to match by position first
-                const existingOption = existingQuestion.options[j];
-                if (existingOption && existingOption._id) {
-                  newOption._id = existingOption._id;
-                } else {
-                  // Try to match by text if position doesn't match
-                  const matchingOption = existingQuestion.options.find(
-                    (opt: any) => opt.text === newOption.text && opt._id
-                  );
-                  if (matchingOption) {
-                    newOption._id = matchingOption._id;
-                  }
-                }
+          if (hasArray) {
+            const arr = (question as any).correctOptionIds as any[];
+            const indices: number[] = [];
+            for (const v of arr) {
+              const vStr = v?.toString?.() || String(v);
+              if (!Types.ObjectId.isValid(vStr)) {
+                const idx = typeof v === 'number' ? v : parseInt(vStr);
+                if (!isNaN(idx)) indices.push(idx);
               }
-              // If newOption already has _id from frontend, keep it
+            }
+            if (indices.length > 0) {
+              correctOptionIndices[i] = indices;
+              delete (question as any).correctOptionIds;
+            }
+          }
+
+          if (hasSingle && question.correctOptionId !== undefined && question.correctOptionId !== null) {
+            const correctOptionIdStr = question.correctOptionId.toString();
+            if (!Types.ObjectId.isValid(correctOptionIdStr)) {
+              const correctIndex = typeof question.correctOptionId === 'number'
+                ? question.correctOptionId
+                : parseInt(correctOptionIdStr);
+
+              if (!isNaN(correctIndex)) {
+                correctOptionIndices[i] = [correctIndex];
+                delete question.correctOptionId;
+              }
             }
           }
         }
       }
 
-      // Update the questionnaire (Mongoose will generate _ids for new options without _id)
+      // Preserve existing option _ids
+      if (updateData.questions) {
+        for (let i = 0; i < updateData.questions.length; i++) {
+          const newQuestion = updateData.questions[i];
+          const existingQuestion = existingQuestionnaire.questions[i]; // might be undefined for new questions
+          
+          if ((newQuestion.type === 'MULTIPLE_CHOICE' || newQuestion.type === 'MULTIPLE_SELECT') && newQuestion.options) {
+            for (let j = 0; j < newQuestion.options.length; j++) {
+              const newOption = newQuestion.options[j] as any;
+            
+            if (!newOption._id && existingQuestion?.options) {
+              const existingOption = existingQuestion.options[j];
+              if (existingOption && existingOption._id) {
+                newOption._id = existingOption._id;
+              } else {
+                const matchingOption = existingQuestion.options.find(
+                  (opt: any) => opt.text === newOption.text && opt._id
+                );
+                if (matchingOption) {
+                  newOption._id = matchingOption._id;
+                }
+              }
+            }
+          }
+        }
+      }
+      }
+
       const updatedQuestionnaire = await this.questionnaireRepository.update(id, updateData);
 
-      // Now update correct option IDs with the actual ObjectIds for questions that had indices
       if (Object.keys(correctOptionIndices).length > 0) {
         for (const [questionIndex, optionIndices] of Object.entries(correctOptionIndices)) {
           const qIndex = parseInt(questionIndex);
@@ -362,28 +255,16 @@ class QuestionnaireService {
             }
           }
         }
-
-        // Save the updated questionnaire with correct ObjectIds
         await updatedQuestionnaire.save();
-        try {
-          const cid = updatedQuestionnaire.courseId ? String(updatedQuestionnaire.courseId) : undefined;
-          if (cid) {
-            const svc = await import('./index');
-            const cs = svc && (svc.courseService as any);
-            if (cs) await cs.rebuildOrderedContentForCourse(cid);
-            else logger.warn('courseService not available to rebuildOrderedContent after questionnaire update', { courseId: cid });
-          }
-        } catch (err) {
-          logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
-        }
-        return updatedQuestionnaire;
       }
 
       try {
         const cid = updatedQuestionnaire.courseId ? String(updatedQuestionnaire.courseId) : undefined;
         if (cid) {
-          const { courseService } = await import('./index');
-          await courseService.rebuildOrderedContentForCourse(cid);
+          const svc = await import('./index');
+          const cs = svc && (svc.courseService as any);
+          if (cs) await cs.rebuildOrderedContentForCourse(cid);
+          else logger.warn('courseService not available to rebuildOrderedContent after questionnaire update', { courseId: cid });
         }
       } catch (err) {
         logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
@@ -391,13 +272,16 @@ class QuestionnaireService {
       return updatedQuestionnaire;
     }
 
-    // If no questions to update, just update other fields
-    const updated = await this.questionnaireRepository.update(id, data);
+    // No questions updated
+    const { questions, ...otherFields } = data;
+    const updated = await this.questionnaireRepository.update(id, otherFields);
     try {
       const cid = updated.courseId ? String(updated.courseId) : undefined;
       if (cid) {
-        const { courseService } = await import('./index');
-        await courseService.rebuildOrderedContentForCourse(cid);
+        const svc = await import('./index');
+        const cs = svc && (svc.courseService as any);
+        if (cs) await cs.rebuildOrderedContentForCourse(cid);
+        else logger.warn('courseService not available to rebuildOrderedContent after questionnaire update', { courseId: cid });
       }
     } catch (err) {
       logger.error('Error rebuilding orderedContent after questionnaire update', { error: (err as Error).message });
@@ -406,24 +290,22 @@ class QuestionnaireService {
   }
 
   /**
-   * Verificar si solo cambió el correctOptionId (y no otros campos)
+   * Verificar si los cambios a las preguntas son permitidos
+   * (se permite modificar la opcion correcta y agregar nuevas preguntas)
    */
-  private onlyCorrectOptionIdChanged(
+  private areQuestionChangesAllowed(
     existingQuestions: IQuestion[],
     newQuestions: IQuestion[]
   ): boolean {
     try {
-      // Different number of questions means more than just correctOptionId changed
-      if (existingQuestions.length !== newQuestions.length) {
+      if (newQuestions.length < existingQuestions.length) {
         return false;
       }
 
-      // Compare each question
       for (let i = 0; i < existingQuestions.length; i++) {
         const existing = existingQuestions[i];
         const updated = newQuestions[i];
 
-        // Check basic fields (if any changed, it's not just correctOptionId)
         if (
           existing.type !== updated.type ||
           String(existing.questionText).trim() !== String(updated.questionText).trim() ||
@@ -434,20 +316,18 @@ class QuestionnaireService {
           return false;
         }
 
-        // For multiple choice, check options (text and order)
         if ((existing.type === 'MULTIPLE_CHOICE' || existing.type === 'MULTIPLE_SELECT') && (updated.type === 'MULTIPLE_CHOICE' || updated.type === 'MULTIPLE_SELECT')) {
           if (!existing.options || !updated.options) {
             if (existing.options !== updated.options) {
               return false;
             }
-            continue; // Both null/undefined, skip
+            continue;
           }
 
           if (existing.options.length !== updated.options.length) {
             return false;
           }
 
-          // Check if options changed (text or order) - if so, it's not just correctOptionId
           for (let j = 0; j < existing.options.length; j++) {
             const existingOpt = existing.options[j];
             const updatedOpt = updated.options[j];
@@ -459,170 +339,13 @@ class QuestionnaireService {
               return false;
             }
           }
-
-          // If we get here, options are the same, so only correctOptionId(s) could have changed
-          // Build arrays of correct option texts for existing and updated to compare sets
-          const existingCorrectIds = [] as string[];
-          const updatedCorrectIds = [] as string[];
-
-          if ((existing as any).correctOptionIds && Array.isArray((existing as any).correctOptionIds)) {
-            for (const cid of (existing as any).correctOptionIds) {
-              if (cid) existingCorrectIds.push(cid.toString());
-            }
-          } else if (existing.correctOptionId) {
-            existingCorrectIds.push(existing.correctOptionId.toString());
-          }
-
-          if ((updated as any).correctOptionIds && Array.isArray((updated as any).correctOptionIds)) {
-            for (const cid of (updated as any).correctOptionIds) {
-              if (cid) updatedCorrectIds.push(cid.toString());
-            }
-          } else if (updated.correctOptionId) {
-            updatedCorrectIds.push(updated.correctOptionId.toString());
-          } else if (updated.options && updated.correctOptionId === undefined && (updated as any).correctOptionIds === undefined) {
-            // nothing provided — skip
-          }
-
-          // Try to map ids to option texts for more robust comparison (handle indices)
-          const mapIdsToTexts = (opts: any[], ids: string[]) => {
-            const texts: string[] = [];
-            for (const id of ids) {
-              if (Types.ObjectId.isValid(id)) {
-                const opt = opts.find((o: any) => o._id?.toString() === id);
-                if (opt) texts.push(String(opt.text).trim());
-              } else {
-                // maybe an index
-                const idx = parseInt(id);
-                if (!isNaN(idx) && idx >= 0 && idx < (opts?.length || 0)) {
-                  texts.push(String(opts[idx].text).trim());
-                }
-              }
-            }
-            return texts;
-          };
-
-          let existingTexts: string[] = [];
-          let updatedTexts: string[] = [];
-          if (existing.options) existingTexts = mapIdsToTexts(existing.options, existingCorrectIds);
-          if (updated.options) updatedTexts = mapIdsToTexts(updated.options, updatedCorrectIds);
-
-          // If we can't determine texts, fall back to comparing id lists (as strings)
-          const existingSet = new Set(existingTexts.length > 0 ? existingTexts : existingCorrectIds);
-          const updatedSet = new Set(updatedTexts.length > 0 ? updatedTexts : updatedCorrectIds);
-
-          // If both sets are empty, continue
-          if (existingSet.size === 0 && updatedSet.size === 0) {
-            continue;
-          }
-
-          // If sets are different, it's a correctOption change (allowed)
-          const same = existingSet.size === updatedSet.size && [...existingSet].every((v) => updatedSet.has(v));
-          if (same) {
-            // same correct answers (possibly different ids ordering) — continue
-            continue;
-          }
-          // else different, but still only-correct-option change — continue to check other questions
         }
       }
 
-      // If we get here, only correctOptionId could have changed (or nothing changed)
-      // Check if at least one correctOptionId actually changed
-      for (let i = 0; i < existingQuestions.length; i++) {
-        const existing = existingQuestions[i];
-        const updated = newQuestions[i];
-        
-        if ((existing.type === 'MULTIPLE_CHOICE' || existing.type === 'MULTIPLE_SELECT') && (updated.type === 'MULTIPLE_CHOICE' || updated.type === 'MULTIPLE_SELECT')) {
-          const existingCorrectId = existing.correctOptionId?.toString();
-          const updatedCorrectId = updated.correctOptionId?.toString();
-          
-          if (existingCorrectId !== updatedCorrectId) {
-            // At least one correctOptionId changed
-            return true;
-          }
-        }
-      }
-
-      // No correctOptionId changed
-      return false;
-    } catch (error) {
-      // If comparison fails, be conservative and assume it's not just correctOptionId
-      console.error('Error checking if only correctOptionId changed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Verificar si las preguntas han cambiado comparando estructura
-   * (excluyendo cambios en correctOptionId)
-   */
-  private haveQuestionsChanged(
-    existingQuestions: IQuestion[],
-    newQuestions: IQuestion[]
-  ): boolean {
-    try {
-      // Different number of questions means change
-      if (existingQuestions.length !== newQuestions.length) {
-        return true;
-      }
-
-      // Compare each question
-      for (let i = 0; i < existingQuestions.length; i++) {
-        const existing = existingQuestions[i];
-        const updated = newQuestions[i];
-
-        // Check basic fields (normalize strings for comparison)
-        if (
-          existing.type !== updated.type ||
-          String(existing.questionText).trim() !== String(updated.questionText).trim() ||
-          Number(existing.points) !== Number(updated.points) ||
-          Boolean(existing.required) !== Boolean(updated.required) ||
-          Number(existing.order) !== Number(updated.order)
-        ) {
-          return true;
-        }
-
-        // For multiple choice, check options
-        if ((existing.type === 'MULTIPLE_CHOICE' || existing.type === 'MULTIPLE_SELECT') && (updated.type === 'MULTIPLE_CHOICE' || updated.type === 'MULTIPLE_SELECT')) {
-          if (!existing.options || !updated.options) {
-            if (existing.options !== updated.options) {
-              return true;
-            }
-            continue; // Both null/undefined, skip
-          }
-
-          if (existing.options.length !== updated.options.length) {
-            return true;
-          }
-
-          // Check if options changed (text or order)
-          for (let j = 0; j < existing.options.length; j++) {
-            const existingOpt = existing.options[j];
-            const updatedOpt = updated.options[j];
-
-            if (
-              String(existingOpt.text).trim() !== String(updatedOpt.text).trim() ||
-              Number(existingOpt.order) !== Number(updatedOpt.order)
-            ) {
-              return true;
-            }
-          }
-
-          // Check if correct answer changed
-          // NOTE: We ignore changes in correctOptionId here because they're handled separately
-          // This method is used to detect changes OTHER than correctOptionId
-          // Strategy: Since options are already compared by text/order above and match,
-          // we compare by finding which option text corresponds to each correctOptionId
-          
-          // Check if correct answer changed - ignored here (handled elsewhere)
-          continue;
-        }
-      }
-
-      return false; // No changes detected
-    } catch (error) {
-      // If comparison fails, be conservative and assume questions changed
-      console.error('Error comparing questions:', error);
       return true;
+    } catch (error) {
+      console.error('Error comparing questions:', error);
+      return false;
     }
   }
 
