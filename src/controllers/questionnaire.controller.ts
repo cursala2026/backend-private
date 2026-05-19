@@ -161,12 +161,6 @@ export default class QuestionnaireController {
         return res.status(404).json(prepareResponse(404, 'Questionnaire not found'));
       }
 
-      // Obtener el cuestionario antes de eliminar para obtener el courseId
-      const questionnaire = await this.questionnaireService.findById(id);
-      if (!questionnaire) {
-        return res.status(404).json(prepareResponse(404, 'Questionnaire not found'));
-      }
-
       await this.questionnaireService.delete(id);
 
       try {
