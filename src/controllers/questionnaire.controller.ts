@@ -165,12 +165,12 @@ export default class QuestionnaireController {
 
       try {
         await this.courseService.rebuildOrderedContentForCourse(questionnaire.courseId.toString());
-      } catch (fetchError) {
-        console.error('Error fetching deleted questionnaire:', fetchError);
+      } catch (rebuildError) {
+        // Non-critical: log but don't fail the request
       }
 
       return res.json(prepareResponse(200, 'Questionnaire deleted successfully'));
-    } catch (error) {
+    } catch (error: any) {
       return next(error);
     }
   };

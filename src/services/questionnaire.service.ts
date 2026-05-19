@@ -350,37 +350,37 @@ class QuestionnaireService {
   }
 
   /**
-   * Eliminar un cuestionario
+   * Eliminar un cuestionario (con cascade delete de submissions)
    */
   async delete(id: string): Promise<void> {
-    const hasSubmissions = await this.submissionRepository.hasSubmissions(id);
-
     // Obtener el cuestionario antes de eliminar para conocer courseId
     const existing = await this.questionnaireRepository.findById(id);
     const courseId = existing?.courseId ? String(existing.courseId) : undefined;
 
+    // Eliminar submissions en cascada si existen
+    const hasSubmissions = await this.submissionRepository.hasSubmissions(id);
     if (hasSubmissions) {
-      // Eliminar todas las submissions del cuestionario en cascada
       const deletedCount = await this.submissionRepository.deleteByQuestionnaire(id);
-      logger.info('Deleted questionnaire submissions in cascade', { 
-        questionnaireId: id, 
-        deletedSubmissions: deletedCount 
+      logger.info('Deleted questionnaire submissions in cascade', {
+        questionnaireId: id,
+        deletedSubmissions: deletedCount,
       });
     }
 
     await this.questionnaireRepository.delete(id);
+    logger.info('Questionnaire deleted', { questionnaireId: id, courseId });
 
     if (courseId) {
       try {
         const svc = await import('./index');
         const cs = svc && (svc.courseService as any);
         if (cs) await cs.rebuildOrderedContentForCourse(courseId);
-        else logger.warn('courseService not available to rebuildOrderedContent after questionnaire delete', { courseId });
       } catch (err) {
         logger.error('Error rebuilding orderedContent after questionnaire delete', { error: (err as Error).message });
       }
     }
   }
+
 
   /**
    * Obtener cuestionario por ID
