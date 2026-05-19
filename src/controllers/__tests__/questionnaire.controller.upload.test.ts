@@ -17,6 +17,10 @@ jest.mock('fs', () => {
   };
 });
 
+const mockCourseService = {
+  rebuildOrderedContentForCourse: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('QuestionnaireController.uploadQuestionMedia', () => {
   const tmpDir = path.join(__dirname, '../../tmp-test');
   beforeEach(() => {
@@ -49,7 +53,6 @@ describe('QuestionnaireController.uploadQuestionMedia', () => {
       uploadImageMedia: jest.fn().mockResolvedValue('https://cdn.example.com/image.jpg'),
     };
 
-    // Mock questionMediaUploadProgressService
     jest.mock('@/services/question-media-upload-progress.service', () => ({
       default: {
         startTracking: jest.fn(),
@@ -59,7 +62,7 @@ describe('QuestionnaireController.uploadQuestionMedia', () => {
       },
     }));
 
-    const controller = new QuestionnaireController(mockService);
+    const controller = new QuestionnaireController(mockService, mockCourseService as any);
 
     const req: any = {
       params: { questionnaireId: 'qid', questionId: 'qid1' },
@@ -77,7 +80,6 @@ describe('QuestionnaireController.uploadQuestionMedia', () => {
 
     await controller.uploadQuestionMedia(req, res, next);
 
-    // Verifica que marcó como "processing" antes de responder
     expect(mockService.updateQuestionUploadStatus).toHaveBeenCalledWith(
       'qid',
       'qid1',
@@ -88,7 +90,6 @@ describe('QuestionnaireController.uploadQuestionMedia', () => {
       })
     );
 
-    // Verifica que respondió 202 inmediatamente (sin esperar el upload)
     expect(res.status).toHaveBeenCalledWith(202);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -96,7 +97,6 @@ describe('QuestionnaireController.uploadQuestionMedia', () => {
       })
     );
 
-    // Verifica que no llamó a métodos inexistentes
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -105,7 +105,7 @@ describe('QuestionnaireController.uploadQuestionMedia', () => {
       updateQuestionUploadStatus: jest.fn(),
     };
 
-    const controller = new QuestionnaireController(mockService);
+    const controller = new QuestionnaireController(mockService, mockCourseService as any);
 
     const req: any = {
       params: { questionnaireId: 'qid', questionId: 'qid1' },
@@ -129,7 +129,7 @@ describe('QuestionnaireController.uploadQuestionMedia', () => {
 
   test('returns 401 if no user', async () => {
     const mockService: any = {};
-    const controller = new QuestionnaireController(mockService);
+    const controller = new QuestionnaireController(mockService, mockCourseService as any);
 
     const req: any = {
       params: { questionnaireId: 'qid', questionId: 'qid1' },

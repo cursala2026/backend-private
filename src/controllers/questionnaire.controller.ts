@@ -89,7 +89,7 @@ export default class QuestionnaireController {
    */
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = ensureString (req.params.id);
+      const id = ensureString(req.params.questionnaireId);
       const body = req.body || {};
       const allowedTopFields = [
         'title',
@@ -153,7 +153,13 @@ export default class QuestionnaireController {
    */
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = ensureString(req.params.id);
+      const id = ensureString(req.params.questionnaireId);
+
+      // Obtener el cuestionario antes de eliminar para obtener el courseId
+      const questionnaire = await this.questionnaireService.findById(id);
+      if (!questionnaire) {
+        return res.status(404).json(prepareResponse(404, 'Questionnaire not found'));
+      }
 
       // Obtener el cuestionario antes de eliminar para obtener el courseId
       const questionnaire = await this.questionnaireService.findById(id);
@@ -165,8 +171,8 @@ export default class QuestionnaireController {
 
       try {
         await this.courseService.rebuildOrderedContentForCourse(questionnaire.courseId.toString());
-      } catch (rebuildError) {
-        // Non-critical: log but don't fail the request
+      } catch (fetchError) {
+        console.error('Error fetching deleted questionnaire:', fetchError);
       }
 
       return res.json(prepareResponse(200, 'Questionnaire deleted successfully'));
@@ -180,7 +186,7 @@ export default class QuestionnaireController {
    */
   findById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = ensureString(req.params.id);
+      const id = ensureString(req.params.questionnaireId);
       const user = (req as any).user;
 
       // Only pass studentId if user is a student (ALUMNO), not if they're a professor or admin

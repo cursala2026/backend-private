@@ -5,13 +5,47 @@ import { requireAdminOrQuestionnaireOwner } from '@/middlewares/questionnaire.mi
 import { questionnaireController, questionnaireSubmissionController } from '@/controllers';
 import { questionnaireRepository } from '@/repositories';
 import { uploadQuestionMedia } from '@/utils/fileUpload.util';
-import QuestionnaireController from '@/controllers/questionnaire.controller';
-import QuestionnaireService from '@/services/questionnaire.service';
-import QuestionnaireRepository from '@/repositories/questionnaire.repository';
 
 const router = Router();
 
-// Endpoint para subir/actualizar media de una pregunta (límite 500MB)
+// ==================== QUESTIONNAIRE ROUTES ====================
+
+// Create questionnaire
+router.post('/', authorize, (req, res, next) => questionnaireController.create(req, res, next));
+
+// Update questionnaire (admin or questionnaire owner)
+router.patch(
+  '/:questionnaireId',
+  authorize,
+  (req, res, next) => {
+    const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
+    return middleware(req, res, next);
+  },
+  (req, res, next) => questionnaireController.update(req, res, next)
+);
+
+// Delete questionnaire (admin or questionnaire owner)
+router.delete(
+  '/:questionnaireId',
+  authorize,
+  (req, res, next) => {
+    const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
+    return middleware(req, res, next);
+  },
+  (req, res, next) => questionnaireController.delete(req, res, next)
+);
+
+// Get questionnaire by ID
+router.get('/:questionnaireId', authorize, (req, res, next) => questionnaireController.findById(req, res, next));
+
+// ⚠️ Estas rutas estáticas DEBEN ir antes de /:questionnaireId para no ser capturadas por él
+router.get('/course/:courseId', authorize, (req, res, next) => questionnaireController.findByCourse(req, res, next));
+router.get('/professor/:professorId', authorize, (req, res, next) =>
+  questionnaireController.findByProfessor(req, res, next)
+);
+
+// ==================== MEDIA ROUTES ====================
+
 router.post(
   '/:questionnaireId/questions/:questionId/media',
   authorize,
@@ -23,84 +57,40 @@ router.post(
   (req, res, next) => questionnaireController.uploadQuestionMedia(req, res, next)
 );
 
-// SSE endpoint para progreso de subida de media de pregunta
 router.get(
   '/:questionnaireId/questions/:questionId/media-upload-progress',
   authorize,
   (req, res, next) => questionnaireController.getQuestionMediaUploadProgress(req, res, next)
 );
 
-// ==================== QUESTIONNAIRE ROUTES ====================
-
-// Create questionnaire (authenticated users - validation in service)
-router.post('/', authorize, (req, res, next) => questionnaireController.create(req, res, next));
-
-// Update questionnaire (admin or course owner)
-router.patch(
-  '/:id',
-  authorize,
-  (req, res, next) => {
-    const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
-    return middleware(req, res, next);
-  },
-  (req, res, next) => questionnaireController.update(req, res, next)
-);
-
-// Delete questionnaire (admin or course owner)
-router.delete(
-  '/:id',
-  authorize,
-  (req, res, next) => {
-    const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
-    return middleware(req, res, next);
-  },
-  (req, res, next) => questionnaireController.delete(req, res, next)
-);
-
-// Get all questionnaires for a course
-router.get('/course/:courseId', authorize, (req, res, next) => questionnaireController.findByCourse(req, res, next));
-
-// Get all questionnaires by professor
-router.get('/professor/:professorId', authorize, (req, res, next) =>
-  questionnaireController.findByProfessor(req, res, next)
-);
-
-// Get questionnaire by ID (authenticated users)
-router.get('/:id', authorize, (req, res, next) => questionnaireController.findById(req, res, next));
-
 // ==================== SUBMISSION ROUTES ====================
 
-// Start a new submission (students)
-router.post('/:questionnaireId/submissions', authorize, (req, res, next) =>
-  questionnaireSubmissionController.startSubmission(req, res, next)
-);
-
-// Submit answers (students - owner validation in controller)
+// ⚠️ Rutas estáticas de submissions ANTES de las dinámicas
 router.patch('/submissions/:submissionId', authorize, (req, res, next) =>
   questionnaireSubmissionController.submitAnswers(req, res, next)
 );
 
-// Grade text questions (professors/admins)
 router.post('/submissions/:submissionId/grade', authorize, (req, res, next) =>
   questionnaireSubmissionController.gradeTextQuestions(req, res, next)
 );
 
-// Get student submissions (authenticated users)
-router.get('/:questionnaireId/submissions/student/:studentId', authorize, (req, res, next) =>
-  questionnaireSubmissionController.getStudentSubmissions(req, res, next)
-);
-
-// Get grade report (professors/admins)
-router.get('/:questionnaireId/grade-report', authorize, (req, res, next) =>
-  questionnaireSubmissionController.getGradeReport(req, res, next)
-);
-
-// Get single submission
 router.get('/submissions/:submissionId', authorize, (req, res, next) =>
   questionnaireSubmissionController.getSubmissionById(req, res, next)
 );
 
-// Reset student attempts (professors/admins)
+// Rutas dinámicas de submissions
+router.post('/:questionnaireId/submissions', authorize, (req, res, next) =>
+  questionnaireSubmissionController.startSubmission(req, res, next)
+);
+
+router.get('/:questionnaireId/submissions/student/:studentId', authorize, (req, res, next) =>
+  questionnaireSubmissionController.getStudentSubmissions(req, res, next)
+);
+
+router.get('/:questionnaireId/grade-report', authorize, (req, res, next) =>
+  questionnaireSubmissionController.getGradeReport(req, res, next)
+);
+
 router.delete('/:questionnaireId/submissions/student/:studentId', authorize, requireAdmin, (req, res, next) =>
   questionnaireSubmissionController.resetStudentAttempts(req, res, next)
 );

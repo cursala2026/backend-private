@@ -24,8 +24,10 @@ class QuestionnaireRepository {
    * @returns El cuestionario encontrado o null si no existe
    */
   async findById(id: string): Promise<QuestionnaireDoc | null> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new Error('El ID del cuestionario proporcionado no es válido.');
+    if (!id || !Types.ObjectId.isValid(id)) {
+      const error = new Error('El ID del cuestionario proporcionado no es válido.');
+      (error as any).statusCode = 400;
+      throw error;
     }
     const res = await this.model.findById(id).exec();
     return res as unknown as QuestionnaireDoc | null;
