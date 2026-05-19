@@ -48,6 +48,15 @@ export default class CourseController {
       }
 
       // Integración de la lógica del commit: Verificación de sincronización del PDF
+
+  findOnePublic = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const courseId = ensureString(req.params.courseId);
+      const course = await this.courseService.findOneById(courseId);
+      if (!course) {
+        return res.status(404).json(prepareResponse(404, 'Course not found'));
+      }
+
       const pdfIsSynced = await this.courseService.checkPdfStatus(courseId);
       return res.json(prepareResponse(200, 'Course fetched successfully', { ...course, pdfSynced: pdfIsSynced }));
     } catch (error) {

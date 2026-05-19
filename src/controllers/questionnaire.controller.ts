@@ -48,6 +48,8 @@ export default class QuestionnaireController {
       if (Array.isArray(questionnaireData.questions)) {
         questionnaireData.questions = questionnaireData.questions.map((q: any) => {
           const allowedQuestionFields = [
+            '_id',
+            'id',
             'type',
             'questionText',
             'promptType',
@@ -110,6 +112,8 @@ export default class QuestionnaireController {
       if (Array.isArray(updateData.questions)) {
         updateData.questions = updateData.questions.map((q: any) => {
           const allowedQuestionFields = [
+            '_id',
+            'id',
             'type',
             'questionText',
             'promptType',
@@ -157,6 +161,12 @@ export default class QuestionnaireController {
         return res.status(404).json(prepareResponse(404, 'Questionnaire not found'));
       }
 
+      // Obtener el cuestionario antes de eliminar para obtener el courseId
+      const questionnaire = await this.questionnaireService.findById(id);
+      if (!questionnaire) {
+        return res.status(404).json(prepareResponse(404, 'Questionnaire not found'));
+      }
+
       await this.questionnaireService.delete(id);
 
       try {
@@ -166,7 +176,7 @@ export default class QuestionnaireController {
       }
 
       return res.json(prepareResponse(200, 'Questionnaire deleted successfully'));
-    } catch (error) {
+    } catch (error: any) {
       return next(error);
     }
   };
@@ -196,6 +206,7 @@ export default class QuestionnaireController {
 
       return res.json(prepareResponse(200, 'Questionnaire fetched successfully', questionnaire));
     } catch (error) {
+      console.error('[QuestionnaireController.findById] Error fetching questionnaire:', error);
       return next(error);
     }
   };

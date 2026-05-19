@@ -14,7 +14,7 @@ export function requireAdminOrQuestionnaireOwner(questionnaireRepository: Questi
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { user } = req as any;
-      const questionnaireId = ensureString(req.params.questionnaireId);
+      const questionnaireId = ensureString(req.params.questionnaireId || req.params.id);
 
       if (!user) {
         return res.status(401).json({ success: false, message: 'Not authenticated' });

@@ -44,7 +44,32 @@ export default class CertificateService {
   }
 
   /**
-   * Genera un código de verificación encriptado
+   * Convierte un verificationCode (formato "ivHex:encrypted") a Base64 URL-safe
+   * para que sea seguro de usar en rutas HTTP sin encoding adicional.
+   */
+  private encodeVerificationCode(rawCode: string): string {
+    return Buffer.from(rawCode, 'utf8')
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+  }
+
+  /**
+   * Decodifica un verificationCode desde Base64 URL-safe al formato interno "ivHex:encrypted".
+   * También acepta el formato raw (con ":") por compatibilidad con registros antiguos.
+   */
+  private decodeVerificationCode(code: string): string {
+    // Si contiene ":" es el formato interno (legacy o llamada interna)
+    if (code.includes(':')) return code;
+    // Si no, decodificar desde Base64 URL-safe
+    const base64 = code.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    return Buffer.from(padded, 'base64').toString('utf8');
+  }
+
+  /**
+   * Genera un código de verificación encriptado (formato interno ivHex:encrypted)
    */
   private generateVerificationCode(certificateData: any): string {
     const data = JSON.stringify({
@@ -70,16 +95,18 @@ export default class CertificateService {
     let encrypted = cipher.update(data, 'utf8', 'hex');
     encrypted += cipher.final('hex');
 
-    // Combinar IV y texto encriptado
+    // Formato interno: ivHex:encrypted (se codificará a Base64 para URLs)
     const result = `${iv.toString('hex')}:${encrypted}`;
     return result;
   }
 
   /**
-   * Desencripta un código de verificación
+   * Desencripta un código de verificación.
+   * Acepta tanto Base64 URL-safe (desde URLs) como el formato interno ivHex:encrypted.
    */
-  private decryptVerificationCode(encryptedCode: string): any {
-    // Intentar primero con la clave del entorno
+  private decryptVerificationCode(code: string): any {
+    // Decodificar Base64 URL-safe si es necesario
+    const encryptedCode = this.decodeVerificationCode(code);
     try {
       const algorithm = 'aes-256-cbc';
       const envKey = process.env.CERTIFICATE_ENCRYPTION_KEY;
@@ -276,11 +303,14 @@ export default class CertificateService {
     // Enviar por email
     await this.sendCertificateByEmail(student.email, certificateForPdf, pdfBuffer);
 
+    // Codificar el verificationCode para que sea seguro en URLs
+    const encodedCode = this.encodeVerificationCode(verificationCode);
+
     // Retornar datos del certificado
     return {
       certificateId: savedCertificate.certificateId,
-      verificationCode,
-      qrCodeUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/certificate/${verificationCode}`,
+      verificationCode: encodedCode,
+      qrCodeUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/certificate/${encodedCode}`,
       studentName: `${student.firstName} ${student.lastName}`,
       courseName: course.name,
       generatedAt: savedCertificate.generatedAt,
@@ -404,26 +434,39 @@ export default class CertificateService {
   }
 
   /**
-   * Valida un certificado usando el código de verificación
+   * Valida un certificado usando el código de verificación.
+   * Acepta tanto Base64 URL-safe (desde URLs) como el formato interno.
    */
   async validateCertificate(verificationCode: string) {
     try {
+      // Decodificar Base64 URL-safe si viene desde una URL
+      const rawCode = this.decodeVerificationCode(verificationCode);
       // Desencriptar el código
-      const decryptedData = this.decryptVerificationCode(verificationCode);
+      const decryptedData = this.decryptVerificationCode(rawCode);
 
       // Verificar expiración
       if (decryptedData.expiresAt && new Date() > new Date(decryptedData.expiresAt)) {
         return { isValid: false, message: 'El certificado ha expirado' };
       }
 
-      // Buscar el certificado en la base de datos usando el repositorio
-      const certificate = await this.certificateRepository.validateCertificate(verificationCode);
+      // Buscar el certificado en la base de datos usando el código INTERNO (con ":")
+      const certificate = await this.certificateRepository.validateCertificate(rawCode);
 
       if (!certificate) {
         return { isValid: false, message: 'Certificado no encontrado' };
       }
 
       // Obtener datos completos del estudiante y curso
+      // Verificación defensiva: los IDs podrían ser null si el dato en BD está corrupto
+      if (!certificate.studentId || !certificate.courseId) {
+        logger.error('Certificado con datos nulos en BD:', {
+          certificateId: certificate.certificateId,
+          studentId: certificate.studentId,
+          courseId: certificate.courseId,
+        });
+        return { isValid: false, message: 'Datos del certificado incompletos' };
+      }
+
       const [student, course] = await Promise.all([
         this.userRepository.getUserById(certificate.studentId.toString()),
         this.courseRepository.findById(certificate.courseId.toString()),
@@ -625,11 +668,14 @@ export default class CertificateService {
       // Pero podríamos querer notificar al administrador o al usuario de alguna manera
     }
 
+    // Codificar el verificationCode para que sea seguro en URLs
+    const encodedCode = this.encodeVerificationCode(verificationCode);
+
     // Retornar datos del certificado regenerado
     return {
       certificateId: updatedCertificate.certificateId,
-      verificationCode,
-      qrCodeUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/certificate/${verificationCode}`,
+      verificationCode: encodedCode,
+      qrCodeUrl: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/certificate/${encodedCode}`,
       studentName: `${student.firstName} ${student.lastName}`,
       courseName: course.name,
       generatedAt: updatedCertificate.generatedAt,
@@ -651,11 +697,14 @@ export default class CertificateService {
   }
 
   /**
-   * Descarga un certificado en formato PDF usando el código de verificación
+   * Descarga un certificado en formato PDF usando el código de verificación.
+   * Acepta tanto Base64 URL-safe (desde URLs) como el formato interno.
    */
   async downloadCertificate(verificationCode: string): Promise<Buffer> {
+    // Decodificar antes de validar
+    const rawCode = this.decodeVerificationCode(verificationCode);
     // Validar el código de verificación
-    const validationResult = await this.validateCertificate(verificationCode);
+    const validationResult = await this.validateCertificate(rawCode);
 
     if (!validationResult.isValid) {
       throw new Error('Certificado no válido o expirado');
