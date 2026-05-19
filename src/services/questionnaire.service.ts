@@ -664,47 +664,52 @@ class QuestionnaireService {
    * Oculta respuestas correctas si el usuario no ha completado
    */
   async findById(id: string, studentId?: string, userRoles?: string[]): Promise<QuestionnaireDoc | null> {
-    const questionnaire = await this.questionnaireRepository.findById(id);
+    try {
+      const questionnaire = await this.questionnaireRepository.findById(id);
 
-    if (!questionnaire) {
-      return null;
-    }
-
-    // If studentId provided AND user is only a student (not professor or admin), check if they've completed it
-    const isAlumno = userRoles?.some((r: any) => String(r).toUpperCase() === 'ALUMNO');
-    const isAdminOrProfesor = userRoles?.some((r: any) => 
-      String(r).toUpperCase() === 'PROFESOR' || String(r).toUpperCase() === 'ADMIN'
-    );
-
-    // Only hide correctOptionId for students, not for professors or admins
-    if (studentId && isAlumno && !isAdminOrProfesor) {
-      const submission = await this.submissionRepository.getBestSubmission(studentId, id);
-
-      // Hide correct answers if not yet graded
-      if (!submission || submission.status !== 'GRADED') {
-        const questionnaireObj = questionnaire.toObject ? questionnaire.toObject() : questionnaire;
-        questionnaireObj.questions = questionnaireObj.questions.map((q: any) => ({
-          ...q,
-          correctOptionId: undefined, // Remove correct answer (backward compat)
-          correctOptionIds: undefined,
-        }));
-        return questionnaireObj as QuestionnaireDoc;
+      if (!questionnaire) {
+        return null;
       }
 
-      // Only show correct answers if showCorrectAnswers is true and status is GRADED
-      if (!questionnaire.showCorrectAnswers) {
-        const questionnaireObj = questionnaire.toObject ? questionnaire.toObject() : questionnaire;
-        questionnaireObj.questions = questionnaireObj.questions.map((q: any) => ({
-          ...q,
-          correctOptionId: undefined,
-          correctOptionIds: undefined,
-        }));
-        return questionnaireObj as QuestionnaireDoc;
-      }
-    }
+      // If studentId provided AND user is only a student (not professor or admin), check if they've completed it
+      const isAlumno = userRoles?.some((r: any) => String(r).toUpperCase() === 'ALUMNO');
+      const isAdminOrProfesor = userRoles?.some((r: any) => 
+        String(r).toUpperCase() === 'PROFESOR' || String(r).toUpperCase() === 'ADMIN'
+      );
 
-    // For professors and admins, always return full questionnaire with all questions and correctOptionId
-    return questionnaire;
+      // Only hide correctOptionId for students, not for professors or admins
+      if (studentId && isAlumno && !isAdminOrProfesor) {
+        const submission = await this.submissionRepository.getBestSubmission(studentId, id);
+
+        // Hide correct answers if not yet graded
+        if (!submission || submission.status !== 'GRADED') {
+          const questionnaireObj = questionnaire.toObject ? questionnaire.toObject() : questionnaire;
+          questionnaireObj.questions = (questionnaireObj.questions || []).map((q: any) => ({
+            ...q,
+            correctOptionId: undefined, // Remove correct answer (backward compat)
+            correctOptionIds: undefined,
+          }));
+          return questionnaireObj as QuestionnaireDoc;
+        }
+
+        // Only show correct answers if showCorrectAnswers is true and status is GRADED
+        if (!questionnaire.showCorrectAnswers) {
+          const questionnaireObj = questionnaire.toObject ? questionnaire.toObject() : questionnaire;
+          questionnaireObj.questions = (questionnaireObj.questions || []).map((q: any) => ({
+            ...q,
+            correctOptionId: undefined,
+            correctOptionIds: undefined,
+          }));
+          return questionnaireObj as QuestionnaireDoc;
+        }
+      }
+
+      // For professors and admins, always return full questionnaire with all questions and correctOptionId
+      return questionnaire;
+    } catch (error) {
+      console.error('[QuestionnaireService.findById] Error:', error);
+      throw error;
+    }
   }
 
   /**

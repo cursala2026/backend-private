@@ -57,9 +57,6 @@ router.delete(
   (req, res, next) => questionnaireController.delete(req, res, next)
 );
 
-// Get questionnaire by ID (authenticated users)
-router.get('/:id', authorize, (req, res, next) => questionnaireController.findById(req, res, next));
-
 // Get all questionnaires for a course
 router.get('/course/:courseId', authorize, (req, res, next) => questionnaireController.findByCourse(req, res, next));
 
@@ -67,6 +64,9 @@ router.get('/course/:courseId', authorize, (req, res, next) => questionnaireCont
 router.get('/professor/:professorId', authorize, (req, res, next) =>
   questionnaireController.findByProfessor(req, res, next)
 );
+
+// Get questionnaire by ID (authenticated users)
+router.get('/:id', authorize, (req, res, next) => questionnaireController.findById(req, res, next));
 
 // ==================== SUBMISSION ROUTES ====================
 

@@ -196,6 +196,7 @@ export default class QuestionnaireController {
 
       return res.json(prepareResponse(200, 'Questionnaire fetched successfully', questionnaire));
     } catch (error) {
+      console.error('[QuestionnaireController.findById] Error fetching questionnaire:', error);
       return next(error);
     }
   };
