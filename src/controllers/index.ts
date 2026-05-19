@@ -54,7 +54,7 @@ export const companySpecificDataController = new CompanySpecificDataController(c
 export const faqController = new FAQController(faqService);
 export const certificateController = new CertificateController(certificateService);
 export const promotionalCodeController = new PromotionalCodeController(promotionalCodeService);
-export const questionnaireController = new QuestionnaireController(questionnaireService);
+export const questionnaireController = new QuestionnaireController(questionnaireService, courseService);
 export const questionnaireSubmissionController = new QuestionnaireSubmissionController(questionnaireSubmissionService);
 export const supportTicketController = new SupportTicketController(supportTicketService);
 export { courseProgressController };
