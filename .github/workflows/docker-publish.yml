@@ -69,8 +69,16 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ steps.repo_lowercase.outputs.owner }}/backend-cursala-private:${{ steps.tags.outputs.primary }}
-            ghcr.io/${{ steps.repo_lowercase.outputs.owner }}/backend-cursala-private:${{ github.sha }}
+            ghcr.io/cursala2026/backend-cursala-private:${{ steps.tags.outputs.primary }}
+            ghcr.io/cursala2026/backend-cursala-private:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
+
+      - name: Verify pushed manifests
+        run: |
+          for t in "${{ steps.tags.outputs.primary }}" "${{ github.sha }}"; do
+            if ! docker manifest inspect ghcr.io/cursala2026/backend-cursala-private:$t > /dev/null 2>&1; then
+              echo "Manifest for $t not found"; exit 1
+            fi
+          done
