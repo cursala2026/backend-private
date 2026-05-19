@@ -93,10 +93,26 @@ export default class CertificateController {
 
       const certificate = await this.certificateService.checkCertificateExists(studentId, courseId);
 
+      let mappedCertificate = null;
+      if (certificate) {
+        const rawCode: string = certificate.verificationCode || '';
+        // Codificar a Base64 URL-safe para uso en rutas HTTP
+        const encodedCode = Buffer.from(rawCode, 'utf8')
+          .toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=/g, '');
+        
+        mappedCertificate = {
+          ...(certificate.toObject ? certificate.toObject() : certificate),
+          verificationCode: encodedCode,
+        };
+      }
+
       return res.json(
         prepareResponse(200, 'Verificación completada', {
           exists: !!certificate,
-          certificate: certificate || null,
+          certificate: mappedCertificate,
         })
       );
     } catch (error) {
@@ -137,7 +153,10 @@ export default class CertificateController {
   };
 
   /**
-   * Obtiene certificados por estudiante
+   * Obtiene certificados por estudiante.
+   * Mapea los datos para que el frontend reciba los campos esperados:
+   * - courseName (string) en lugar del objeto courseId populado
+   * - verificationCode codificado en Base64 URL-safe
    */
   getCertificatesByStudent = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -149,7 +168,29 @@ export default class CertificateController {
 
       const certificates = await this.certificateService.getCertificatesByStudent(studentId);
 
-      return res.json(prepareResponse(200, 'Certificados obtenidos exitosamente', certificates));
+      // Mapear los campos para el frontend
+      const mapped = (certificates as any[]).map((cert) => {
+        const rawCode: string = cert.verificationCode || '';
+        // Codificar a Base64 URL-safe para uso en rutas HTTP
+        const encodedCode = Buffer.from(rawCode, 'utf8')
+          .toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=/g, '');
+        // courseId puede estar populado (objeto) o ser un ObjectId
+        const populatedCourse = cert.courseId as any;
+        const courseName: string =
+          typeof populatedCourse === 'object' && populatedCourse?.name
+            ? populatedCourse.name
+            : cert.courseName || '';
+        return {
+          ...cert.toObject ? cert.toObject() : cert,
+          verificationCode: encodedCode,
+          courseName,
+        };
+      });
+
+      return res.json(prepareResponse(200, 'Certificados obtenidos exitosamente', mapped));
     } catch (error) {
       return next(error);
     }
