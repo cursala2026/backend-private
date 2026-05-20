@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import prepareResponse from '@/utils/api-response';
+import { logger } from '@/utils';
 import QuestionnaireService from '@/services/questionnaire.service';
 import questionMediaUploadProgressService from '@/services/question-media-upload-progress.service';
 import CourseService from '@/services/course.service';
@@ -80,6 +81,12 @@ export default class QuestionnaireController {
 
       return res.status(201).json(prepareResponse(201, 'Questionnaire created successfully', questionnaire));
     } catch (error) {
+      // Log error details to help debugging when 500 occurs from frontend
+      try {
+        logger.error('[QuestionnaireController.update] Error updating questionnaire', { error: (error as Error).message, stack: (error as Error).stack });
+      } catch (e) {
+        console.error('[QuestionnaireController.update] Error logging failed:', e);
+      }
       return next(error);
     }
   };
@@ -201,6 +208,19 @@ export default class QuestionnaireController {
       return res.json(prepareResponse(200, 'Questionnaire fetched successfully', questionnaire));
     } catch (error) {
       console.error('[QuestionnaireController.findById] Error fetching questionnaire:', error);
+      return next(error);
+    }
+  };
+
+  /**
+   * Check if questionnaire has submissions
+   */
+  hasSubmissions = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = ensureString(req.params.questionnaireId);
+      const has = await this.questionnaireService.hasSubmissions(id);
+      return res.json(prepareResponse(200, 'Has submissions', { hasSubmissions: has }));
+    } catch (error) {
       return next(error);
     }
   };

@@ -1,5 +1,6 @@
 import { QuestionnaireSchema, IQuestionnaire, QuestionnaireDoc, IQuestion } from '@/models/mongo/questionnaire.model';
 import { Connection, Model, Types } from '@/models';
+import { logger } from '@/utils';
 
 class QuestionnaireRepository {
   private readonly model: Model<IQuestionnaire>;
@@ -74,11 +75,15 @@ class QuestionnaireRepository {
             q.correctOptionIds = idxs.map((v: any) => {
               const i = Number(v);
               const opt = q.options[i];
-              if (!opt) throw {
-                status: 400,
-                key: 'validation.invalid_option_index',
-                message: `Índice de opción inválido ${i} en la pregunta ${qi}`,
-              };
+                if (!opt) {
+                  const err = {
+                    status: 400,
+                    key: 'validation.invalid_option_index',
+                    message: `Índice de opción inválido ${i} en la pregunta ${qi}`,
+                  };
+                  try { logger.warn('[QuestionnaireRepository.update] invalid option index during mapping', { questionnaireId: id, questionIndex: qi, optionIndex: i, payloadQuestion: q }); } catch(e){ console.warn('logger failed', e); }
+                  throw err;
+                }
               return opt._id;
             });
           }

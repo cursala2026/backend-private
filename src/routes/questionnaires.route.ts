@@ -36,6 +36,10 @@ router.delete(
 );
 
 // Get questionnaire by ID
+// Check if questionnaire has submissions (must be before dynamic id route)
+router.get('/:questionnaireId/has-submissions', authorize, (req, res, next) => questionnaireController.hasSubmissions(req, res, next));
+
+// Get questionnaire by ID
 router.get('/:questionnaireId', authorize, (req, res, next) => questionnaireController.findById(req, res, next));
 
 // ⚠️ Estas rutas estáticas DEBEN ir antes de /:questionnaireId para no ser capturadas por él

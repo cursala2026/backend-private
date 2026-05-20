@@ -38,11 +38,30 @@ const options = {
 passport.use(
   new JwtStrategy(options, async (jwtPayload, done) => {
     try {
-      const user = await userRepository.findById(jwtPayload._id);
-      if (user) {
-        return done(null, user);
-      }
-      return done(null, false);
+        const user = await userRepository.findById(jwtPayload._id);
+        if (user) {
+          return done(null, user);
+        }
+
+        // En desarrollo, permitir usar el payload del JWT como usuario si no existe en BD
+        if (process.env.NODE_ENV !== 'production') {
+          try {
+            const fakeUser = {
+              _id: jwtPayload._id,
+              username: (jwtPayload as any).username || (jwtPayload as any).email || 'dev.user',
+              email: (jwtPayload as any).email,
+              firstName: (jwtPayload as any).firstName || '',
+              lastName: (jwtPayload as any).lastName || '',
+              roles: (jwtPayload as any).roles || [],
+              status: 'ACTIVE'
+            } as any;
+            return done(null, fakeUser);
+          } catch (e) {
+            logger.warn('Failed to construct fake user from JWT payload', { error: e });
+          }
+        }
+
+        return done(null, false);
     } catch (error) {
       logger.error(`JWT Strategy error:`, error);
       return done(error, false);

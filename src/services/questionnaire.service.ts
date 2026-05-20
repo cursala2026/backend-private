@@ -152,9 +152,8 @@ class QuestionnaireService {
     if (data.questions && hasSubmissions) {
       const allowed = this.areQuestionChangesAllowed(existingQuestionnaire.questions, data.questions);
       if (!allowed) {
-        throw new Error(
-          'Cannot modify questions after students have submitted. You can only edit correct answers or add new questions.'
-        );
+        // Throw a structured error so the global handler returns 400 instead of 500
+        throw { status: 400, message: 'Cannot modify questions after students have submitted. You can only edit correct answers or add new questions.', key: 'questionnaire.modifications_not_allowed' };
       }
     }
 
@@ -212,6 +211,21 @@ class QuestionnaireService {
       }
 
       // Preserve existing option _ids
+      // If there are submissions, require clients to include option `_id` for existing questions
+      if (hasSubmissions && updateData.questions) {
+        for (let i = 0; i < updateData.questions.length; i++) {
+          const newQuestion = updateData.questions[i];
+          const existingQuestion = existingQuestionnaire.questions[i];
+          if (existingQuestion && (existingQuestion.type === 'MULTIPLE_CHOICE' || existingQuestion.type === 'MULTIPLE_SELECT') && newQuestion.options) {
+            for (let j = 0; j < newQuestion.options.length; j++) {
+              const newOption = newQuestion.options[j] as any;
+              if (!newOption._id) {
+                throw { status: 400, message: 'When questionnaire has submissions, option _id must be provided for existing questions to allow safe updates', key: 'questionnaire.missing_option_id' };
+              }
+            }
+          }
+        }
+      }
       if (updateData.questions) {
         for (let i = 0; i < updateData.questions.length; i++) {
           const newQuestion = updateData.questions[i];
@@ -237,6 +251,34 @@ class QuestionnaireService {
           }
         }
       }
+      }
+
+      // If submissions exist, ensure that for existing questions the options keep their identity
+      // Require `_id` for existing options or allow matching by exact text to map IDs safely.
+      if (hasSubmissions && updateData.questions) {
+        for (let i = 0; i < existingQuestionnaire.questions.length && i < updateData.questions.length; i++) {
+          const existingQ = existingQuestionnaire.questions[i];
+          const newQ = updateData.questions[i];
+          if (!existingQ || !newQ) continue;
+
+          if ((existingQ.type === 'MULTIPLE_CHOICE' || existingQ.type === 'MULTIPLE_SELECT') &&
+              (newQ.type === 'MULTIPLE_CHOICE' || newQ.type === 'MULTIPLE_SELECT')) {
+            if (!newQ.options || newQ.options.length !== (existingQ.options?.length || 0)) {
+              throw { status: 400, message: 'Cannot change options count for questions that already have submissions.', key: 'questionnaire.options_count_mismatch' };
+            }
+            for (let j = 0; j < (existingQ.options?.length || 0); j++) {
+              const newOpt = newQ.options[j] as any;
+              if (!newOpt._id) {
+                const match = existingQ.options?.find((o: any) => String(o.text).trim() === String(newOpt.text).trim());
+                if (match && match._id) {
+                  newOpt._id = match._id;
+                } else {
+                  throw { status: 400, message: `Missing _id for existing option at question index ${i}, option index ${j}. Provide option _id or keep the exact text to map.`, key: 'questionnaire.missing_option_id' };
+                }
+              }
+            }
+          }
+        }
       }
 
       const updatedQuestionnaire = await this.questionnaireRepository.update(id, updateData);
@@ -306,16 +348,12 @@ class QuestionnaireService {
         const existing = existingQuestions[i];
         const updated = newQuestions[i];
 
-        if (
-          existing.type !== updated.type ||
-          String(existing.questionText).trim() !== String(updated.questionText).trim() ||
-          Number(existing.points) !== Number(updated.points) ||
-          Boolean(existing.required) !== Boolean(updated.required) ||
-          Number(existing.order) !== Number(updated.order)
-        ) {
+        // Do not allow changing question type (would break structure)
+        if (existing.type !== updated.type) {
           return false;
         }
 
+        // For multiple choice/select, ensure option count stays the same.
         if ((existing.type === 'MULTIPLE_CHOICE' || existing.type === 'MULTIPLE_SELECT') && (updated.type === 'MULTIPLE_CHOICE' || updated.type === 'MULTIPLE_SELECT')) {
           if (!existing.options || !updated.options) {
             if (existing.options !== updated.options) {
@@ -326,18 +364,6 @@ class QuestionnaireService {
 
           if (existing.options.length !== updated.options.length) {
             return false;
-          }
-
-          for (let j = 0; j < existing.options.length; j++) {
-            const existingOpt = existing.options[j];
-            const updatedOpt = updated.options[j];
-
-            if (
-              String(existingOpt.text).trim() !== String(updatedOpt.text).trim() ||
-              Number(existingOpt.order) !== Number(updatedOpt.order)
-            ) {
-              return false;
-            }
           }
         }
       }
@@ -440,6 +466,13 @@ class QuestionnaireService {
    */
   async findByCourseId(courseId: string): Promise<QuestionnaireDoc[]> {
     return await this.questionnaireRepository.findByCourseId(courseId);
+  }
+
+  /**
+   * Indica si un cuestionario tiene envíos asociados
+   */
+  async hasSubmissions(id: string): Promise<boolean> {
+    return await this.submissionRepository.hasSubmissions(id);
   }
 
   /**
