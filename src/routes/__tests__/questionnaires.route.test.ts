@@ -15,7 +15,7 @@ jest.mock('@/middlewares/questionnaire.middleware', () => ({
 
 jest.mock('@/controllers', () => ({
   questionnaireController: {
-    findById: jest.fn((req, res) => res.status(200).json({ method: 'findById', id: req.params.id })),
+    findById: jest.fn((req, res) => res.status(200).json({ method: 'findById', id: req.params.questionnaireId })),
     findByCourse: jest.fn((req, res) => res.status(200).json({ method: 'findByCourse', courseId: req.params.courseId })),
     findByProfessor: jest.fn((req, res) => res.status(200).json({ method: 'findByProfessor', professorId: req.params.professorId })),
     create: jest.fn(),

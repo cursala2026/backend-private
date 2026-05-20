@@ -149,12 +149,10 @@ class QuestionnaireService {
 
     const hasSubmissions = await this.submissionRepository.hasSubmissions(id);
 
+    // Policy change: if questionnaire already has any submissions, disallow any modifications
+    // to the `questions` array (no edits, no add/remove). Return structured 400 error.
     if (data.questions && hasSubmissions) {
-      const allowed = this.areQuestionChangesAllowed(existingQuestionnaire.questions, data.questions);
-      if (!allowed) {
-        // Throw a structured error so the global handler returns 400 instead of 500
-        throw { status: 400, message: 'Cannot modify questions after students have submitted. You can only edit correct answers or add new questions.', key: 'questionnaire.modifications_not_allowed' };
-      }
+      throw { status: 400, message: 'Cannot modify questions after students have submitted. Editing questions is blocked.', key: 'questionnaire.modifications_not_allowed' };
     }
 
     if (data.questions) {

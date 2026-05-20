@@ -61,6 +61,7 @@ const setupUpdatePath = (existingProgress: any, passingScore: number) => {
   // this.Questionnaire.findById — retorna cuestionario con passingScore
   (courseProgressRepository as any).Questionnaire = {
     findById: jest.fn().mockResolvedValue({ passingScore }),
+    find: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue([{ _id: QID }]) }),
     countDocuments: jest.fn().mockResolvedValue(1),
   };
 

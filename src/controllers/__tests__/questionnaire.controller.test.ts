@@ -20,6 +20,7 @@ describe('QuestionnaireController', () => {
       update: jest.fn(),
       delete: jest.fn(),
       findById: jest.fn(),
+      hasSubmissions: jest.fn(),
       findByCourseId: jest.fn(),
       findByProfessorId: jest.fn(),
     } as any;
@@ -85,6 +86,23 @@ describe('QuestionnaireController', () => {
       expect(updatePayload.questions![0].type).toBe('MULTIPLE_CHOICE');
       expect(updatePayload.questions![0].points).toBe(10);
       expect((updatePayload.questions![0] as any).shouldNotBeIncluded).toBeUndefined();
+    });
+
+    it('should block update when questionnaire already has submissions', async () => {
+      const qId = 'qid-1';
+      mockRequest.params = { questionnaireId: qId };
+      mockRequest.body = { title: 'New title' };
+
+      // Simulate that questionnaire has submissions
+      (mockQuestionnaireService.hasSubmissions as jest.Mock).mockResolvedValue(true);
+
+      await controller.update(mockRequest as Request, mockResponse as Response, nextFunction);
+
+      expect(mockQuestionnaireService.hasSubmissions).toHaveBeenCalledWith(qId);
+      // Should return 400 and not call update
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalled();
+      expect(mockQuestionnaireService.update).not.toHaveBeenCalled();
     });
   });
 });

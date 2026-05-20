@@ -162,4 +162,17 @@ export default class QuestionnaireSubmissionController {
       return next(error);
     }
   };
+
+  /**
+   * Eliminar todos los envíos de un cuestionario (administrador)
+   */
+  deleteAllByQuestionnaire = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const questionnaireId = ensureString(req.params.questionnaireId);
+      const result = await this.submissionService.deleteAllByQuestionnaire(questionnaireId);
+      return res.json(prepareResponse(200, 'All questionnaire submissions deleted successfully', result));
+    } catch (error) {
+      return next(error);
+    }
+  };
 }

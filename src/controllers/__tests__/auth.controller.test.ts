@@ -119,7 +119,7 @@ describe('AuthController', () => {
             expect(mockAuthService.getUserInfo).toHaveBeenCalledWith(req.user);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 message: 'Valid Token',
-                user: mockUserInfo,
+                data: mockUserInfo,
             }));
         });
     });

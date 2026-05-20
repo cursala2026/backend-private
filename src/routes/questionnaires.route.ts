@@ -94,7 +94,12 @@ router.get('/:questionnaireId/submissions/student/:studentId', authorize, (req, 
 router.get('/:questionnaireId/grade-report', authorize, (req, res, next) =>
   questionnaireSubmissionController.getGradeReport(req, res, next)
 );
+// Delete ALL submissions for a questionnaire (admin)
+router.delete('/:questionnaireId/submissions', authorize, requireAdmin, (req, res, next) =>
+  questionnaireSubmissionController.deleteAllByQuestionnaire(req, res, next)
+);
 
+// Delete submissions for a specific student (admin)
 router.delete('/:questionnaireId/submissions/student/:studentId', authorize, requireAdmin, (req, res, next) =>
   questionnaireSubmissionController.resetStudentAttempts(req, res, next)
 );

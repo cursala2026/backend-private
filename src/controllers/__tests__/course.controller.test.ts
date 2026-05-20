@@ -68,6 +68,7 @@ describe('CourseController', () => {
             (mockCourseService as any).createCourseWithFiles = jest.fn().mockResolvedValue(mockCourse);
 
             await courseController.create(req as Request, res as Response, next);
+            await new Promise(resolve => setImmediate(resolve));
 
             expect(courseUploadFiles.fields).toHaveBeenCalled();
             expect((mockCourseService as any).createCourseWithFiles).toHaveBeenCalled();
@@ -83,6 +84,7 @@ describe('CourseController', () => {
             });
 
             await courseController.create(req as Request, res as Response, next);
+            await new Promise(resolve => setImmediate(resolve));
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({

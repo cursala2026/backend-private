@@ -523,6 +523,36 @@ class QuestionnaireSubmissionService {
 
     return { deletedCount };
   }
+
+  /**
+   * Eliminar todos los envíos de un cuestionario (acción administrativa)
+   * Además remueve el progreso del cuestionario de los estudiantes afectados
+   */
+  async deleteAllByQuestionnaire(questionnaireId: string): Promise<{ deletedCount: number }> {
+    const questionnaire = await this.questionnaireRepository.findById(questionnaireId);
+    if (!questionnaire) {
+      throw new Error('Questionnaire not found');
+    }
+
+    // Obtener todos los envíos para saber qué estudiantes se vieron afectados
+    const submissions = await this.submissionRepository.findAllByQuestionnaire(questionnaireId);
+    const studentIds = Array.from(new Set(submissions.map((s: any) => String(s.studentId))));
+
+    const deletedCount = await this.submissionRepository.deleteByQuestionnaire(questionnaireId);
+
+    // Remover progreso del cuestionario para cada estudiante
+    if (questionnaire.courseId) {
+      for (const sid of studentIds) {
+        try {
+          await courseProgressRepository.removeQuestionnaireProgress(sid, questionnaire.courseId.toString(), questionnaireId);
+        } catch (err) {
+          logger.error('Error removing questionnaire progress for student after deleting submissions', { studentId: sid, questionnaireId, error: (err as Error).message });
+        }
+      }
+    }
+
+    return { deletedCount };
+  }
 }
 
 export default QuestionnaireSubmissionService;

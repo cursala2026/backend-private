@@ -1,0 +1,211 @@
+================================================================================
+GUÍA DE ESTÁNDAR DE ENTREGA: BACKEND (NODE) + FRONTEND (ANGULAR)
+================================================================================
+Flujo de Desarrollo, Pruebas Unitarias y Automatización E2E con Playwright
+Ejemplo Práctico: Botón que dispara un Modal con Datos del Servidor
+================================================================================
+
+1. INTRODUCCIÓN Y FLUJO DE TRABAJO
+--------------------------------------------------------------------------------
+Para garantizar entregas robustas, sin regresiones y alineadas al Contrato de API,
+el equipo de desarrollo adoptará el siguiente flujo de trabajo secuencial para
+cada funcionalidad de punta a punta (End-to-End):
+
+  [Contrato de API] ➔ [Backend + Tests] ➔ [Frontend Unit Tests] ➔ [E2E Playwright]
+
+Beneficio clave: Si el test de Playwright falla pero el test unitario de Angular
+pasa, sabemos inmediatamente que el problema está en la integración o en la API,
+y no en la lógica visual del componente.
+
+--------------------------------------------------------------------------------
+2. EL CASO DE USO: BOTÓN Y MODAL DE USUARIO
+--------------------------------------------------------------------------------
+- Usuario hace clic en un botón: "Ver Perfil".
+- Se realiza una petición HTTP al backend para obtener los datos del usuario.
+- Se renderiza un Modal en pantalla mostrando el Nombre y Email del usuario.
+
+
+================================================================================
+3. CAPA BACKEND (Node.js + Express + Jest/Supertest)
+================================================================================
+El Backend debe asegurar la validez del contrato de datos y manejar correctamente
+los escenarios de éxito y error.
+
+--- Archivo: src/controllers/user.controller.js ---
+exports.getUserById = async (req, res) => {
+  const { id } = req.params;
+  
+  // Simulación de lógica de negocio / Base de datos
+  if (id === '123') {
+    return res.status(200).json({
+      id: '123',
+      name: 'Carlos Gomez',
+      email: 'carlos@example.com'
+    });
+  }
+  
+  return res.status(404).json({ message: 'Usuario no encontrado' });
+};
+
+--- Archivo: tests/user.test.js (Test Unitario/Integración API) ---
+const request = require('supertest');
+const express = require('express');
+const userController = require('../controllers/user.controller');
+
+const app = express();
+app.get('/api/users/:id', userController.getUserById);
+
+describe('GET /api/users/:id', () => {
+  it('Debería retornar 200 y los datos del usuario si el ID existe', async () => {
+    const res = await request(app).get('/api/users/123');
+    
+    expect(res.statusCode).toEqual(200);
+    expect(res.body).toHaveProperty('id', '123');
+    expect(res.body).toHaveProperty('name', 'Carlos Gomez');
+    expect(res.body).toHaveProperty('email', 'carlos@example.com');
+  });
+
+  it('Debería retornar 404 si el usuario no existe', async () => {
+    const res = await request(app).get('/api/users/999');
+    expect(res.statusCode).toEqual(404);
+  });
+});
+
+
+================================================================================
+4. CAPA FRONTEND - UNITARIO (Angular Component Test)
+================================================================================
+Probamos el componente de forma aislada. Mockeamos el servicio HTTP para evaluar
+únicamente el comportamiento de la interfaz (DOM) y el estado del componente.
+
+--- Archivo: user-profile.component.ts ---
+import { Component, signal } from '@angular/core';
+import { UserService } from './user.service';
+
+@Component({
+  selector: 'app-user-profile',
+  template: `
+    <button id="btn-open-modal" (click)="loadUserProfile()">Ver Perfil</button>
+
+    @if (isModalOpen()) {
+      <div class="modal" id="user-modal">
+        <h2>Perfil de Usuario</h2>
+        <p id="user-name">{{ userData()?.name }}</p>
+        <p id="user-email">{{ userData()?.email }}</p>
+        <button id="btn-close-modal" (click)="isModalOpen.set(false)">Cerrar</button>
+      </div>
+    }
+  `
+})
+export class UserProfileComponent {
+  isModalOpen = signal(false);
+  userData = signal<any>(null);
+
+  constructor(private userService: UserService) {}
+
+  loadUserProfile() {
+    this.userService.getUser('123').subscribe(data => {
+      this.userData.set(data);
+      this.isModalOpen.set(true);
+    });
+  }
+}
+
+--- Archivo: user-profile.component.spec.ts (Test Unitario Angular) ---
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { UserProfileComponent } from './user-profile.component';
+import { UserService } from './user.service';
+import { of } from 'rxjs';
+
+describe('UserProfileComponent', () => {
+  let component: UserProfileComponent;
+  let fixture: ComponentFixture<UserProfileComponent>;
+  let mockUserService: any;
+
+  beforeEach(async () => {
+    mockUserService = jasmine.createSpyObj('UserService', ['getUser']);
+    // Simulamos que el servicio retorna datos exitosamente
+    mockUserService.getUser.and.returnValue(of({ id: '123', name: 'Carlos Gomez', email: 'carlos@example.com' }));
+
+    await TestBed.configureTestingModule({
+      imports: [UserProfileComponent],
+      providers: [{ provide: UserService, useValue: mockUserService }]
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(UserProfileComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('Debería tener el modal cerrado por defecto', () => {
+    const modal = fixture.nativeElement.querySelector('#user-modal');
+    expect(modal).toBeNull();
+    expect(component.isModalOpen()).toBeFalse();
+  });
+
+  it('Debería abrir el modal y mostrar los datos al hacer clic en el botón', () => {
+    const button = fixture.nativeElement.querySelector('#btn-open-modal');
+    button.click();
+    fixture.detectChanges(); // Actualiza el DOM por el cambio de Signals
+
+    const modal = fixture.nativeElement.querySelector('#user-modal');
+    const nameParagraph = fixture.nativeElement.querySelector('#user-name');
+
+    expect(modal).toBeTruthy();
+    expect(component.isModalOpen()).toBeTrue();
+    expect(nameParagraph.textContent).toContain('Carlos Gomez');
+    expect(mockUserService.getUser).toHaveBeenCalledWith('123');
+  });
+});
+
+
+================================================================================
+5. CAPA AUTOMATIZACIÓN / INTEGRACIÓN (Playwright E2E)
+================================================================================
+Playwright actúa como un usuario real. Levanta el navegador, interactúa con la 
+aplicación desplegada y verifica que la integración Backend-Frontend sea correcta.
+
+--- Archivo: e2e/user-flow.spec.ts ---
+import { test, expect } from '@playwright/test';
+
+test.describe('Flujo de Usuario: Ver Perfil en Modal', () => {
+  
+  test('Debería hacer clic en el botón, consultar la API y abrir el modal con datos reales', async ({ page }) => {
+    // 1. Ir a la página donde está nuestro componente
+    await page.goto('http://localhost:4200/profile');
+
+    // 2. Asegurar que el modal no está visible inicialmente
+    const modal = page.locator('#user-modal');
+    await expect(modal).not.toBeVisible();
+
+    // 3. Hacer clic en el botón que dispara el flujo
+    const openButton = page.locator('#btn-open-modal');
+    await openButton.click();
+
+    // 4. Playwright espera automáticamente a que el modal aparezca (espera el hit de la API)
+    await expect(modal).toBeVisible({ timeout: 5000 });
+
+    // 5. Validar que los datos renderizados en la UI sean los que provee el Backend
+    const userName = page.locator('#user-name');
+    const userEmail = page.locator('#user-email');
+
+    await expect(userName).toHaveText('Carlos Gomez');
+    await expect(userEmail).toHaveText('carlos@example.com');
+
+    // 6. Validar el cierre del modal
+    await page.locator('#btn-close-modal').click();
+    await expect(modal).not.toBeVisible();
+  });
+});
+
+
+================================================================================
+6. CHECKLIST DE DEFINICIÓN DE "HECHO" (Definition of Done - DoD)
+================================================================================
+Antes de mover cualquier tarea de este tipo a "Listo para Code Review", validar:
+[ ] El contrato de la API fue acordado y cumple el JSON esperado.
+[ ] Los tests de Node cubren el camino feliz (200) y el manejo de errores (404/500).
+[ ] Los componentes de Angular tienen tests unitarios con mocks de servicios (Mocks/Spies).
+[ ] Los selectores del DOM (#id o data-testid) están definidos estables para automatización.
+[ ] El archivo de prueba de Playwright cubre la interacción completa del usuario final.
+================================================================================

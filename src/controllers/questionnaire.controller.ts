@@ -141,6 +141,17 @@ export default class QuestionnaireController {
         });
       }
 
+      // Check if questionnaire already has submissions: if so, block edits
+      try {
+        const has = await this.questionnaireService.hasSubmissions(id);
+        console.log('[DEBUG] Questionnaire update called', { questionnaireId: id, hasSubmissions: has, incomingBody: body });
+        if (has) {
+          return res.status(400).json(prepareResponse(400, 'Questionnaire has submissions and cannot be edited'));
+        }
+      } catch (dbgErr) {
+        console.warn('[DEBUG] Failed to check hasSubmissions:', dbgErr);
+      }
+
       const updated = await this.questionnaireService.update(id, updateData);
 
       try {

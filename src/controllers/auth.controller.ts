@@ -50,7 +50,7 @@ class AuthController {
     try {
       const userInfo = await this.authService.getUserInfo(req.user as IUser);
 
-      return res.json(userInfo);
+      return res.json(prepareResponse(200, 'Valid Token', userInfo));
     } catch (error) {
       return next(error);
     }
