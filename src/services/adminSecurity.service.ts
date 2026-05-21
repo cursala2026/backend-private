@@ -97,7 +97,7 @@ class AdminSecurityService {
       // Enviar código por email
       await this.sendVerificationEmail(code, action, metadata, userData);
 
-      logger.info(`Verification code generated for user ${userId}, action: ${action}`);
+      logger.debug(`Verification code generated for user ${userId}, action: ${action}`);
 
       return {
         success: true,
@@ -150,7 +150,7 @@ class AdminSecurityService {
       verificationCode.isUsed = true;
       await verificationCode.save();
 
-      logger.info(`Verification code verified successfully for user ${userId}, action: ${action}`);
+      logger.debug(`Verification code verified successfully for user ${userId}, action: ${action}`);
 
       return {
         success: true,
@@ -269,7 +269,7 @@ class AdminSecurityService {
 
     // Enviar al email configurado
     await sendEmail({ email: adminEmail!, subject, html });
-    logger.info(`Verification email sent to admin: ${adminEmail}`);
+    logger.debug(`Verification email sent to admin: ${adminEmail}`);
   }
 
   /**
@@ -284,7 +284,7 @@ class AdminSecurityService {
         ],
       });
 
-      logger.info(`Cleaned up ${result.deletedCount} expired verification codes`);
+      logger.debug(`Cleaned up ${result.deletedCount} expired verification codes`);
     } catch (error) {
       logger.error('Error cleaning up expired codes:', error);
     }

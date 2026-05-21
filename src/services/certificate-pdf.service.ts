@@ -64,8 +64,7 @@ export interface CertificatePdfData {
  * Genera un PDF de certificado con diseño profesional
  */
 export async function generateCertificatePDF(certificateData?: CertificatePdfData): Promise<Buffer> {
-    logger.info('Generando PDF del certificado');
-    logger.info('Teachers data:', certificateData?.teachers);
+    logger.debug('Generando PDF del certificado');
     
     // Pre-cargar las firmas de los profesores
     const signatures: (Buffer | null)[] = [];
@@ -78,9 +77,9 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
         if (teacherSignatureUrl) {
             try {
                 if (teacherSignatureUrl.startsWith('http://') || teacherSignatureUrl.startsWith('https://')) {
-                    logger.info(`Descargando firma desde URL: ${teacherSignatureUrl}`);
+                    logger.debug(`Descargando firma desde URL: ${teacherSignatureUrl}`);
                     signatureBuffer = await downloadImage(teacherSignatureUrl);
-                    logger.info('Firma descargada exitosamente');
+                    logger.debug('Firma descargada exitosamente');
                 } else {
                     // Es una ruta local, leer archivo
                     const staticBaseDir = path.resolve(__dirname, '../../src/static');
@@ -92,11 +91,13 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
 
                     if (fs.existsSync(signaturePath)) {
                         signatureBuffer = fs.readFileSync(signaturePath);
-                        logger.info('Firma local cargada desde:', signaturePath);
+                        logger.debug(`Firma local cargada desde: ${signaturePath}`);
                     }
                 }
             } catch (error) {
-                logger.warn('Error al cargar firma del profesor:', error);
+                const status = (error as any)?.response?.status;
+                const msg = status ? `HTTP ${status}` : (error as Error).message;
+                logger.warn(`Error al cargar firma del profesor (${teacherSignatureUrl}): ${msg}`);
             }
         }
         signatures.push(signatureBuffer);
@@ -115,15 +116,17 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
                     .flatten({ background: { r: 255, g: 255, b: 255 } }) // alpha sobre blanco
                     .jpeg({ quality: 95 })
                     .toBuffer();
-                logger.info(`Logo normalizado OK (${jpeg.length} bytes): ${logoUrl}`);
+                logger.debug(`Logo normalizado OK (${jpeg.length} bytes): ${logoUrl}`);
                 return jpeg;
             } catch (err) {
-                logger.warn(`Error al cargar/normalizar logo de socio (${logoUrl}):`, (err as Error).message);
+                const status = (err as any)?.response?.status;
+                const msg = status ? `HTTP ${status}` : (err as Error).message;
+                logger.warn(`Error al cargar/normalizar logo de socio (${logoUrl}): ${msg}`);
                 return null;
             }
         })
     );
-    logger.info(`Logos válidos para PDF: ${partnerLogoBuffers.filter(Boolean).length} / ${partnerLogoUrls.length}`);
+    logger.debug(`Logos válidos para PDF: ${partnerLogoBuffers.filter(Boolean).length} / ${partnerLogoUrls.length}`);
     
     return new Promise((resolve, reject) => {
         try {
@@ -175,9 +178,9 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
                     }
                 }
 
-                if (headerImagePath && fs.existsSync(headerImagePath)) {
+                    if (headerImagePath && fs.existsSync(headerImagePath)) {
                     doc.image(headerImagePath, 5.67, 5.67, { width: pageWidth - 11.34 });
-                    logger.info(`Header image loaded from: ${headerImagePath}`);
+                    logger.debug(`Header image loaded from: ${headerImagePath}`);
                 } else {
                     logger.warn(`Header image not found. Tried paths: ${possiblePaths.join(', ')}`);
                 }
@@ -191,7 +194,7 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
                         width: pageWidth - footerMargin * 2,
                         height: footerHeight,
                     });
-                    logger.info(`Footer image loaded from: ${footerImagePath}`);
+                    logger.debug(`Footer image loaded from: ${footerImagePath}`);
                 } else {
                     logger.warn(`Footer image not found. Tried paths: ${possiblePaths.map(p => p.replace('header.png', 'footer.png')).join(', ')}`);
                 }
@@ -314,7 +317,7 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
 
             // Firmas de los profesores (de derecha a izquierda)
             if (teachers && teachers.length > 0) {
-                logger.info(`PROCESANDO ${teachers.length} PROFESORES PARA EL PDF`);
+                logger.debug(`PROCESANDO ${teachers.length} PROFESORES PARA EL PDF`);
                 const spacingX = 155; // Espacio entre firmas (de derecha a izquierda)
                 // La página es 595.28pt, footer empieza en ~430. El espacio blanco disponible
                 // para firmas es aproximadamente Y=410-520. Centramos la línea de firma en ~465.
@@ -326,7 +329,7 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
                     const sigX = (pageWidth - 150) - (index * spacingX);
                     const signatureBuffer = signatures[index];
 
-                    logger.info(`Profesor ${index + 1}: ${teacherName} en X:${sigX.toFixed(0)}, Y:${sigY}`);
+                    logger.debug(`Profesor ${index + 1}: ${teacherName} en X:${sigX.toFixed(0)}, Y:${sigY}`);
 
                     // Forzar dibujo de línea y texto ANTES de la imagen para asegurar que aparezcan
                     doc.save();
@@ -363,7 +366,7 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
                                 width: signatureWidth,
                                 height: signatureHeight,
                             });
-                            logger.info(`Imagen de firma ${index + 1} insertada en el PDF`);
+                            logger.debug(`Imagen de firma ${index + 1} insertada en el PDF`);
                         } catch (error: any) {
                             logger.warn(`Error al insertar imagen de firma ${index + 1}:`, error.message);
                         }
@@ -420,7 +423,7 @@ export async function generateCertificatePDF(certificateData?: CertificatePdfDat
                     }
                     logoX += maxLogoWidth + logoPad;
                 }
-                logger.info(`${validLogoBuffers.length} logos institucionales insertados en el certificado`);
+                logger.debug(`${validLogoBuffers.length} logos institucionales insertados en el certificado`);
             }
 
             QRCode.toBuffer(qrContent, {

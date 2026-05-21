@@ -622,7 +622,7 @@ export default class CourseService {
     updateData.programUrl = pdfUrl;
     updateData.programOriginalName = `${programData.course?.name}.pdf`;
 
-    logger.info(`Course duplicated successfully: ${courseId} -> ${duplicatedCourse._id}`, {
+    logger.debug(`Course duplicated successfully: ${courseId} -> ${duplicatedCourse._id}`, {
       originalCourseId: courseId,
       newCourseId: duplicatedCourse._id,
       classesCount: duplicatedCourse.classes?.length || 0,

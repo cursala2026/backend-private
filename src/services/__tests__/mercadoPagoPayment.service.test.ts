@@ -25,6 +25,7 @@ jest.mock('@/utils', () => ({
     info: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),
+    debug: jest.fn(),
   },
   maskSensitiveFields: jest.fn((data) => data),
 }));
@@ -90,7 +91,7 @@ describe('MercadoPagoPaymentService', () => {
       expect(result).toEqual(mockPaymentRecord);
       expect(mockRepositoryInstance.createPayment).toHaveBeenCalled();
       // The service calls sendEmail for emails in sendPaymentConfirmationEmails
-      expect(logger.info).toHaveBeenCalled();
+      expect(logger.debug).toHaveBeenCalled();
     });
     test('returns existing payment if already exists', async () => {
       const existingPayment = { paymentId: '12345' };

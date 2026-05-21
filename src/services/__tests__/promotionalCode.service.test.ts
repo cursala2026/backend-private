@@ -48,6 +48,7 @@ jest.mock('@/utils', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
+    debug: jest.fn(),
   },
 }));
 jest.mock('@/models/mongo/course.model', () => ({
@@ -81,7 +82,7 @@ describe('PromotionalCodeService', () => {
       const result = await service.createPromotionalCode(data);
 
       expect(PromotionalCode.findOne).toHaveBeenCalledWith({ code: 'TEST10' });
-      expect(logger.info).toHaveBeenCalled();
+      expect(logger.debug).toHaveBeenCalled();
     });
 
     test('throws error if code already exists', async () => {

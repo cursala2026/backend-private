@@ -274,7 +274,7 @@ export class ProgramGeneratorService {
 
                 footer(doc);
                 doc.end();
-                logger.info(`✅ Program PDF generated successfully`);
+                logger.debug(`✅ Program PDF generated successfully`);
             } catch (error) {
                 logger.error('Error generating program PDF', error);
                 reject(error);
@@ -387,7 +387,7 @@ export class CourseUploadService {
     async uploadCourseImage(file: Express.Multer.File): Promise<string> {
         // Preserve original filename when uploading to Bunny
         const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(file.buffer, file.originalname, 'course-images');
-        logger.info(`✅ Course image uploaded to Bunny CDN: ${cdnUrl}`);
+        logger.debug(`✅ Course image uploaded to Bunny CDN: ${cdnUrl}`);
         return cdnUrl;
     }
 
@@ -400,13 +400,13 @@ export class CourseUploadService {
             if (imageUrl.includes('bunnycdn') || imageUrl.includes('b-cdn.net')) {
                 const deleted = await this.bunnyService.deleteFile(imageUrl);
                 if (deleted) {
-                    logger.info(`✅ Course image deleted from Bunny CDN: ${imageUrl}`);
+                    logger.debug(`✅ Course image deleted from Bunny CDN: ${imageUrl}`);
                 }
                 return deleted;
             }
 
             // Si es una imagen antigua del filesystem local, no hacer nada
-            logger.info(`ℹ️ Legacy image not deleted (local filesystem): ${imageUrl}`);
+            logger.debug(`ℹ️ Legacy image not deleted (local filesystem): ${imageUrl}`);
             return true;
         } catch (error) {
             logger.error(`Error deleting course image: ${(error as Error).message}`);
@@ -421,7 +421,7 @@ export class CourseUploadService {
         try {
             // Usar BunnyService para mantener la misma lógica de endpoint, región y cabeceras
             const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(buffer, filename, folder || 'course-programs');
-            logger.info(`✅ Program file uploaded to Bunny CDN: ${cdnUrl}`);
+            logger.debug(`✅ Program file uploaded to Bunny CDN: ${cdnUrl}`);
             return cdnUrl;
         } catch (error) {
             logger.error(`Error uploading program file: ${(error as Error).message}`);
@@ -438,7 +438,7 @@ export class CourseUploadService {
             if (programUrl.includes('bunnycdn') || programUrl.includes('b-cdn.net')) {
                 const deleted = await this.bunnyService.deleteFile(programUrl);
                 if (deleted) {
-                    logger.info(`✅ Program file deleted from Bunny CDN: ${programUrl}`);
+                    logger.debug(`✅ Program file deleted from Bunny CDN: ${programUrl}`);
                 } else {
                     logger.warn(`⚠️ Program file not found or failed to delete from Bunny CDN: ${programUrl}`);
                 }

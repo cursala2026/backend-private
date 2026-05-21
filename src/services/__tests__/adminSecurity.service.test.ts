@@ -14,6 +14,7 @@ jest.mock('@/utils', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
+    debug: jest.fn(),
   },
 }));
 jest.mock('@/config', () => ({
@@ -162,7 +163,7 @@ describe('AdminSecurityService', () => {
       await AdminSecurityService.cleanupExpiredCodes();
 
       expect(mockAdminVerificationCode.deleteMany).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith('Cleaned up 5 expired verification codes');
+      expect(logger.debug).toHaveBeenCalledWith('Cleaned up 5 expired verification codes');
     });
 
     test('handles error during cleanup', async () => {

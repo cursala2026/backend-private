@@ -187,7 +187,7 @@ export default class UserService {
     // Eliminar certificados del alumno para este curso
     try {
       const deleteResult = await this.certificateRepository.deleteByStudentAndCourse(userId, courseId);
-      logger.info('Certificates deleted on course removal', { 
+        logger.debug('Certificates deleted on course removal', { 
         userId, 
         courseId, 
         deletedCount: deleteResult.deletedCount 
@@ -339,7 +339,7 @@ export default class UserService {
     // Eliminar certificados del alumno para este curso
     try {
       const deleteResult = await this.certificateRepository.deleteByStudentAndCourse(userId, courseId);
-      logger.info('Certificates deleted on course removal (edit)', { 
+        logger.debug('Certificates deleted on course removal (edit)', { 
         userId, 
         courseId, 
         deletedCount: deleteResult.deletedCount 

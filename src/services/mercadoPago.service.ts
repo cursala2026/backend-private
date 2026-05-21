@@ -20,7 +20,7 @@ const getAccessToken = () => {
       );
     }
     if (token.startsWith('TEST-')) {
-      logger.info('🔧 Using MercadoPago TEST environment');
+      logger.debug('🔧 Using MercadoPago TEST environment');
     } else {
       logger.warn('⚠️ Development environment detected but using non-TEST token');
     }
@@ -31,7 +31,7 @@ const getAccessToken = () => {
     throw new Error('MERCADOPAGO_ACCESS_TOKEN is required for production');
   }
   if (token.startsWith('APP_USR-')) {
-    logger.info('🚀 Using MercadoPago PRODUCTION environment');
+    logger.debug('🚀 Using MercadoPago PRODUCTION environment');
   } else {
     logger.warn('⚠️ Production environment detected but using non-PROD token');
   }
@@ -121,7 +121,7 @@ interface CreatePreferenceData {
  */
 export const createPaymentPreference = async (data: CreatePreferenceData) => {
   try {
-    logger.info('Creating MercadoPago payment preference', {
+    logger.debug('Creating MercadoPago payment preference', {
       body: maskSensitiveFields(data),
     });
 
@@ -133,7 +133,7 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
     const backendApiUrl = `${backendUrl}/api/v1`;
     const webhookApiUrl = `${webhookBaseUrl}/api/v1`;
 
-    logger.info('Webhook configuration', {
+    logger.debug('Webhook configuration', {
       webhookBaseUrl: webhookBaseUrl,
       webhookUrl: `${webhookApiUrl}/payment/webhook`,
       isNgrok: !!process.env.WEBHOOK_URL,
@@ -181,7 +181,7 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
               }
               return it;
             });
-            logger.info('Adjusted items from PaymentRequest', { paymentRequestId: prId, items: data.items });
+            logger.debug('Adjusted items from PaymentRequest', { paymentRequestId: prId, items: data.items });
           }
         } catch (err) {
           logger.warn('Error fetching PaymentRequest for preference adjustment', { error: (err as Error).message });
@@ -219,7 +219,7 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
       preferenceData.metadata = data.metadata;
     }
 
-    logger.info('Preference data for MercadoPago', {
+    logger.debug('Preference data for MercadoPago', {
       preferenceData: JSON.stringify(maskSensitiveFields(preferenceData), null, 2),
     });
 
@@ -257,7 +257,7 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
     const mode = process.env.MERCADOPAGO_MODE || 'production';
     const preferredInitPoint = mode === 'sandbox' ? response.sandbox_init_point : response.init_point;
 
-    logger.info('Payment preference created successfully', {
+    logger.debug('Payment preference created successfully', {
       preferenceId: response.id,
       mode: mode,
       initPoint: response.init_point,
@@ -302,11 +302,11 @@ export const createPaymentPreference = async (data: CreatePreferenceData) => {
  */
 export const getPaymentInfo = async (paymentId: string) => {
   try {
-    logger.info('Getting payment information', { paymentId });
+    logger.debug('Getting payment information', { paymentId });
 
     const paymentInfo = await payment.get({ id: paymentId });
 
-    logger.info('Payment information retrieved', {
+    logger.debug('Payment information retrieved', {
       paymentId,
       status: paymentInfo.status,
       amount: paymentInfo.transaction_amount,
@@ -329,7 +329,7 @@ export const getPaymentInfo = async (paymentId: string) => {
 export const processWebhookNotification = async (notificationData: unknown) => {
   try {
     const notif = notificationData as { type?: string; data?: { id?: string } };
-    logger.info('Processing webhook notification', {
+    logger.debug('Processing webhook notification', {
       type: notif.type,
       id: notif.data?.id,
     });
@@ -338,7 +338,7 @@ export const processWebhookNotification = async (notificationData: unknown) => {
       const paymentId = notif.data.id;
       const paymentInfo = await getPaymentInfo(paymentId);
 
-      logger.info('Webhook payment processed', {
+      logger.debug('Webhook payment processed', {
         paymentId,
         status: paymentInfo.status,
         externalReference: paymentInfo.external_reference,

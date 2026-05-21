@@ -24,14 +24,14 @@ export default class FileService {
    */
   async getFileImage(imageFileName: string, requestIP?: string): Promise<Buffer | null> {
     try {
-      logger.info(`📂 getFileImage called with: "${imageFileName}"`);
+      logger.debug(`📂 getFileImage called with: "${imageFileName}"`);
 
       // Si es una URL de Bunny CDN, descargar directamente desde allí
       if (this.bunnyService.isBunnyCdnUrl(imageFileName)) {
-        logger.info(`🐰 Detected Bunny CDN URL, downloading from CDN...`);
+        logger.debug(`🐰 Detected Bunny CDN URL, downloading from CDN...`);
         const buffer = await this.bunnyService.downloadFile(imageFileName);
         if (buffer) {
-          logger.info(`✅ Image downloaded from Bunny CDN: ${buffer.length} bytes`);
+          logger.debug(`✅ Image downloaded from Bunny CDN: ${buffer.length} bytes`);
           return buffer;
         }
         logger.warn(`❌ Failed to download from Bunny CDN, falling back to local...`);
@@ -48,7 +48,7 @@ export default class FileService {
       }
 
       const sanitizedFileName = sanitizationResult.fileName!;
-      logger.info(`✅ Sanitized fileName: "${sanitizedFileName}"`);
+      logger.debug(`✅ Sanitized fileName: "${sanitizedFileName}"`);
 
       // Directorios permitidos (local y remoto)
       const allowedDirectories = [
@@ -64,12 +64,12 @@ export default class FileService {
         // Si no existe en remoto, intentar local
         filePath = path.resolve(__dirname, '../static/images', sanitizedFileName);
         isRemote = false;
-        logger.info(`🔄 Remote image not found, trying local: "${filePath}"`);
+        logger.debug(`🔄 Remote image not found, trying local: "${filePath}"`);
       } else {
-        logger.info(`🌐 Using remote image: "${filePath}"`);
+        logger.debug(`🌐 Using remote image: "${filePath}"`);
       }
 
-      logger.info(`📍 Full file path: "${filePath}"`);
+      logger.debug(`📍 Full file path: "${filePath}"`);
 
       // Verificar que el archivo está dentro del directorio permitido
       if (!isPathInAllowedDirectories(filePath, allowedDirectories, requestIP)) {
@@ -77,7 +77,7 @@ export default class FileService {
         throw new Error('Access denied: Path traversal attempt detected');
       }
 
-      logger.info(`🔍 Checking if file exists: ${filePath}`);
+      logger.debug(`🔍 Checking if file exists: ${filePath}`);
       if (!fs.existsSync(filePath)) {
         logger.warn(`❌ File does not exist: ${filePath}`);
 
@@ -86,16 +86,16 @@ export default class FileService {
           const localDir = path.resolve(__dirname, '../static/images');
           const remoteDir = path.resolve(__dirname, '../static-remote/images');
 
-          logger.info(`📁 Local images directory (${fs.existsSync(localDir) ? fs.readdirSync(localDir).length : 0} files):`);
+          logger.debug(`📁 Local images directory (${fs.existsSync(localDir) ? fs.readdirSync(localDir).length : 0} files):`);
           if (fs.existsSync(localDir)) {
             const localFiles = fs.readdirSync(localDir);
-            localFiles.slice(0, 5).forEach(f => logger.info(`  - ${f}`));
+            localFiles.slice(0, 5).forEach(f => logger.debug(`  - ${f}`));
           }
 
-          logger.info(`📁 Remote images directory (${fs.existsSync(remoteDir) ? fs.readdirSync(remoteDir).length : 0} files):`);
+          logger.debug(`📁 Remote images directory (${fs.existsSync(remoteDir) ? fs.readdirSync(remoteDir).length : 0} files):`);
           if (fs.existsSync(remoteDir)) {
             const remoteFiles = fs.readdirSync(remoteDir);
-            remoteFiles.slice(0, 5).forEach(f => logger.info(`  - ${f}`));
+            remoteFiles.slice(0, 5).forEach(f => logger.debug(`  - ${f}`));
           }
         } catch (listError) {
           logger.error('Error listing directory contents:', listError);
@@ -105,7 +105,7 @@ export default class FileService {
       }
 
       const fileBuffer = fs.readFileSync(filePath);
-      logger.info(`✅ File read successfully: ${fileBuffer.length} bytes from ${isRemote ? 'remote' : 'local'}`);
+      logger.debug(`✅ File read successfully: ${fileBuffer.length} bytes from ${isRemote ? 'remote' : 'local'}`);
       return fileBuffer;
     } catch (error) {
       if (error instanceof Error) {
@@ -147,9 +147,9 @@ export default class FileService {
         // Si no existe en remoto, intentar local
         filePath = path.resolve(__dirname, '../static/videos', sanitizedFileName);
         isRemote = false;
-        logger.info(`🔄 Remote video not found, trying local: "${filePath}"`);
+        logger.debug(`🔄 Remote video not found, trying local: "${filePath}"`);
       } else {
-        logger.info(`🌐 Using remote video: "${filePath}"`);
+        logger.debug(`🌐 Using remote video: "${filePath}"`);
       }
 
       // Verificar que el archivo está dentro del directorio permitido
@@ -162,7 +162,7 @@ export default class FileService {
       }
 
       const fileBuffer = fs.readFileSync(filePath);
-      logger.info(`✅ Video file read successfully: ${fileBuffer.length} bytes from ${isRemote ? 'remote' : 'local'}`);
+      logger.debug(`✅ Video file read successfully: ${fileBuffer.length} bytes from ${isRemote ? 'remote' : 'local'}`);
       return fileBuffer;
     } catch (error) {
       if (error instanceof Error) {

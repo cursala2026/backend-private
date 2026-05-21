@@ -81,7 +81,7 @@ export class FileUploadService {
                 }
 
                 const chunkStats = fs.statSync(correctChunkPath);
-                logger.info(`Chunk procesado exitosamente (${chunkStats.size} bytes)`);
+                logger.debug(`Chunk procesado exitosamente (${chunkStats.size} bytes)`);
 
                 resolve(res.json({
                     success: true,
@@ -106,7 +106,7 @@ export class FileUploadService {
         chunksDeleted?: number;
         error?: string;
     }> {
-        logger.info(`🔧 Finalizando upload: ${uploadId}`);
+        logger.debug(`🔧 Finalizando upload: ${uploadId}`);
 
         if (!fs.existsSync(uploadDirChunks)) {
             return { success: false, error: 'Directorio de chunks no existe' };
@@ -168,7 +168,7 @@ export class FileUploadService {
                     });
 
                     readStream.on('end', () => {
-                        logger.info(`✅ Chunk ${index + 1}/${chunkFiles.length} procesado`);
+                        logger.debug(`✅ Chunk ${index + 1}/${chunkFiles.length} procesado`);
                         processChunkFile(index + 1).then(resolve).catch(reject);
                     });
 
@@ -231,7 +231,7 @@ export class FileUploadService {
      * Limpia chunks de un upload fallido o cancelado
      */
     cleanupChunks(uploadId: string): { success: boolean; deletedCount: number; deletedFiles: string[] } {
-        logger.info(`🧹 Limpieza de chunks para uploadId: ${uploadId}`);
+        logger.debug(`🧹 Limpieza de chunks para uploadId: ${uploadId}`);
 
         if (!fs.existsSync(uploadDirChunks)) {
             return { success: true, deletedCount: 0, deletedFiles: [] };
@@ -258,7 +258,7 @@ export class FileUploadService {
      * Busca un archivo ensamblado por su uploadId
      */
     findAssembledFile(uploadId: string, directory: string): string | null {
-        logger.info(`🔍 Buscando archivo para uploadId: ${uploadId}`);
+        logger.debug(`🔍 Buscando archivo para uploadId: ${uploadId}`);
 
         const mappedFileName = assembledFilesMap.get(uploadId);
         if (mappedFileName) {
@@ -307,7 +307,7 @@ export class FileUploadService {
             const filePath = path.join(directory, fileName);
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
-                logger.info(`🗑️ Archivo eliminado: ${fileName}`);
+                logger.debug(`🗑️ Archivo eliminado: ${fileName}`);
                 return true;
             }
             return false;
@@ -324,7 +324,7 @@ export class FileUploadService {
         uploadIds.forEach((uploadId) => {
             if (uploadId) {
                 assembledFilesMap.delete(uploadId);
-                logger.info(`🧹 Limpieza mapeo: ${uploadId}`);
+                logger.debug(`🧹 Limpieza mapeo: ${uploadId}`);
             }
         });
     }
@@ -354,13 +354,13 @@ export class FileUploadService {
         // Procesar imagen
         if (files?.imageFile) {
             imageUrl = files.imageFile[0].filename;
-            logger.info(`🖼️ Imagen normal: ${imageUrl}`);
+            logger.debug(`🖼️ Imagen normal: ${imageUrl}`);
         } else if (imageFileId) {
             const chunkFile = this.findAssembledFile(imageFileId, uploadDirImages);
             if (chunkFile) {
                 imageUrl = chunkFile;
                 uploadIdsToClean.push(imageFileId);
-                logger.info(`🖼️ Imagen por chunks: ${imageUrl}`);
+                logger.debug(`🖼️ Imagen por chunks: ${imageUrl}`);
             } else {
                 errors.push('Archivo de imagen por chunks no encontrado');
             }
@@ -369,13 +369,13 @@ export class FileUploadService {
         // Procesar video
         if (files?.videoFile) {
             videoUrl = files.videoFile[0].filename;
-            logger.info(`🎥 Video normal: ${videoUrl}`);
+            logger.debug(`🎥 Video normal: ${videoUrl}`);
         } else if (videoFileId) {
             const chunkFile = this.findAssembledFile(videoFileId, uploadDirVideos);
             if (chunkFile) {
                 videoUrl = chunkFile;
                 uploadIdsToClean.push(videoFileId);
-                logger.info(`🎥 Video por chunks: ${videoUrl}`);
+                logger.debug(`🎥 Video por chunks: ${videoUrl}`);
             } else {
                 logger.warn('Video por chunks no encontrado, continuando sin video');
             }
@@ -385,7 +385,7 @@ export class FileUploadService {
         if (files?.supportMaterials) {
             const normalFiles = files.supportMaterials.map((file) => file.filename);
             supportMaterials.push(...normalFiles);
-            logger.info(`📁 Archivos soporte normales: ${normalFiles.length}`);
+            logger.debug(`📁 Archivos soporte normales: ${normalFiles.length}`);
         }
 
         // Procesar archivos de soporte por chunks
@@ -412,7 +412,7 @@ export class FileUploadService {
                     // Si el cliente ya envía la URL (Bunny CDN), agregarla directamente
                     if (typeof chunkId === 'string' && (chunkId.startsWith('http://') || chunkId.startsWith('https://'))) {
                         supportMaterials.push(chunkId);
-                        logger.info(`📁 Archivo soporte provisto como URL: ${chunkId}`);
+                        logger.debug(`📁 Archivo soporte provisto como URL: ${chunkId}`);
                         return;
                     }
 
@@ -420,7 +420,7 @@ export class FileUploadService {
                     if (chunkFile) {
                         supportMaterials.push(chunkFile);
                         uploadIdsToClean.push(chunkId);
-                        logger.info(`📁 Archivo soporte por chunks: ${chunkFile}`);
+                        logger.debug(`📁 Archivo soporte por chunks: ${chunkFile}`);
                     } else {
                         logger.warn(`⚠️ Archivo soporte no encontrado: ${chunkId}`);
                     }

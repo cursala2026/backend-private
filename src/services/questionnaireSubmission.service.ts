@@ -303,7 +303,7 @@ class QuestionnaireSubmissionService {
         } else if (!submission.studentEmail) {
           logger.warn('No student email available; skipping sendEmail');
         } else {
-          logger.info('Development environment detected; skipping sendEmail');
+          logger.debug('Development environment detected; skipping sendEmail');
         }
       } catch (emailErr) {
         logger.error('Error enviando email de corrección al alumno', { error: (emailErr as Error).message });

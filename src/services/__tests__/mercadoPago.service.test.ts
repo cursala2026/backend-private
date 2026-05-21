@@ -23,6 +23,7 @@ jest.mock('@/utils', () => ({
     info: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),
+    debug: jest.fn(),
   },
   maskSensitiveFields: jest.fn((data) => data),
 }));
@@ -63,7 +64,7 @@ describe('MercadoPago Service', () => {
         mode: 'production',
       });
       expect(mockCreate).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalled();
+      expect(logger.debug).toHaveBeenCalled();
     });
     test('throws error on API failure', async () => {
       const data = {

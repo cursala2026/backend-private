@@ -30,12 +30,12 @@ export default class MercadoPagoPaymentService {
     externalReference: string;
   }): Promise<IMercadoPagoPayment> {
     try {
-  logger.info('Registering successful MercadoPago payment', maskSensitiveFields(paymentData));
+  logger.debug('Registering successful MercadoPago payment', maskSensitiveFields(paymentData));
 
       // Verificar si el pago ya existe
       const existingPayment = await this.mercadoPagoRepository.findByPaymentId(paymentData.paymentId);
       if (existingPayment) {
-        logger.info('Payment already exists in database', { paymentId: paymentData.paymentId });
+        logger.debug('Payment already exists in database', { paymentId: paymentData.paymentId });
         return existingPayment;
       }
 
@@ -124,7 +124,7 @@ export default class MercadoPagoPaymentService {
           if (promo && promo._id && user?._id) {
             const discountApplied = paymentData.amount - (paymentRecord.transactionAmount || paymentData.amount) || 0;
             await promotionalCodeService.applyPromotionalCode(promo._id.toString(), user._id.toString(), courseId, discountApplied);
-            logger.info('Promotional code applied from externalReference after payment', { code: codeStr, userId: user?._id?.toString(), courseId });
+            logger.debug('Promotional code applied from externalReference after payment', { code: codeStr, userId: user?._id?.toString(), courseId });
           }
         }
       } catch (err) {
@@ -146,13 +146,13 @@ export default class MercadoPagoPaymentService {
           if (promo && promo._id && user?._id) {
             const discountApplied = paymentRequest.discountAmount || 0;
             await promotionalCodeService.applyPromotionalCode(promo._id.toString(), user._id.toString(), courseId, discountApplied);
-            logger.info('Promotional code applied after successful MercadoPago payment', {
+            logger.debug('Promotional code applied after successful MercadoPago payment', {
               code: promo.code,
               userId: user._id?.toString(),
               courseId,
             });
           } else {
-            logger.info('No promo applied: promo or user not found', { promo: !!promo, user: !!user });
+            logger.debug('No promo applied: promo or user not found', { promo: !!promo, user: !!user });
           }
         }
       } catch (err) {
@@ -163,10 +163,10 @@ export default class MercadoPagoPaymentService {
       if (process.env.NODE_ENV === 'production') {
         await this.sendPaymentConfirmationEmails(paymentRecord);
       } else {
-        logger.info('Skipping email notifications in development environment');
+        logger.debug('Skipping email notifications in development environment');
       }
 
-      logger.info('MercadoPago payment registered successfully', {
+      logger.debug('MercadoPago payment registered successfully', {
         paymentId: paymentData.paymentId,
         amount: paymentInfo.transaction_amount,
         studentEmail: paymentData.studentEmail,
@@ -189,10 +189,10 @@ export default class MercadoPagoPaymentService {
   async processWebhookNotification(webhookData: unknown): Promise<IMercadoPagoPayment | null> {
     try {
       const webhook = webhookData as { type?: string; data?: { id?: string } };
-        logger.info('Processing MercadoPago webhook notification', maskSensitiveFields(webhookData as unknown));
+        logger.debug('Processing MercadoPago webhook notification', maskSensitiveFields(webhookData as unknown));
 
       if (webhook.type !== 'payment') {
-        logger.info('Webhook is not a payment notification, skipping');
+        logger.debug('Webhook is not a payment notification, skipping');
         return null;
       }
 
@@ -290,7 +290,7 @@ export default class MercadoPagoPaymentService {
         });
 
         // Asignar curso automáticamente al usuario (usar email real)
-        logger.info('About to assign course to user from webhook', {
+        logger.debug('About to assign course to user from webhook', {
           courseId,
           studentEmail,
           externalReference: paymentInfo.external_reference,
@@ -306,7 +306,7 @@ export default class MercadoPagoPaymentService {
             if (promo && promo._id && user?._id) {
               const discountApplied = 0;
               await promotionalCodeService.applyPromotionalCode(promo._id.toString(), user._id.toString(), courseId, discountApplied);
-              logger.info('Promotional code applied from externalReference (webhook)', { code: codeStr, userId: user?._id?.toString(), courseId });
+              logger.debug('Promotional code applied from externalReference (webhook)', { code: codeStr, userId: user?._id?.toString(), courseId });
             }
           }
         } catch (err) {
@@ -328,13 +328,13 @@ export default class MercadoPagoPaymentService {
             if (promo && promo._id && user?._id) {
               const discountApplied = paymentRequest.discountAmount || 0;
               await promotionalCodeService.applyPromotionalCode(promo._id.toString(), user._id.toString(), courseId, discountApplied);
-              logger.info('Promotional code applied after webhook payment', {
+              logger.debug('Promotional code applied after webhook payment', {
                 code: promo.code,
                 userId: user?._id?.toString(),
                 courseId,
               });
             } else {
-              logger.info('No promo applied from webhook: promo or user not found', { promo: !!promo, user: !!user });
+              logger.debug('No promo applied from webhook: promo or user not found', { promo: !!promo, user: !!user });
             }
           }
         } catch (err) {
@@ -345,7 +345,7 @@ export default class MercadoPagoPaymentService {
         if (process.env.NODE_ENV === 'production') {
           await this.sendPaymentConfirmationEmails(paymentRecord);
         } else {
-          logger.info('Skipping email notifications in development environment (webhook)');
+          logger.debug('Skipping email notifications in development environment (webhook)');
         }
         return paymentRecord;
       }
@@ -401,7 +401,7 @@ export default class MercadoPagoPaymentService {
       // Email a administración
       await this.sendAdminNotificationEmail(paymentRecord, studentName);
 
-      logger.info('Payment confirmation emails sent successfully', {
+      logger.debug('Payment confirmation emails sent successfully', {
         paymentId: paymentRecord.paymentId,
         studentEmail: paymentRecord.studentEmail,
         studentName,
@@ -677,7 +677,7 @@ export default class MercadoPagoPaymentService {
    */
   private async assignCourseToUser(studentEmail: string, courseId: string, paymentDate: Date): Promise<void> {
     try {
-      logger.info('Assigning course to user after successful payment', maskSensitiveFields({ studentEmail, courseId, paymentDate }));
+      logger.debug('Assigning course to user after successful payment', maskSensitiveFields({ studentEmail, courseId, paymentDate }));
 
       // Buscar usuario por email
       const user = await this.userRepository.findOneByEmail(studentEmail);
@@ -694,7 +694,7 @@ export default class MercadoPagoPaymentService {
       // Inscribir al usuario en el curso usando enrollStudent
       try {
         await this.courseRepository.enrollStudent(courseId, user._id.toString(), 'MANUAL', startDate, endDate);
-        logger.info('User enrolled in course students list successfully', maskSensitiveFields({
+        logger.debug('User enrolled in course students list successfully', maskSensitiveFields({
           userId: user._id,
           studentEmail,
           courseId,
@@ -703,7 +703,7 @@ export default class MercadoPagoPaymentService {
         const err = enrollError as Error;
         // Si el error es que ya está inscrito, es aceptable
         if (err.message.includes('already enrolled')) {
-          logger.info('User already enrolled in course students list', maskSensitiveFields({
+          logger.debug('User already enrolled in course students list', maskSensitiveFields({
             userId: user._id,
             studentEmail,
             courseId,

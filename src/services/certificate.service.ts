@@ -160,7 +160,7 @@ export default class CertificateService {
    * Genera un PDF del certificado usando el servicio de PDF dedicado
    */
   private async generateCertificatePDFInternal(certificateData: any): Promise<Buffer> {
-    logger.info('Generando certificado PDF');
+    logger.debug('Generando certificado PDF');
     // Obtener logos institucionales globales
     let partnerLogos: string[] = [];
     try {
@@ -196,20 +196,41 @@ export default class CertificateService {
     const courseSafe = course as unknown as { teachers?: any[]; endDate?: Date; location?: string };
     const teacherIds = (courseSafe.teachers || []).slice(0, 3).map(id => id.toString());
     
+    // Si el curso no tiene profesores, intentar usar `generatedBy` como fallback
     if (teacherIds.length === 0) {
-      throw new Error('El curso no tiene profesores asignados');
+      if (generatedBy) {
+        logger.warn(`Curso ${courseId} no tiene profesores asignados. Se intentará usar generatedBy ${generatedBy} como profesor.`);
+        teacherIds.push(generatedBy.toString());
+      } else {
+        throw new Error('El curso no tiene profesores asignados');
+      }
     }
 
-    // Obtener información de todos los profesores
-    const teachers = await Promise.all(teacherIds.map(id => this.userRepository.getUserById(id)));
+    // Obtener información de todos los profesores (ignorar los que no existan)
+    const teachersFetched = await Promise.all(teacherIds.map(id => this.userRepository.getUserById(id)));
+    let teachers = teachersFetched.filter((t): t is NonNullable<typeof t> => t !== null && t !== undefined);
 
-    if (teachers.some(t => !t)) {
-      throw new Error('Al menos uno de los profesores del curso no fue encontrado');
+    // Si no se encontró ningún profesor válido, intentar usar `generatedBy` como último recurso
+    if (teachers.length === 0 && generatedBy) {
+      const genUser = await this.userRepository.getUserById(generatedBy.toString());
+      if (genUser) {
+        logger.warn(`No se encontraron profesores para el curso ${courseId}. Usando generatedBy ${generatedBy} como profesor.`);
+        teachers = [genUser as NonNullable<typeof genUser>];
+      }
     }
 
-    // Usar el primer profesor como profesor principal para el registro del certificado (compatibilidad)
-    const teacherId = teacherIds[0];
+    if (teachers.length === 0) {
+      throw new Error('No se encontraron profesores válidos para el curso');
+    }
+
+    // Si faltaron algunos profesores, registrar advertencia pero continuar con los disponibles
+    if (teachers.length < teacherIds.length) {
+      logger.warn(`Algunos profesores del curso ${courseId} no fueron encontrados y serán omitidos`);
+    }
+
+    // Usar el primer profesor encontrado como profesor principal para el registro del certificado
     const teacher = teachers[0];
+    const teacherId = (teacher && (teacher as any)._id) ? (teacher as any)._id.toString() : teacherIds[0];
 
     // Normalizear shapes locales para evitar `as any` repetidos
     const studentSafe = student as unknown as { dni?: string; company?: string; companyName?: string; firstName?: string; lastName?: string; email?: string };
@@ -291,14 +312,15 @@ export default class CertificateService {
     };
 
     // Generar PDF usando la configuración establecida
-    logger.info('Generando certificado PDF');
+    logger.debug('Generando certificado PDF');
 
     const pdfBuffer: Buffer = await this.generateCertificatePDFInternal({
       ...certificateForPdf,
       verificationCode,
     });
 
-    logger.info('Certificado generado exitosamente');
+    // Éxito: certificado generado (log reducido)
+    logger.debug('Certificado generado exitosamente');
 
     // Enviar por email
     await this.sendCertificateByEmail(student.email, certificateForPdf, pdfBuffer);
@@ -429,7 +451,8 @@ export default class CertificateService {
         throw emailError; // Re-lanzar el error para que se capture en regenerateCertificate
       }
     } else {
-      logger.info(`Email omitido en ${config.NODE_ENV}: ${studentEmail}`);
+      // Evitar logs de éxito/omisión rutinarios en info para reducir ruido
+      logger.debug(`Email omitido en ${config.NODE_ENV}: ${studentEmail}`);
     }
   }
 

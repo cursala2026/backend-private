@@ -196,14 +196,14 @@ class AuthService {
         html: htmlContent,
       });
       emailSent = true;
-      logger.info(`Email de restablecimiento de contraseña enviado a ${email}`);
+      logger.debug(`Email de restablecimiento de contraseña enviado a ${email}`);
     } catch (emailError) {
       if (isDevelopment) {
         // En desarrollo, loguear el error pero continuar
         // Esto permite probar el flujo sin tener SMTP configurado
         logger.warn(`⚠️ Error al enviar email de restablecimiento (desarrollo):`, emailError);
-        logger.info(`📧 Token de restablecimiento generado para ${email}: ${token}`);
-        logger.info(`🔗 URL de restablecimiento: ${resetUrl}`);
+        logger.debug(`📧 Token de restablecimiento generado para ${email}: ${token}`);
+        logger.debug(`🔗 URL de restablecimiento: ${resetUrl}`);
       } else {
         // En producción, lanzar error más específico
         logger.error(`❌ Error al enviar email de restablecimiento:`, emailError);

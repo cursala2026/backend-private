@@ -12,6 +12,7 @@ jest.mock('@/utils', () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
+    debug: jest.fn(),
   },
 }));
 jest.mock('@/repositories/user.repository');
@@ -68,7 +69,7 @@ describe('CertificateService', () => {
       expect(result).toHaveProperty('certificateId');
       expect(result).toHaveProperty('verificationCode');
       expect(mockCertificateRepository.create).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Email omitido'));
+      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('Email omitido'));
     });
     test('throws error if student not found', async () => {
       mockUserRepository.getUserById.mockResolvedValue(null);
@@ -85,7 +86,7 @@ describe('CertificateService', () => {
       const course = { name: 'Test Course', teachers: ['teacher-id'] };
       mockUserRepository.getUserById.mockResolvedValueOnce(student).mockResolvedValueOnce(null);
       mockCourseRepository.findById.mockResolvedValue(course);
-      await expect(certificateService.generateCertificate('student-id', 'course-id', 'generated-by')).rejects.toThrow('Al menos uno de los profesores del curso no fue encontrado');
+      await expect(certificateService.generateCertificate('student-id', 'course-id', 'generated-by')).rejects.toThrow('No se encontraron profesores válidos para el curso');
     });
     test('throws error if student not enrolled', async () => {
       const student = { firstName: 'John', lastName: 'Doe' };

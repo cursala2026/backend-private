@@ -385,14 +385,14 @@ class QuestionnaireService {
     const hasSubmissions = await this.submissionRepository.hasSubmissions(id);
     if (hasSubmissions) {
       const deletedCount = await this.submissionRepository.deleteByQuestionnaire(id);
-      logger.info('Deleted questionnaire submissions in cascade', {
+      logger.debug('Deleted questionnaire submissions in cascade', {
         questionnaireId: id,
         deletedSubmissions: deletedCount,
       });
     }
 
     await this.questionnaireRepository.delete(id);
-    logger.info('Questionnaire deleted', { questionnaireId: id, courseId });
+    logger.debug('Questionnaire deleted', { questionnaireId: id, courseId });
 
     if (courseId) {
       try {

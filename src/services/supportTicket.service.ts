@@ -32,7 +32,7 @@ class SupportTicketService {
         status: TicketStatus.PENDING,
       });
 
-      logger.info(`Ticket de soporte creado: ${ticket._id} por usuario ${payload.userId}`);
+      logger.debug(`Ticket de soporte creado: ${ticket._id} por usuario ${payload.userId}`);
 
       return ticket;
     } catch (error) {
@@ -77,7 +77,7 @@ class SupportTicketService {
     );
 
     if (ticket) {
-      logger.info(`Ticket ${ticketId} marcado como resuelto por admin ${resolvedBy}`);
+      logger.debug(`Ticket ${ticketId} marcado como resuelto por admin ${resolvedBy}`);
     }
 
     return ticket;
@@ -90,7 +90,7 @@ class SupportTicketService {
     const ticket = await this.supportTicketRepository.updateStatus(ticketId, status);
 
     if (ticket) {
-      logger.info(`Estado del ticket ${ticketId} actualizado a ${status}`);
+      logger.debug(`Estado del ticket ${ticketId} actualizado a ${status}`);
     }
 
     return ticket;
@@ -122,7 +122,7 @@ class SupportTicketService {
     const deleted = await this.supportTicketRepository.delete(ticketId);
 
     if (deleted) {
-      logger.info(`Ticket ${ticketId} eliminado`);
+      logger.debug(`Ticket ${ticketId} eliminado`);
     }
 
     return deleted;

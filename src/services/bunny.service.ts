@@ -35,7 +35,7 @@ class BunnyService {
     this.streamApiKey = config.BUNNY_STREAM_API_KEY || '';
     this.streamLibraryId = config.BUNNY_STREAM_LIBRARY_ID || '';
 
-    logger.info('🐰 Bunny Storage Service initialized', {
+    logger.debug('🐰 Bunny Storage Service initialized', {
       zone: this.storageZoneName,
       region: this.storageRegion,
       cdn: this.cdnHostname,
@@ -43,7 +43,7 @@ class BunnyService {
     });
     
     if (this.streamApiKey && this.streamLibraryId) {
-      logger.info('🎬 Bunny Stream Service initialized', {
+      logger.debug('🎬 Bunny Stream Service initialized', {
         libraryId: this.streamLibraryId,
       });
     }
@@ -70,7 +70,7 @@ class BunnyService {
       const filePath = `/${folder}/${safeFileName}`;
       const uploadUrl = `${this.baseUrl}${filePath}`;
 
-      logger.info(`🚀 Uploading to Bunny: ${uploadUrl}`);
+      logger.debug(`🚀 Uploading to Bunny: ${uploadUrl}`);
 
       const response = await axios.put(uploadUrl, buffer, {
         headers: {
@@ -83,7 +83,7 @@ class BunnyService {
 
       if (response.status === 201 || response.status === 200) {
         const cdnUrl = `${this.cdnHostname}${filePath}`;
-        logger.info(`✅ File uploaded successfully to Bunny: ${cdnUrl}`);
+        logger.debug(`✅ File uploaded successfully to Bunny: ${cdnUrl}`);
         return cdnUrl;
       }
 
@@ -109,7 +109,7 @@ class BunnyService {
       const filePath = `/${folder}/${sanitized}`;
       const uploadUrl = `${this.baseUrl}${filePath}`;
 
-      logger.info(`🚀 Uploading to Bunny (unique name): ${uploadUrl}`);
+      logger.debug(`🚀 Uploading to Bunny (unique name): ${uploadUrl}`);
 
       const response = await axios.put(uploadUrl, buffer, {
         headers: {
@@ -122,7 +122,7 @@ class BunnyService {
 
       if (response.status === 201 || response.status === 200) {
         const cdnUrl = `${this.cdnHostname}${filePath}`;
-        logger.info(`✅ File uploaded successfully to Bunny (unique): ${cdnUrl}`);
+        logger.debug(`✅ File uploaded successfully to Bunny (unique): ${cdnUrl}`);
         return cdnUrl;
       }
 
@@ -156,7 +156,7 @@ class BunnyService {
       const uploadUrl = `${this.baseUrl}${filePath}`;
 
       const sizeInfo = fileSize ? ` (${(fileSize / (1024 * 1024)).toFixed(2)} MB)` : '';
-      logger.info(`🚀 Uploading stream to Bunny: ${uploadUrl}${sizeInfo}`);
+      logger.debug(`🚀 Uploading stream to Bunny: ${uploadUrl}${sizeInfo}`);
 
       // Configurar tracking de progreso usando onUploadProgress de axios
       // Esto trackea el progreso real de la subida HTTP, no solo los bytes leídos del archivo
@@ -203,7 +203,7 @@ class BunnyService {
           onProgress(100);
         }
         const cdnUrl = `${this.cdnHostname}${filePath}`;
-        logger.info(`✅ File stream uploaded successfully to Bunny: ${cdnUrl}`);
+        logger.debug(`✅ File stream uploaded successfully to Bunny: ${cdnUrl}`);
         return cdnUrl;
       }
 
@@ -247,7 +247,7 @@ class BunnyService {
 
       const deleteUrl = `${this.baseUrl}${filePath}`;
 
-      logger.info(`🗑️ Deleting from Bunny: ${deleteUrl}`);
+      logger.debug(`🗑️ Deleting from Bunny: ${deleteUrl}`);
 
       const response = await axios.delete(deleteUrl, {
         headers: {
@@ -257,7 +257,7 @@ class BunnyService {
 
       // Considerar 200/204 como éxito; si es 404 (no existe) tratarlo como éxito también
       if (response.status === 200 || response.status === 204) {
-        logger.info(`✅ File deleted successfully from Bunny`);
+        logger.debug(`✅ File deleted successfully from Bunny`);
         return true;
       }
 
@@ -266,7 +266,7 @@ class BunnyService {
     } catch (error) {
       // Si es 404, interpretar como ya eliminado (éxito)
       if ((error as any).response?.status === 404) {
-        logger.info(`ℹ️ File not found on Bunny (treated as deleted): ${fileUrl}`);
+        logger.debug(`ℹ️ File not found on Bunny (treated as deleted): ${fileUrl}`);
         return true;
       }
       logger.error(`❌ Error deleting from Bunny: ${(error as Error).message}`);
@@ -351,7 +351,7 @@ class BunnyService {
    */
   async downloadFile(fileUrl: string): Promise<Buffer | null> {
     try {
-      logger.info(`📥 Downloading from Bunny CDN: ${fileUrl}`);
+      logger.debug(`📥 Downloading from Bunny CDN: ${fileUrl}`);
 
       const response = await axios.get(fileUrl, {
         responseType: 'arraybuffer',
@@ -360,7 +360,7 @@ class BunnyService {
 
       if (response.status === 200 && response.data) {
         const buffer = Buffer.from(response.data);
-        logger.info(`✅ File downloaded from Bunny CDN: ${buffer.length} bytes`);
+        logger.debug(`✅ File downloaded from Bunny CDN: ${buffer.length} bytes`);
         return buffer;
       }
 
@@ -450,7 +450,7 @@ class BunnyService {
 
       const deleteUrl = `${this.streamApiBaseUrl}/library/${this.streamLibraryId}/videos/${videoId}`;
 
-      logger.info(`🗑️ Eliminando video de Bunny Stream: ${videoId}`);
+      logger.debug(`🗑️ Eliminando video de Bunny Stream: ${videoId}`);
 
       const response = await axios.delete(deleteUrl, {
         headers: {
@@ -459,7 +459,7 @@ class BunnyService {
       });
 
       if (response.status === 200 || response.status === 204) {
-        logger.info(`✅ Video eliminado exitosamente de Bunny Stream: ${videoId}`);
+        logger.debug(`✅ Video eliminado exitosamente de Bunny Stream: ${videoId}`);
         return true;
       }
 
@@ -468,7 +468,7 @@ class BunnyService {
     } catch (error) {
       // Si el error es 404, el video ya no existe (puede haber sido eliminado previamente)
       if ((error as any).response?.status === 404) {
-        logger.info(`ℹ️ Video no encontrado en Bunny Stream (posiblemente ya eliminado): ${videoUrl}`);
+        logger.debug(`ℹ️ Video no encontrado en Bunny Stream (posiblemente ya eliminado): ${videoUrl}`);
         return true;
       }
       logger.error(`❌ Error eliminando video de Bunny Stream: ${(error as Error).message}`);
@@ -499,7 +499,7 @@ class BunnyService {
 
       const videoTitle = title || fileName.replace(/\.[^/.]+$/, ''); // Remover extensión
       const sizeInfo = fileSize ? ` (${(fileSize / (1024 * 1024)).toFixed(2)} MB)` : '';
-      logger.info(`🎬 Creando video en Bunny Stream: ${videoTitle}${sizeInfo}`);
+      logger.debug(`🎬 Creando video en Bunny Stream: ${videoTitle}${sizeInfo}`);
 
       // Paso 1: Crear el video en la biblioteca
       const createVideoUrl = `${this.streamApiBaseUrl}/library/${this.streamLibraryId}/videos`;
@@ -523,14 +523,14 @@ class BunnyService {
       const videoLibraryId = createResponse.data.videoLibraryId || this.streamLibraryId;
       
       // Log de la respuesta completa para debugging
-      logger.info(`📋 Respuesta de creación: ${JSON.stringify(createResponse.data)}`);
-      logger.info(`📋 Video ID: ${videoId}, Library ID: ${videoLibraryId}`);
+      logger.debug(`📋 Respuesta de creación: ${JSON.stringify(createResponse.data)}`);
+      logger.debug(`📋 Video ID: ${videoId}, Library ID: ${videoLibraryId}`);
       
       // Según la documentación de Bunny Stream, usar el endpoint de la API para upload
       // PUT https://video.bunnycdn.com/library/{libraryId}/videos/{videoId}
       const uploadUrl = `${this.streamApiBaseUrl}/library/${this.streamLibraryId}/videos/${videoId}`;
 
-      logger.info(`🚀 Subiendo video a Stream: ${uploadUrl}`);
+      logger.debug(`🚀 Subiendo video a Stream: ${uploadUrl}`);
 
       // Paso 2: Subir el archivo del video
       // Bunny Stream requiere AccessKey en el header para uploads directos
@@ -576,7 +576,7 @@ class BunnyService {
         throw new Error(`Error subiendo archivo a Stream: ${uploadResponse.status}`);
       }
       
-      logger.info(`✅ Archivo subido correctamente, status: ${uploadResponse.status}`);
+      logger.debug(`✅ Archivo subido correctamente, status: ${uploadResponse.status}`);
 
       // Paso 3: Obtener la URL final del video
       const videoDetailsUrl = `${this.streamApiBaseUrl}/library/${this.streamLibraryId}/videos/${videoId}`;
@@ -600,8 +600,8 @@ class BunnyService {
       // Formato: https://vz-{libraryId}.b-cdn.net/{videoId}
       const videoUrl = `https://vz-${this.streamLibraryId}.b-cdn.net/${videoId}`;
 
-      logger.info(`✅ Video subido exitosamente a Stream: ${videoUrl}`);
-      logger.info(`📹 Video ID para embed: ${videoId}, Library ID: ${this.streamLibraryId}`);
+      logger.debug(`✅ Video subido exitosamente a Stream: ${videoUrl}`);
+      logger.debug(`📹 Video ID para embed: ${videoId}, Library ID: ${this.streamLibraryId}`);
       return videoUrl;
     } catch (error) {
       logger.error(`❌ Error subiendo video a Stream: ${(error as Error).message}`);

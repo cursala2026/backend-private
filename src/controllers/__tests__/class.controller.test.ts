@@ -36,6 +36,7 @@ jest.mock('@/utils', () => ({
         info: jest.fn(),
         error: jest.fn(),
         warn: jest.fn(),
+        debug: jest.fn(),
     },
     prepareResponse: (status: number, message: string, data?: any) => ({
         status,

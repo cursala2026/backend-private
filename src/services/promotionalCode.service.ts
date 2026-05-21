@@ -37,7 +37,7 @@ export default class PromotionalCodeService {
       });
 
       const savedCode = await promotionalCode.save();
-      logger.info(`Código promocional creado: ${savedCode.code}`);
+      logger.debug(`Código promocional creado: ${savedCode.code}`);
 
       return savedCode;
     } catch (error) {
@@ -147,7 +147,7 @@ export default class PromotionalCodeService {
       ).populate('applicableCourses', 'name price').exec();
 
       if (updatedCode) {
-        logger.info(`Código promocional actualizado: ${updatedCode.code}`);
+        logger.debug(`Código promocional actualizado: ${updatedCode.code}`);
       }
 
       return updatedCode;
@@ -330,7 +330,7 @@ export default class PromotionalCodeService {
 
       await promotionalCode.save();
 
-      logger.info(`Código promocional aplicado: ${promotionalCode.code} por usuario ${userId}`);
+      logger.debug(`Código promocional aplicado: ${promotionalCode.code} por usuario ${userId}`);
       return true;
     } catch (error) {
       const err = error as Error;

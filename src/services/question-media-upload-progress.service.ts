@@ -16,7 +16,7 @@ class QuestionMediaUploadProgressService extends EventEmitter {
    */
   startTracking(uploadId: string): void {
     this.progressMap.set(uploadId, 0);
-    logger.info('QuestionMediaUploadProgress: Started tracking', { uploadId });
+    logger.debug('QuestionMediaUploadProgress: Started tracking', { uploadId });
   }
 
   /**
@@ -83,10 +83,10 @@ class QuestionMediaUploadProgressService extends EventEmitter {
     setTimeout(() => {
       this.progressMap.delete(uploadId);
       this.sseClients.delete(uploadId);
-      logger.info('QuestionMediaUploadProgress: Cleaned up after completion', { uploadId });
+      logger.debug('QuestionMediaUploadProgress: Cleaned up after completion', { uploadId });
     }, 300000); // 5 minutos
 
-    logger.info('QuestionMediaUploadProgress: Finished tracking', { uploadId });
+    logger.debug('QuestionMediaUploadProgress: Finished tracking', { uploadId });
   }
 
   /**
@@ -115,7 +115,7 @@ class QuestionMediaUploadProgressService extends EventEmitter {
     setTimeout(() => {
       this.progressMap.delete(uploadId);
       this.sseClients.delete(uploadId);
-      logger.info('QuestionMediaUploadProgress: Cleaned up after error', { uploadId });
+      logger.debug('QuestionMediaUploadProgress: Cleaned up after error', { uploadId });
     }, 60000); // 1 minuto
 
     logger.error('QuestionMediaUploadProgress: Error tracking', { uploadId, errorMessage });
