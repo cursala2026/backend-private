@@ -24,7 +24,12 @@ class BunnyService {
     this.storageZoneName = config.BUNNY_STORAGE_ZONE_NAME || '';
     this.storageRegion = config.BUNNY_STORAGE_REGION || 'br';
     this.cdnHostname = config.BUNNY_STORAGE_CDN_HOSTNAME || '';
-    this.baseUrl = `https://storage.bunnycdn.com/${this.storageZoneName}`;
+    
+    // 👇 SOLUCIÓN: Si la región no es 'de' (Alemania) ni está vacía, le inyectamos el prefijo al endpoint
+    const regionPrefix = this.storageRegion && this.storageRegion !== 'de' 
+      ? `${this.storageRegion}.` 
+      : '';
+    this.baseUrl = `https://${regionPrefix}storage.bunnycdn.com/${this.storageZoneName}`;
     
     // Bunny Stream config
     this.streamApiKey = config.BUNNY_STREAM_API_KEY || '';
@@ -34,6 +39,7 @@ class BunnyService {
       zone: this.storageZoneName,
       region: this.storageRegion,
       cdn: this.cdnHostname,
+      baseUrl: this.baseUrl // Agregado para que veas en consola a dónde está apuntando realmente
     });
     
     if (this.streamApiKey && this.streamLibraryId) {

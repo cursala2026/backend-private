@@ -419,20 +419,8 @@ export class CourseUploadService {
      */
     async uploadProgramFile(buffer: Buffer, filename: string, folder: string): Promise<string> {
         try {
-            const storageZone = process.env.BUNNY_STORAGE_ZONE_NAME!;
-            const accessKey = process.env.BUNNY_STORAGE_API_KEY!;
-            const cdnHostName = process.env.BUNNY_STORAGE_CDN_HOSTNAME;
-
-            const url = `https://storage.bunnycdn.com/${storageZone}/${folder}/${filename}`;
-            await axios.put(url, buffer, {
-            headers: {
-                'Content-Type': 'application/pdf',
-                'AccessKey': accessKey,
-                'Cache-Control': 'no-cache',
-            },
-            });
-
-            const cdnUrl = `${cdnHostName}/${folder}/${filename}`;
+            // Usar BunnyService para mantener la misma lógica de endpoint, región y cabeceras
+            const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(buffer, filename, folder || 'course-programs');
             logger.info(`✅ Program file uploaded to Bunny CDN: ${cdnUrl}`);
             return cdnUrl;
         } catch (error) {
