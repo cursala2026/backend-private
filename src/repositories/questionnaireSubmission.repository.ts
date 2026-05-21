@@ -222,6 +222,49 @@ class QuestionnaireSubmissionRepository {
   }
 
   /**
+   * Encuentra envíos pendientes de calificación para un cuestionario
+   */
+  async findPendingByQuestionnaire(questionnaireId: string): Promise<QuestionnaireSubmissionDoc[]> {
+    if (!Types.ObjectId.isValid(questionnaireId)) {
+      throw new Error('El ID del cuestionario proporcionado no es válido.');
+    }
+
+    const submissions = await this.model
+      .find({ questionnaireId: questionnaireId as any, status: 'SUBMITTED' })
+      .populate('studentId', 'firstName lastName email profilePhotoUrl')
+      .sort({ submittedAt: 1 })
+      .exec();
+
+    return submissions as unknown as QuestionnaireSubmissionDoc[];
+  }
+
+  /**
+   * Encuentra envíos pendientes de calificación asignados al profesor (por creator del cuestionario)
+   */
+  async findPendingForTeacher(teacherId: string): Promise<QuestionnaireSubmissionDoc[]> {
+    if (!Types.ObjectId.isValid(teacherId)) {
+      throw new Error('El ID del profesor proporcionado no es válido.');
+    }
+
+    const submissions = await this.model
+      .find({ status: 'SUBMITTED' })
+      .populate('studentId', 'firstName lastName email profilePhotoUrl')
+      .populate('questionnaireId', 'title createdBy')
+      .sort({ submittedAt: 1 })
+      .exec();
+
+    // Filtrar aquellos cuya encuesta fue creada por el profesor
+    const filtered = (submissions as any[]).filter((s) => {
+      const q = s.questionnaireId;
+      if (!q) return false;
+      const creator = q.createdBy ? String(q.createdBy) : null;
+      return creator === teacherId;
+    });
+
+    return filtered as unknown as QuestionnaireSubmissionDoc[];
+  }
+
+  /**
    * Verifica si existe al menos un envío para un cuestionario
    * @param questionnaireId - ID del cuestionario
    * @returns true si existe al menos un envío, false si no

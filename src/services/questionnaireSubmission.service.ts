@@ -494,6 +494,20 @@ class QuestionnaireSubmissionService {
   }
 
   /**
+   * Obtener envíos pendientes de calificación para un cuestionario
+   */
+  async getPendingByQuestionnaire(questionnaireId: string): Promise<QuestionnaireSubmissionDoc[]> {
+    return await this.submissionRepository.findPendingByQuestionnaire(questionnaireId);
+  }
+
+  /**
+   * Obtener envíos pendientes de calificación para el profesor actual
+   */
+  async getPendingForTeacher(teacherId: string): Promise<QuestionnaireSubmissionDoc[]> {
+    return await this.submissionRepository.findPendingForTeacher(teacherId);
+  }
+
+  /**
    * Obtener un envío por ID
    */
   async getSubmissionById(id: string): Promise<QuestionnaireSubmissionDoc | null> {

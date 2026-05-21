@@ -117,6 +117,35 @@ export default class QuestionnaireSubmissionController {
   };
 
   /**
+   * Obtener envíos pendientes de calificación para un cuestionario
+   */
+  getPendingGrading = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const questionnaireId = ensureString(req.params.questionnaireId);
+      const pending = await this.submissionService.getPendingByQuestionnaire(questionnaireId);
+      return res.json(prepareResponse(200, 'Pending submissions fetched successfully', pending));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
+   * Obtener envíos pendientes de calificación para el profesor (todas sus encuestas)
+   */
+  getPendingGradingByTeacher = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = (req as any).user;
+      if (!user) return res.status(401).json(prepareResponse(401, 'Not authenticated'));
+
+      const teacherId = String(user._id);
+      const pending = await this.submissionService.getPendingForTeacher(teacherId);
+      return res.json(prepareResponse(200, 'Pending submissions for teacher fetched successfully', pending));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  /**
    * Obtener un envío por ID
    */
   getSubmissionById = async (req: Request, res: Response, next: NextFunction) => {

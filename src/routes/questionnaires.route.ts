@@ -35,18 +35,22 @@ router.delete(
   (req, res, next) => questionnaireController.delete(req, res, next)
 );
 
-// Get questionnaire by ID
-// Check if questionnaire has submissions (must be before dynamic id route)
-router.get('/:questionnaireId/has-submissions', authorize, (req, res, next) => questionnaireController.hasSubmissions(req, res, next));
-
-// Get questionnaire by ID
-router.get('/:questionnaireId', authorize, (req, res, next) => questionnaireController.findById(req, res, next));
-
-// ⚠️ Estas rutas estáticas DEBEN ir antes de /:questionnaireId para no ser capturadas por él
+// ⚠️ Rutas estáticas DEBEN ir antes de /:questionnaireId para no ser capturadas por él
 router.get('/course/:courseId', authorize, (req, res, next) => questionnaireController.findByCourse(req, res, next));
 router.get('/professor/:professorId', authorize, (req, res, next) =>
   questionnaireController.findByProfessor(req, res, next)
 );
+
+// Check if questionnaire has submissions (debe ir antes de la ruta dinámica)
+router.get('/:questionnaireId/has-submissions', authorize, (req, res, next) => questionnaireController.hasSubmissions(req, res, next));
+
+// Pending grading for a questionnaire (professor view)
+router.get('/:questionnaireId/pending-grading', authorize, (req, res, next) =>
+  questionnaireSubmissionController.getPendingGrading(req, res, next)
+);
+
+// Get questionnaire by ID
+router.get('/:questionnaireId', authorize, (req, res, next) => questionnaireController.findById(req, res, next));
 
 // ==================== MEDIA ROUTES ====================
 
@@ -74,6 +78,10 @@ router.patch('/submissions/:submissionId', authorize, (req, res, next) =>
   questionnaireSubmissionController.submitAnswers(req, res, next)
 );
 
+router.get('/submissions/pending-grading/teacher', authorize, (req, res, next) =>
+  questionnaireSubmissionController.getPendingGradingByTeacher(req, res, next)
+);
+
 router.post('/submissions/:submissionId/grade', authorize, (req, res, next) =>
   questionnaireSubmissionController.gradeTextQuestions(req, res, next)
 );
@@ -94,14 +102,26 @@ router.get('/:questionnaireId/submissions/student/:studentId', authorize, (req, 
 router.get('/:questionnaireId/grade-report', authorize, (req, res, next) =>
   questionnaireSubmissionController.getGradeReport(req, res, next)
 );
-// Delete ALL submissions for a questionnaire (admin)
-router.delete('/:questionnaireId/submissions', authorize, requireAdmin, (req, res, next) =>
-  questionnaireSubmissionController.deleteAllByQuestionnaire(req, res, next)
+// Delete ALL submissions for a questionnaire (admin or owner)
+router.delete(
+  '/:questionnaireId/submissions',
+  authorize,
+  (req, res, next) => {
+    const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
+    return middleware(req, res, next);
+  },
+  (req, res, next) => questionnaireSubmissionController.deleteAllByQuestionnaire(req, res, next)
 );
 
-// Delete submissions for a specific student (admin)
-router.delete('/:questionnaireId/submissions/student/:studentId', authorize, requireAdmin, (req, res, next) =>
-  questionnaireSubmissionController.resetStudentAttempts(req, res, next)
+// Delete submissions for a specific student (admin or owner)
+router.delete(
+  '/:questionnaireId/submissions/student/:studentId',
+  authorize,
+  (req, res, next) => {
+    const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
+    return middleware(req, res, next);
+  },
+  (req, res, next) => questionnaireSubmissionController.resetStudentAttempts(req, res, next)
 );
 
 export default router;
