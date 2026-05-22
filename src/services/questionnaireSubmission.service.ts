@@ -24,6 +24,10 @@ class QuestionnaireSubmissionService {
       throw new Error('Questionnaire not found');
     }
 
+    if (questionnaire.status !== 'ACTIVE') {
+      throw new Error('This questionnaire is not active and cannot be taken.');
+    }
+
     // Check retry limits
     // Only count completed submissions (GRADED or SUBMITTED), not IN_PROGRESS
     const allAttempts = await this.submissionRepository.findByStudentAndQuestionnaire(studentId, questionnaireId);

@@ -21,12 +21,15 @@ class QuestionnaireService {
    */
   async create(data: Partial<IQuestionnaire>, creatorId: string): Promise<QuestionnaireDoc> {
     // 1. Validaciones iniciales
-    if (!data.questions || data.questions.length === 0) {
-      throw new Error('At least one question is required');
+    if (data.status !== 'DRAFT') {
+      if (!data.questions || data.questions.length === 0) {
+        throw new Error('At least one question is required');
+      }
     }
 
     if (data.position) {
-      if (data.position.type === 'BETWEEN_CLASSES' && !data.position.afterClassId) {
+      const isDraft = data.status === 'DRAFT';
+      if (!isDraft && data.position.type === 'BETWEEN_CLASSES' && !data.position.afterClassId) {
         throw new Error('afterClassId is required when position type is BETWEEN_CLASSES');
       }
       if (data.position.type === 'FINAL_EXAM' && data.position.afterClassId) {
@@ -37,8 +40,9 @@ class QuestionnaireService {
     const correctOptionIndices: { [key: number]: number[] } = {};
 
     // 2. Procesamiento de preguntas
-    for (let i = 0; i < data.questions.length; i++) {
-      const question = data.questions[i];
+    const questionsToProcess = data.questions || [];
+    for (let i = 0; i < questionsToProcess.length; i++) {
+      const question = questionsToProcess[i];
 
       // Si es MC o MS, validamos opciones
       if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
@@ -139,7 +143,9 @@ class QuestionnaireService {
     }
 
     if (data.position) {
-      if (data.position.type === 'BETWEEN_CLASSES' && !data.position.afterClassId) {
+      const status = data.status || existingQuestionnaire.status;
+      const isDraft = status === 'DRAFT';
+      if (!isDraft && data.position.type === 'BETWEEN_CLASSES' && !data.position.afterClassId) {
         throw new Error('afterClassId is required when position type is BETWEEN_CLASSES');
       }
       if (data.position.type === 'FINAL_EXAM' && data.position.afterClassId) {
@@ -170,7 +176,8 @@ class QuestionnaireService {
           const hasSingle = question.correctOptionId !== undefined && question.correctOptionId !== null;
           const hasArray = Array.isArray((question as any).correctOptionIds) && (question as any).correctOptionIds.length > 0;
 
-          if (!data.isSurvey && existingQuestionnaire.isSurvey !== true) {
+          const isDraft = data.status === 'DRAFT' || existingQuestionnaire.status === 'DRAFT';
+          if (!data.isSurvey && existingQuestionnaire.isSurvey !== true && !isDraft) {
             if (!hasSingle && !hasArray) {
               throw new Error(`Multiple choice question "${question.questionText}" must have at least one correct answer`);
             }

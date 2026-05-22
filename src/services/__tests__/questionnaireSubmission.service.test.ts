@@ -166,13 +166,22 @@ describe('QuestionnaireSubmissionService Unit Tests', () => {
       ).resolves.not.toThrow();
     });
   });
-test('Surveys: should mark as passed automatically when grading', async () => {
+  test('Surveys: should mark as passed automatically when grading', async () => {
     const surveyMock: any = { _id: 's123', isSurvey: true, questions: [], courseId: 'c1' };
     const service = makeService({}, { findById: (jest.fn() as any).mockResolvedValue(surveyMock) });
 
-    
     // Al ser encuesta, no debería fallar el proceso de corrección
     const result = await (service as any).gradeTextQuestions(mockSubmissionId, [] as any[], mockProfessorId, 'Encuesta OK');
     expect(result).toBeDefined();
+  });
+
+  describe('DRAFT Questionnaire Protection', () => {
+    test('should prevent starting a submission if questionnaire status is not ACTIVE', async () => {
+      // Creamos un cuestionario en estado DRAFT
+      const service = makeService({}, { status: 'DRAFT' });
+
+      await expect(service.startSubmission(mockStudentId, baseSubmission.questionnaireId))
+        .rejects.toThrow('This questionnaire is not active and cannot be taken.');
+    });
   });
 });

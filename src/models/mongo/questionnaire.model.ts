@@ -197,13 +197,20 @@ export const QuestionnaireSchema: Schema<QuestionnaireModel> = new Schema<Questi
     },
     position: {
       type: PositionSchema,
-      required: true,
+      required: function (this: any) {
+        return this.status !== 'DRAFT';
+      },
     },
     questions: {
       type: [QuestionSchema],
-      required: true,
+      required: function (this: any) {
+        return this.status !== 'DRAFT';
+      },
       validate: {
-        validator(v: IQuestion[]) {
+        validator(this: any, v: IQuestion[]) {
+          if (this && this.status === 'DRAFT') {
+            return true;
+          }
           return v && v.length > 0;
         },
         message: 'At least one question is required',
