@@ -160,11 +160,14 @@ class UserRepository {
     const pipeline: any[] = [];
     const matchConditions: any[] = [];
     if (search) {
+      const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+      const safeSearch = escapeRegex(search);
       matchConditions.push({
         $or: [
-          { email: { $regex: search, $options: 'i' } },
-          { firstName: { $regex: search, $options: 'i' } },
-          { lastName: { $regex: search, $options: 'i' } },
+          { email: { $regex: safeSearch, $options: 'i' } },
+          { firstName: { $regex: safeSearch, $options: 'i' } },
+          { lastName: { $regex: safeSearch, $options: 'i' } },
+          { phone: { $regex: safeSearch, $options: 'i' } },
         ],
       });
     }
