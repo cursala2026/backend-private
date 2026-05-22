@@ -540,6 +540,8 @@ export default class UserController {
     const sort = ensureString(req.query.sort) || 'createdAt';
     const dir = ensureString(req.query.dir) === 'ASC' ? 1 : -1;
     const courseId = ensureString(req.query.courseId) || undefined;
+    const role = ensureString(req.query.role) || undefined;
+    const search = ensureString(req.query.search) || undefined;
 
     const resp = await this.userService.getUsersPaginated({
       page,
@@ -547,6 +549,8 @@ export default class UserController {
       sort,
       dir,
       courseId: courseId === 'none' ? undefined : courseId,
+      role,
+      search,
     });
 
     return res.json(prepareResponse(200, 'Users fetched successfully', resp));
