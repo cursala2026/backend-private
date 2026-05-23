@@ -2,6 +2,17 @@
 import CourseService from '@/services/course.service';
 
 jest.mock('@/utils/emailer', () => ({ sendEmail: jest.fn() }));
+jest.mock('@/services/course-upload.service', () => ({
+  courseUploadService: {
+    uploadCourseImage: jest.fn().mockResolvedValue('https://bunny.net/image.png'),
+    deleteCourseImage: jest.fn().mockResolvedValue(true),
+    deleteProgramFile: jest.fn().mockResolvedValue(true),
+  },
+  ProgramGeneratorService: jest.fn().mockImplementation(() => ({
+    generateAndUploadProgramPDF: jest.fn().mockResolvedValue('https://bunny.net/program.pdf'),
+  })),
+  mapCourseToPdfData: jest.fn().mockResolvedValue({ course: { name: 'Test' } }),
+}));
 
 const { sendEmail } = require('@/utils/emailer');
 
