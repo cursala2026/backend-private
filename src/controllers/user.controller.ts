@@ -36,7 +36,6 @@ export default class UserController {
     }
   };
 
-  
   getTeachers = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const teachers = await this.userService.getTeachers();
@@ -220,7 +219,6 @@ export default class UserController {
     }
   };
 
-  // FIX: Extracted shared Bunny cleanup logic used by deleteUser and deleteSelfProfile
   private deleteBunnyFiles = async (user: IUser): Promise<void> => {
     const isBunnyCdn = (url?: string | null): url is string =>
       typeof url === 'string' && url.includes('b-cdn.net');
@@ -253,7 +251,6 @@ export default class UserController {
         return res.status(404).json(prepareResponse(404, 'Usuario no encontrado'));
       }
 
-      // FIX: Removed console.log with sensitive user data
       return res.json(prepareResponse(200, 'User fetched successfully', user));
     } catch (error) {
       return next(error);
@@ -367,7 +364,6 @@ export default class UserController {
 
   updateUserData = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // FIX: Extracted inner logic — no more nested async function inside try
       const handleUpdate = async (files: { [fieldname: string]: Express.Multer.File[] } | undefined) => {
         const userId = ensureString(req.params.userId);
 
@@ -401,7 +397,6 @@ export default class UserController {
           }
         }
 
-        // Validate files before touching the DB
         const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
         const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -435,7 +430,6 @@ export default class UserController {
           }
         }
 
-        // Update base user fields first
         logger.info(`📝 Actualizando usuario en BD: ${userId}`);
         const updatedUser = await this.userService.updateUser(userId, updateData);
 
@@ -446,7 +440,6 @@ export default class UserController {
 
         logger.info(`✅ Usuario actualizado en BD exitosamente`);
 
-        // Upload files to Bunny CDN if present
         try {
           if (files?.photo?.[0]) {
             const photoFile = files.photo[0];
@@ -465,7 +458,6 @@ export default class UserController {
           }
         } catch (uploadError) {
           logger.error(`❌ Error subiendo archivos a Bunny CDN: ${(uploadError as Error).message}`);
-          // FIX: Upload failure is non-fatal but we still log it clearly
         }
 
         const finalUser = await this.userService.getUserById(userId);
@@ -533,37 +525,41 @@ export default class UserController {
       return next(error);
     }
   };
+
   getUsersPaginated = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const page = parseInt(ensureString(req.query.page) || '1', 10);
-    const limit = parseInt(ensureString(req.query.limit) || '10', 10);
-    const sort = ensureString(req.query.sort) || 'createdAt';
-    const dir = ensureString(req.query.dir) === 'ASC' ? 1 : -1;
-    const courseId = ensureString(req.query.courseId) || undefined;
-    const role = ensureString(req.query.role) || undefined;
-    const search = ensureString(req.query.search) || undefined;
+    try {
+      const page = parseInt(ensureString(req.query.page) || '1', 10);
+      const limit = parseInt(
+        ensureString(req.query.page_size) || ensureString(req.query.limit) || '10',
+        10
+      );
+      const sort = ensureString(req.query.sort) || 'createdAt';
+      const dir = (ensureString(req.query.sort_dir) || ensureString(req.query.dir)) === 'ASC' ? 1 : -1;
+      const courseId = ensureString(req.query.courseId) || undefined;
+      const role = ensureString(req.query.role) || undefined;
+      const search = ensureString(req.query.search) || undefined;
 
-    const resp = await this.userService.getUsersPaginated({
-      page,
-      limit,
-      sort,
-      dir,
-      courseId: courseId === 'none' ? undefined : courseId,
-      role,
-      search,
-    });
+      const resp = await this.userService.getUsersPaginated({
+        page,
+        limit,
+        sort,
+        dir,
+        courseId,
+        role,
+        search,
+      });
 
-    return res.json(prepareResponse(200, 'Users fetched successfully', resp));
-  } catch (error) {
-    return next(error);
-  }
-};
+      return res.json(prepareResponse(200, 'Users fetched successfully', resp));
+    } catch (error) {
+      return next(error);
+    }
+  };
+
   saveUserInterests = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = ensureString(req.params.userId);
       const { interests, interestsSuggestions } = req.body;
 
-      // Auditoría: Verificamos que no venga vacío
       if (!interests && !interestsSuggestions) {
         return res.status(400).json(prepareResponse(400, 'Datos insuficientes', null));
       }
@@ -571,11 +567,11 @@ export default class UserController {
       const updateData = {
         interests: interests || [],
         interestsSuggestions: interestsSuggestions || '',
-        hasCompletedInterestsForm: true 
+        hasCompletedInterestsForm: true,
       };
 
       logger.info(`📝 Usuario ${userId} completando formulario de intereses`);
-      
+
       const updatedUser = await this.userService.updateUser(userId, updateData);
 
       if (!updatedUser) {
@@ -590,7 +586,6 @@ export default class UserController {
 
   checkInterestsRequirement = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Extraer el userId de los parámetros de la URL (lo que el frontend envía)
       const userId = ensureString(req.params.userId);
 
       if (!userId) {
@@ -604,7 +599,7 @@ export default class UserController {
       }
 
       const shouldShowInterests = user.hasCompletedInterestsForm !== true;
-      
+
       logger.info(`🔍 Checking interests for user ${userId}: hasCompleted=${user.hasCompletedInterestsForm}, shouldShow=${shouldShowInterests}`);
 
       return res.json(prepareResponse(200, 'Interests requirement checked', { shouldShowInterests }));
