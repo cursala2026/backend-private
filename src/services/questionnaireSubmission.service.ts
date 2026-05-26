@@ -429,8 +429,27 @@ class QuestionnaireSubmissionService {
         // Scoring with penalización por selecciones incorrectas (falsos positivos):
         // scoreRaw = (correctSelections - wrongSelections) / correctCount
         // no puede ser negativo (min 0). isCorrect = true solo para match exacto (mismo conjunto).
-        const correctSet = new Set(correctIds);
-        const selectedSet = new Set(selectedIds);
+        // Map correctIds and selectedIds if they are indices (numbers or strings of indices) instead of ObjectIds
+        const mappedCorrectIds = correctIds.map((cid) => {
+          const valStr = cid.toString();
+          if (/^\d+$/.test(valStr) && question.options && question.options[Number(valStr)]) {
+            const opt = question.options[Number(valStr)];
+            return opt._id ? opt._id.toString() : valStr;
+          }
+          return cid;
+        });
+
+        const mappedSelectedIds = selectedIds.map((sid) => {
+          const valStr = sid.toString();
+          if (/^\d+$/.test(valStr) && question.options && question.options[Number(valStr)]) {
+            const opt = question.options[Number(valStr)];
+            return opt._id ? opt._id.toString() : valStr;
+          }
+          return sid;
+        });
+
+        const correctSet = new Set(mappedCorrectIds);
+        const selectedSet = new Set(mappedSelectedIds);
         let intersectionCount = [...correctSet].filter((v) => selectedSet.has(v)).length;
         let wrongSelections = [...selectedSet].filter((v) => !correctSet.has(v)).length;
         const correctCount = correctSet.size || 0;
