@@ -53,6 +53,7 @@ export async function main(req: Request, res: Response) {
 
 interface CursosPdfData {
     course?: {
+        id?: string;
         name: string;
         descripcion?: string;
     };
@@ -66,8 +67,9 @@ interface CursosPdfData {
 export async function mapCourseToPdfData(course: ICourse): Promise<CursosPdfData> {
     return {
         course: {
-        name: course.name,
-        descripcion: course.description,
+            id: course._id.toString(),
+            name: course.name,
+            descripcion: course.description,
         },
         dias: course.days,
         horarios: course.time,
@@ -130,7 +132,8 @@ export class ProgramGeneratorService {
                 doc.image('src/static/images/certificado.png', 470, y - 25, { fit: [70, 70] });
                 doc.image('src/static/images/birrete.png', 420, y, { fit: [70, 70] });
 
-                y = doc.y + 10;
+                const minImages = y + 90;
+                y = Math.max(doc.y + 20, minImages);
                 let lineY = y + 80;
 
                 // Días
@@ -184,7 +187,7 @@ export class ProgramGeneratorService {
                     doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('-'), 480, y + 62, { width: 35, align: 'center' });
                 }
                 doc.moveTo(560, y).lineTo(560, lineY).strokeColor('#e4e4e4').lineWidth(1).stroke();
-                y = lineY;
+                y = Math.max(lineY, minImages);
                 doc.moveTo(35, y).lineTo(560, y).strokeColor('#e4e4e4').lineWidth(1).stroke();
 
                 // Temario
@@ -289,8 +292,13 @@ export class ProgramGeneratorService {
 
         // Generar nuevo PDF y subirlo
         const pdfBuffer = await this.generateProgramPDF(programData);
-        const filename = `${programData.course?.name}_${Date.now()}.pdf`;
+        const filename = `${programData.course?.name}.pdf`;
         const programUrl = await this.courseUploadService.uploadProgramFile(pdfBuffer, filename, 'course-programs');
+        if (programData.course?.id) {
+            const { courseRepository } = await conection();
+            await courseRepository.update(programData.course.id, { programUrl });
+        }
+        console.log('programUrl', programUrl);
         return programUrl;
     }
 }
@@ -421,6 +429,7 @@ export class CourseUploadService {
         try {
             // Usar BunnyService para mantener la misma lógica de endpoint, región y cabeceras
             const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(buffer, filename, folder || 'course-programs');
+            console.log('cdnUrl', cdnUrl);
             logger.debug(`✅ Program file uploaded to Bunny CDN: ${cdnUrl}`);
             return cdnUrl;
         } catch (error) {
