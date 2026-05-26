@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { Course } from '../models/mongo/course.model';
 import { Questionnaire } from '../models/mongo/questionnaire.model';
-import { QuestionnaireSubmissionModel } from '../models/mongo/questionnaireSubmission.model';
+import { QuestionnaireSubmission } from '../models/mongo/questionnaireSubmission.model';
 import { UserSchema } from '../models/user.model';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -17,7 +17,7 @@ async function repair() {
     console.log('✅ Conectado a MongoDB\n');
 
     // 1. Obtener todos los cuestionarios
-    const questionnaires = await Questionnaire.find({});
+    const questionnaires: any[] = await Questionnaire.find({});
     console.log(`🔍 Analizando ${questionnaires.length} cuestionarios...`);
 
     let repairedQuestionnairesCount = 0;
@@ -49,7 +49,7 @@ async function repair() {
           continue;
         }
 
-        const currentOptionIds = (question.options || []).map((opt) => opt._id?.toString());
+        const currentOptionIds = (question.options || []).map((opt: any) => opt._id?.toString());
         const currentOptionIdsSet = new Set(currentOptionIds);
 
         // A. Verificar correctOptionId (para MULTIPLE_CHOICE)
@@ -65,7 +65,7 @@ async function repair() {
               console.log(`   Coincidencia encontrada para la opción rota: "${originalOption.text}" (orden ${originalOption.order})`);
               // Buscar opción homóloga por texto en la pregunta actual
               const matchedOption = question.options?.find(
-                (opt) => opt.text.trim().toLowerCase() === originalOption.text.trim().toLowerCase()
+                (opt: any) => opt.text.trim().toLowerCase() === originalOption.text.trim().toLowerCase()
               );
 
               if (matchedOption && matchedOption._id) {
@@ -96,7 +96,7 @@ async function repair() {
               if (originalOption) {
                 console.log(`   Coincidencia encontrada para la opción rota: "${originalOption.text}" (orden ${originalOption.order})`);
                 const matchedOption = question.options?.find(
-                  (opt) => opt.text.trim().toLowerCase() === originalOption.text.trim().toLowerCase()
+                  (opt: any) => opt.text.trim().toLowerCase() === originalOption.text.trim().toLowerCase()
                 );
 
                 if (matchedOption && matchedOption._id) {
@@ -133,17 +133,17 @@ async function repair() {
         repairedQuestionnairesCount++;
 
         // 2. Corregir y re-calificar envíos existentes para este cuestionario
-        const submissions = await QuestionnaireSubmissionModel.find({ questionnaireId: q._id });
+        const submissions = await QuestionnaireSubmission.find({ questionnaireId: q._id });
         if (submissions.length > 0) {
           console.log(`🔄 Re-evaluando ${submissions.length} envíos para el cuestionario "${q.title}"...`);
           
           for (const s of submissions) {
             let submissionModified = false;
-            let totalPoints = q.questions.reduce((sum, question) => sum + question.points, 0);
+            let totalPoints = q.questions.reduce((sum: number, question: any) => sum + question.points, 0);
             let earnedPoints = 0;
 
-            const updatedAnswers = s.answers.map((answer) => {
-              const question = q.questions.find((question) => question._id?.toString() === answer.questionId.toString());
+            const updatedAnswers = s.answers.map((answer: any) => {
+              const question = q.questions.find((question: any) => question._id?.toString() === answer.questionId.toString());
               if (!question) {
                 earnedPoints += answer.pointsAwarded || 0;
                 return answer;
@@ -152,7 +152,7 @@ async function repair() {
               if (question.type === 'MULTIPLE_CHOICE' || question.type === 'MULTIPLE_SELECT') {
                 const correctIds: string[] = [];
                 if (question.correctOptionIds && Array.isArray(question.correctOptionIds)) {
-                  correctIds.push(...question.correctOptionIds.map((id) => id.toString()));
+                  correctIds.push(...question.correctOptionIds.map((id: any) => id.toString()));
                 } else if (question.correctOptionId) {
                   correctIds.push(question.correctOptionId.toString());
                 }
@@ -211,10 +211,10 @@ async function repair() {
               
               // Si el estado original era SUBMITTED y no hay preguntas de texto, o ya tiene calificación
               // Mantener estado según corresponda. Si ya tenía finalScore o no tiene preguntas de texto:
-              const hasTextQuestions = q.questions.some((question) => question.type === 'TEXT');
+              const hasTextQuestions = q.questions.some((question: any) => question.type === 'TEXT');
               const newStatus = hasTextQuestions && s.status === 'SUBMITTED' ? 'SUBMITTED' : 'GRADED';
 
-              await QuestionnaireSubmissionModel.updateOne(
+              await QuestionnaireSubmission.updateOne(
                 { _id: s._id },
                 {
                   $set: {
