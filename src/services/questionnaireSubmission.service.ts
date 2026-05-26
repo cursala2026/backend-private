@@ -108,6 +108,20 @@ class QuestionnaireSubmissionService {
       throw new Error('Questionnaire not found');
     }
 
+    // Validate time limit if configured
+    if (questionnaire.timeLimitMinutes && submission.startedAt) {
+      const timeLimitMs = questionnaire.timeLimitMinutes * 60 * 1000;
+      const gracePeriodMs = 2 * 60 * 1000; // 2 minutes grace period for network latency / client delay
+      const timeElapsed = Date.now() - new Date(submission.startedAt).getTime();
+
+      if (timeElapsed > (timeLimitMs + gracePeriodMs)) {
+        const error = new Error('El tiempo límite para completar este cuestionario ha expirado.');
+        (error as any).status = 400;
+        (error as any).key = 'questionnaire.time_limit_exceeded';
+        throw error;
+      }
+    }
+
     // Validate all required questions are answered
     for (const question of questionnaire.questions) {
       if (question.required) {
@@ -417,15 +431,54 @@ class QuestionnaireSubmissionService {
         // no puede ser negativo (min 0). isCorrect = true solo para match exacto (mismo conjunto).
         const correctSet = new Set(correctIds);
         const selectedSet = new Set(selectedIds);
-        const intersectionCount = [...correctSet].filter((v) => selectedSet.has(v)).length;
-        const wrongSelections = [...selectedSet].filter((v) => !correctSet.has(v)).length;
+        let intersectionCount = [...correctSet].filter((v) => selectedSet.has(v)).length;
+        let wrongSelections = [...selectedSet].filter((v) => !correctSet.has(v)).length;
         const correctCount = correctSet.size || 0;
         let isCorrect = false;
         let pointsAwarded = 0;
+
+        // Fallback por coincidencia de texto (para mitigar desincronizaciones de IDs de opciones)
+        if (intersectionCount === 0 && selectedSet.size > 0 && correctCount > 0) {
+          const correctTexts = new Set(
+            (question.options || [])
+              .filter((opt: any) => correctSet.has(opt._id?.toString()))
+              .map((opt: any) => opt.text.trim().toLowerCase())
+          );
+          const selectedTexts = new Set(
+            (question.options || [])
+              .filter((opt: any) => selectedSet.has(opt._id?.toString()))
+              .map((opt: any) => opt.text.trim().toLowerCase())
+          );
+
+          if (correctTexts.size > 0 && selectedTexts.size > 0) {
+            const textIntersection = [...correctTexts].filter((t) => selectedTexts.has(t)).length;
+            const textWrong = [...selectedTexts].filter((t) => !correctTexts.has(t)).length;
+            if (textIntersection > 0) {
+              intersectionCount = textIntersection;
+              wrongSelections = textWrong;
+            }
+          }
+        }
+
         if (correctCount > 0) {
           // exact match requires same size and same elements
           if (correctSet.size === selectedSet.size && [...correctSet].every((v) => selectedSet.has(v))) {
             isCorrect = true;
+          } else {
+            // exact match by text fallback
+            const correctTexts = new Set(
+              (question.options || [])
+                .filter((opt: any) => correctSet.has(opt._id?.toString()))
+                .map((opt: any) => opt.text.trim().toLowerCase())
+            );
+            const selectedTexts = new Set(
+              (question.options || [])
+                .filter((opt: any) => selectedSet.has(opt._id?.toString()))
+                .map((opt: any) => opt.text.trim().toLowerCase())
+            );
+            if (correctTexts.size > 0 && correctTexts.size === selectedTexts.size && [...correctTexts].every((t) => selectedTexts.has(t))) {
+              isCorrect = true;
+            }
           }
 
           const penaltyFactor = 0.5; // cada selección incorrecta resta medio acierto

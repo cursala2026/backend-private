@@ -165,6 +165,42 @@ describe('QuestionnaireSubmissionService Unit Tests', () => {
         service.gradeTextQuestions(mockSubmissionId, [{ questionId: mockQuestionId, points: 10 }], mockProfessorId)
       ).resolves.not.toThrow();
     });
+
+    test('should throw error if time limit is exceeded', async () => {
+      // 10 minutes limit, started 13 minutes ago (exceeding 10 min limit + 2 min grace period)
+      const service = makeService(
+        { 
+          status: 'IN_PROGRESS', 
+          startedAt: new Date(Date.now() - 13 * 60 * 1000) 
+        }, 
+        { 
+          timeLimitMinutes: 10,
+          questions: [{ _id: mockQuestionId, type: 'TEXT', points: 10, required: true, questionText: 'Pregunta 1' }]
+        }
+      );
+
+      await expect(
+        service.submitAnswers(mockSubmissionId, [{ questionId: mockQuestionId, questionType: 'TEXT', textAnswer: 'Respuesta tardía' } as any])
+      ).rejects.toThrow('El tiempo límite para completar este cuestionario ha expirado.');
+    });
+
+    test('should NOT throw error if submission is within time limit + grace period', async () => {
+      // 10 minutes limit, started 11 minutes ago (within 10 min limit + 2 min grace period)
+      const service = makeService(
+        { 
+          status: 'IN_PROGRESS', 
+          startedAt: new Date(Date.now() - 11 * 60 * 1000) 
+        }, 
+        { 
+          timeLimitMinutes: 10,
+          questions: [{ _id: mockQuestionId, type: 'TEXT', points: 10, required: true, questionText: 'Pregunta 1' }]
+        }
+      );
+
+      await expect(
+        service.submitAnswers(mockSubmissionId, [{ questionId: mockQuestionId, questionType: 'TEXT', textAnswer: 'Respuesta a tiempo' } as any])
+      ).resolves.toBeDefined();
+    });
   });
   test('Surveys: should mark as passed automatically when grading', async () => {
     const surveyMock: any = { _id: 's123', isSurvey: true, questions: [], courseId: 'c1' };
