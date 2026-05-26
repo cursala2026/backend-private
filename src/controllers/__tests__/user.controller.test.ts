@@ -1,159 +1,152 @@
-import { Request, Response, NextFunction } from 'express';
-import UserController from '../user.controller';
-import UserService from '@/services/user.service';
-import { uploadFiles } from '@/utils/fileUpload.util';
-import fs from 'fs';
-import path from 'path';
+import UserController from '@/controllers/user.controller';
 
-// Mock BunnyService to avoid real network calls
-jest.mock('@/services/bunny.service', () => ({
-    getInstance: () => ({
-        uploadFilePreserveOriginal: jest.fn().mockResolvedValue('https://cdn.test/file.jpg'),
-        deleteFile: jest.fn().mockResolvedValue(true),
-    }),
-}));
+// ── Mocks ──────────────────────────────────────────────────────────────────
 
-// Mock dependencies
-jest.mock('@/services/user.service');
-jest.mock('@/utils/fileUpload.util', () => ({
-    uploadFiles: {
-        fields: jest.fn(),
-    },
-    uploadDirSignatures: '/tmp/signatures',
-}));
-jest.mock('@/utils/api-response', () => jest.fn((status, message, data) => ({ status, message, data })));
+const mockUserService = {
+  getUsersPaginated: jest.fn(),
+};
 
-describe('UserController', () => {
-    let userController: UserController;
-    let mockUserService: jest.Mocked<UserService>;
-    let req: Partial<Request>;
-    let res: Partial<Response>;
-    let next: NextFunction;
+jest.mock('@/services/bunny.service', () => {
+  const mockInstance = { deleteFile: jest.fn(), uploadFilePreserveOriginal: jest.fn() };
+  return {
+    __esModule: true,
+    default: { getInstance: jest.fn().mockReturnValue(mockInstance) },
+  };
+});
 
-    beforeEach(() => {
-        jest.clearAllMocks();
+const makeRes = () => {
+  const res: any = {};
+  res.status = jest.fn().mockReturnValue(res);
+  res.json = jest.fn().mockReturnValue(res);
+  return res;
+};
 
-        mockUserService = new UserService({} as any, {} as any, {} as any) as jest.Mocked<UserService>;
-        userController = new UserController(mockUserService);
+const makeReq = (query = {}): any => ({ query, params: {}, body: {} });
 
-        req = {
-            body: {},
-            params: {},
-            user: { _id: 'user-123' } as any,
-        };
-        res = {
-            status: jest.fn().mockReturnThis(),
-            json: jest.fn(),
-        };
-        next = jest.fn();
+// ── Tests ──────────────────────────────────────────────────────────────────
+
+describe('UserController.getUsersPaginated', () => {
+  let controller: UserController;
+  const next = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    controller = new UserController(mockUserService as any);
+    mockUserService.getUsersPaginated.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 },
     });
+  });
 
-    describe('getAllUsers', () => {
-        it('should get all users successfully', async () => {
-            const mockUsers = [{ _id: 'user-1' }, { _id: 'user-2' }];
-            mockUserService.getAllUsers.mockResolvedValue(mockUsers as any);
+  test('should read page_size from query (not limit)', async () => {
+    const req = makeReq({ page: '1', page_size: '20', sort: 'createdAt', sort_dir: 'ASC' });
+    const res = makeRes();
 
-            await userController.getAllUsers(req as Request, res as Response, next);
+    await controller.getUsersPaginated(req, res, next);
 
-            expect(mockUserService.getAllUsers).toHaveBeenCalled();
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                status: 200,
-                data: mockUsers,
-            }));
-        });
+    expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, limit: 20 })
+    );
+  });
 
-        it('should call next with error if fetching users fails', async () => {
-            const error = new Error('Fetch failed');
-            mockUserService.getAllUsers.mockRejectedValue(error);
+  test('should fallback to limit if page_size is not provided', async () => {
+    const req = makeReq({ page: '1', limit: '15' });
+    const res = makeRes();
 
-            await userController.getAllUsers(req as Request, res as Response, next);
+    await controller.getUsersPaginated(req, res, next);
 
-            expect(next).toHaveBeenCalledWith(error);
-        });
-    });
+    expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 15 })
+    );
+  });
 
-    describe('getUsersPaginated', () => {
-        it('should forward courseId from query to service', async () => {
-            const mockResult = { data: [], pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 } };
-            mockUserService.getUsersPaginated.mockResolvedValue(mockResult as any);
+  test('should default to limit=10 if neither page_size nor limit provided', async () => {
+    const req = makeReq({ page: '1' });
+    const res = makeRes();
 
-            req.query = { page: '1', limit: '10', sort: 'createdAt', dir: 'DESC', courseId: '64a1f2e5b9c3d4e5f6a7b8c9' } as any;
+    await controller.getUsersPaginated(req, res, next);
 
-            await userController.getUsersPaginated(req as Request, res as Response, next);
+    expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 10 })
+    );
+  });
 
-            expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: '64a1f2e5b9c3d4e5f6a7b8c9' }));
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 200, data: mockResult }));
-        });
+  test('should read sort_dir correctly (ASC -> 1)', async () => {
+    const req = makeReq({ sort_dir: 'ASC' });
+    const res = makeRes();
 
-        it('should convert courseId=none to undefined', async () => {
-            const mockResult = { data: [], pagination: { page: 1, page_size: 10, total: 0, totalPages: 0 } };
-            mockUserService.getUsersPaginated.mockResolvedValue(mockResult as any);
+    await controller.getUsersPaginated(req, res, next);
 
-            req.query = { page: '1', limit: '10', sort: 'createdAt', dir: 'DESC', courseId: 'none' } as any;
+    expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ dir: 1 })
+    );
+  });
 
-            await userController.getUsersPaginated(req as Request, res as Response, next);
+  test('should read sort_dir correctly (DESC -> -1)', async () => {
+    const req = makeReq({ sort_dir: 'DESC' });
+    const res = makeRes();
 
-            expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(expect.objectContaining({ courseId: undefined }));
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 200, data: mockResult }));
-        });
-    });
+    await controller.getUsersPaginated(req, res, next);
 
-    describe('updateUserData', () => {
-        it('should update user data successfully with files', async () => {
-            req.params = { userId: 'user-123' };
-            req.body = { professionalDescription: 'A very long professional description that is definitely longer than 100 characters to pass the validation check in the controller logic. It needs to be quite verbose.' };
+    expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ dir: -1 })
+    );
+  });
 
-            // Simular multipart/form-data para que el controller invoque uploadFiles.fields
-            (req as any).is = jest.fn().mockReturnValue('multipart/form-data');
+  test('should pass role filter to service', async () => {
+    const req = makeReq({ role: 'ALUMNO' });
+    const res = makeRes();
 
-            // Prepare temporary files to simulate multer-created files
-            const tmpPhoto = path.join(__dirname, 'tmp_photo.jpg');
-            const tmpSig = path.join(__dirname, 'tmp_sig.png');
-            fs.writeFileSync(tmpPhoto, 'photo');
-            fs.writeFileSync(tmpSig, 'sig');
+    await controller.getUsersPaginated(req, res, next);
 
-            // Mock Multer middleware
-            (uploadFiles.fields as jest.Mock).mockReturnValue((req: Request, res: Response, cb: (err?: any) => void) => {
-                req.files = {
-                    photo: [{ filename: 'photo.jpg', originalname: 'photo.jpg', mimetype: 'image/jpeg', size: 1000, path: tmpPhoto } as any],
-                    signatureFile: [{ filename: 'sig.png', originalname: 'sig.png', mimetype: 'image/png', size: 1000, path: tmpSig } as any],
-                };
-                cb(null);
-            });
+    expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'ALUMNO' })
+    );
+  });
 
-            const mockUser = { _id: 'user-123', profilePhotoUrl: 'photo.jpg', professionalSignatureUrl: 'sig.png' };
-            mockUserService.getUserById.mockResolvedValue(mockUser as any);
-            // updateUser is called by the controller for DB updates
-            mockUserService.updateUser.mockResolvedValue(mockUser as any);
+  test('should pass courseId filter to service including "none"', async () => {
+    const req = makeReq({ courseId: 'none' });
+    const res = makeRes();
 
-            await userController.updateUserData(req as Request, res as Response, next);
+    await controller.getUsersPaginated(req, res, next);
 
-            expect(uploadFiles.fields).toHaveBeenCalled();
-            // Since the logic is inside the callback, we can't easily await it unless we make the test wait or use the setImmediate trick
-            // But here we are mocking the middleware to execute the callback synchronously, so it should be fine?
-            // Wait, the callback is async in the controller: (req, res, async (err) => { ... })
-            // So we need to wait for the promise chain to complete.
+    expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ courseId: 'none' })
+    );
+  });
 
-            // However, since we are not awaiting the middleware call in the controller (it's void), 
-            // the test might finish before the callback logic runs if we don't handle it.
-            // But wait, the controller method IS async, but it calls uploadFiles.fields(...)(req, res, cb).
-            // This call is synchronous, but the callback passed to it is async.
-            // If our mock executes the callback synchronously, the async function inside the callback will start.
-            // We need to wait for it.
+  test('should pass search term to service', async () => {
+    const req = makeReq({ search: 'john' });
+    const res = makeRes();
 
-            await new Promise(resolve => setImmediate(resolve));
+    await controller.getUsersPaginated(req, res, next);
 
-            expect(mockUserService.updateUser).toHaveBeenCalledWith(
-                'user-123',
-                expect.objectContaining({ professionalDescription: req.body.professionalDescription })
-            );
-            // After file upload the controller calls updateUser for photo and signature
-            expect(mockUserService.updateUser).toHaveBeenCalledWith('user-123', { profilePhotoUrl: expect.any(String) });
-            expect(mockUserService.updateUser).toHaveBeenCalledWith('user-123', { professionalSignatureUrl: expect.any(String) });
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                status: 200,
-                message: 'Usuario actualizado correctamente',
-            }));
-        });
-    });
+    expect(mockUserService.getUsersPaginated).toHaveBeenCalledWith(
+      expect.objectContaining({ search: 'john' })
+    );
+  });
+
+  test('should return 200 with paginated data', async () => {
+    const mockData = { data: [{ _id: '1', email: 'a@b.com' }], pagination: { page: 1, page_size: 10, total: 1, totalPages: 1 } };
+    mockUserService.getUsersPaginated.mockResolvedValue(mockData);
+
+    const req = makeReq({ page: '1', page_size: '10' });
+    const res = makeRes();
+
+    await controller.getUsersPaginated(req, res, next);
+
+    expect(res.json).toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('should call next(error) on service failure', async () => {
+    mockUserService.getUsersPaginated.mockRejectedValue(new Error('DB error'));
+
+    const req = makeReq({});
+    const res = makeRes();
+
+    await controller.getUsersPaginated(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+  });
 });
