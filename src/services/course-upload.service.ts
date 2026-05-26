@@ -101,7 +101,6 @@ export class ProgramGeneratorService {
                 });
 
                 doc.on('error', (err) => {
-                    console.error('Error generating PDF:', err);
                     reject(err);
                 });
 
@@ -147,7 +146,6 @@ export class ProgramGeneratorService {
                     .map(d => d.trim())
                     .filter(d => d !== '');
 
-                    console.log(diasValidos);
                     let diasY = y + 62;
                     if (diasValidos.length > 2) {
                         doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('Varios días'), 65, diasY, { width: 60, align: 'center' });
@@ -306,7 +304,6 @@ export class ProgramGeneratorService {
             const { courseRepository } = await conection();
             await courseRepository.update(programData.course.id, { programUrl });
         }
-        console.log('programUrl', programUrl);
         return programUrl;
     }
 }
@@ -437,7 +434,6 @@ export class CourseUploadService {
         try {
             // Usar BunnyService para mantener la misma lógica de endpoint, región y cabeceras
             const cdnUrl = await this.bunnyService.uploadFilePreserveOriginal(buffer, filename, folder || 'course-programs');
-            console.log('cdnUrl', cdnUrl);
             logger.debug(`✅ Program file uploaded to Bunny CDN: ${cdnUrl}`);
             return cdnUrl;
         } catch (error) {
