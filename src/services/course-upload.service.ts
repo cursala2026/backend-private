@@ -129,31 +129,39 @@ export class ProgramGeneratorService {
                     y = doc.y + 3;
                     doc.fillColor('gray').fontSize(12).text(cleanText(`${programData.course?.descripcion}`), 35, y, { width: 350 });
                 }
-                doc.image('src/static/images/certificado.png', 470, y - 25, { fit: [70, 70] });
-                doc.image('src/static/images/birrete.png', 420, y, { fit: [70, 70] });
+                doc.image('src/static/images/certificado.png', 470, 100, { fit: [70, 70] });
+                doc.image('src/static/images/birrete.png', 420, 125, { fit: [70, 70] });
 
-                const minImages = y + 90;
-                y = Math.max(doc.y + 20, minImages);
+                const minSpace = 80;
+                y = Math.max(doc.y + 20, minSpace);
                 let lineY = y + 80;
 
                 // Días
                 doc.moveTo(35, y).lineTo(560, y).strokeColor('#e4e4e4').lineWidth(1).stroke();
                 doc.image('src/static/images/calendario.png', 77, y + 5, { fit: [35, 35] });
                 doc.fillColor('#5924d3').fontSize(14).text('Días', 80, y + 45);
-                if (programData.dias && programData.dias.filter(d => d && d.trim() !== '').length > 0) {
+                if (programData.dias) {
+                    const diasRaw = programData.dias || [];
+                    const diasValidos = diasRaw
+                    .flatMap(d => d.split(/[,;]+|\s+y\s+|\s+/))
+                    .map(d => d.trim())
+                    .filter(d => d !== '');
+
+                    console.log(diasValidos);
                     let diasY = y + 62;
-                    if (programData.dias.length > 2) {
+                    if (diasValidos.length > 2) {
                         doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('Varios días'), 65, diasY, { width: 60, align: 'center' });
-                    } else {
-                        programData.dias.forEach((dia: string) => {
+                    } else if (diasValidos.length > 0) {
+                        diasValidos.forEach((dia: string) => {
                             doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText(dia), 68, diasY, { width: 55, align: 'center' });
-                            diasY += 10;
+                            diasY += 15;
                         });
+                    }
+                     else {
+                        doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('-'), 67, y + 62, { width: 55, align: 'center' });
                     }
 
                     if (diasY > lineY) lineY = diasY;
-                } else {
-                    doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('-'), 67, y + 62, { width: 55, align: 'center' });
                 }
 
                 // Horarios
@@ -187,7 +195,7 @@ export class ProgramGeneratorService {
                     doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('-'), 480, y + 62, { width: 35, align: 'center' });
                 }
                 doc.moveTo(560, y).lineTo(560, lineY).strokeColor('#e4e4e4').lineWidth(1).stroke();
-                y = Math.max(lineY, minImages);
+                y = lineY;
                 doc.moveTo(35, y).lineTo(560, y).strokeColor('#e4e4e4').lineWidth(1).stroke();
 
                 // Temario
