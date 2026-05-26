@@ -348,4 +348,102 @@ describe('gradeTextQuestions - preservación de selectedOptionIds', () => {
 
     expect(storedFinalScore).toBe(87); // round(13/15*100)=87
   });
+
+  test('Calificación de profesor con strings (coerción) y cálculo correcto de finalScore con 2 MC (correctos, 10 pts c/u) y 2 TEXT (calificados con "10" c/u)', async () => {
+    // 2 MC de 10 pts = 20 pts (auto-corregidos, correctos)
+    // 2 TEXT de 10 pts = 20 pts (calificados por profesor con "10" como string)
+    // Total = 40 pts. Obtenidos = 40 pts. finalScore = 100% (y no error por concatenación "201010")
+    
+    const MC1_ID = ID('29de860f3');
+    const MC2_ID = ID('29de860f4');
+    const TEXT1_ID = ID('29de860f5');
+    const TEXT2_ID = ID('29de860f6');
+
+    const testSubmission = {
+      _id: SUBMISSION_ID,
+      questionnaireId: QUESTIONNAIRE_ID,
+      courseId: COURSE_ID,
+      studentId: { toString: () => STUDENT_ID },
+      studentEmail: 'alumno@test.com',
+      studentName: 'Alumno Test',
+      status: 'SUBMITTED',
+      attemptNumber: 1,
+      answers: [
+        {
+          questionId: { toString: () => MC1_ID },
+          questionType: 'MULTIPLE_CHOICE',
+          selectedOptionId: ID('opt_mc1_correct'),
+          isCorrect: true,
+          pointsAwarded: 10,
+        },
+        {
+          questionId: { toString: () => MC2_ID },
+          questionType: 'MULTIPLE_CHOICE',
+          selectedOptionId: ID('opt_mc2_correct'),
+          isCorrect: true,
+          pointsAwarded: 10,
+        },
+        {
+          questionId: { toString: () => TEXT1_ID },
+          questionType: 'TEXT',
+          textAnswer: 'Primera respuesta de texto',
+          pointsAwarded: 0,
+        },
+        {
+          questionId: { toString: () => TEXT2_ID },
+          questionType: 'TEXT',
+          textAnswer: 'Segunda respuesta de texto',
+          pointsAwarded: 0,
+        },
+      ],
+    };
+
+    const testQuestionnaire = {
+      _id: QUESTIONNAIRE_ID,
+      courseId: COURSE_ID,
+      title: 'Cuestionario de Test Especial',
+      questions: [
+        { _id: MC1_ID, type: 'MULTIPLE_CHOICE', points: 10 },
+        { _id: MC2_ID, type: 'MULTIPLE_CHOICE', points: 10 },
+        { _id: TEXT1_ID, type: 'TEXT', points: 10 },
+        { _id: TEXT2_ID, type: 'TEXT', points: 10 },
+      ],
+    };
+
+    let capturedUpdateData: any = null;
+    const svc = makeService(
+      {
+        findById: jest.fn().mockResolvedValue(testSubmission),
+        update: jest.fn().mockImplementation(async (_id: string, data: any) => {
+          capturedUpdateData = data;
+          return { ...testSubmission, ...data };
+        }),
+      },
+      { findById: jest.fn().mockResolvedValue(testQuestionnaire) }
+    );
+
+    // El profesor califica las preguntas de texto enviando los puntos como un string "10"
+    const gradedInput = [
+      { questionId: TEXT1_ID, points: "10" as any, feedback: 'Excelente' },
+      { questionId: TEXT2_ID, points: "10" as any, feedback: 'Muy completo' },
+    ];
+
+    await svc.gradeTextQuestions(SUBMISSION_ID, gradedInput, PROFESSOR_ID);
+
+    expect(capturedUpdateData).toBeDefined();
+    expect(capturedUpdateData.finalScore).toBe(100);
+    expect(capturedUpdateData.status).toBe('GRADED');
+
+    // Verificar que las respuestas de texto tienen puntos coercidos a Number 10 y marked as isCorrect
+    const textAns1 = capturedUpdateData.answers.find((a: any) => a.questionId.toString() === TEXT1_ID);
+    const textAns2 = capturedUpdateData.answers.find((a: any) => a.questionId.toString() === TEXT2_ID);
+
+    expect(textAns1).toBeDefined();
+    expect(textAns1.pointsAwarded).toBe(10);
+    expect(textAns1.isCorrect).toBe(true);
+
+    expect(textAns2).toBeDefined();
+    expect(textAns2.pointsAwarded).toBe(10);
+    expect(textAns2.isCorrect).toBe(true);
+  });
 });

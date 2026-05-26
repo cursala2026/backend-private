@@ -226,6 +226,10 @@ class QuestionnaireSubmissionService {
       if (answer.questionType === 'TEXT') {
         const graded = gradedAnswers.find((g) => g.questionId === answer.questionId.toString());
         if (graded) {
+          const pointsAwarded = Number(graded.points);
+          const question = questionnaire.questions.find((q) => q._id!.toString() === answer.questionId.toString());
+          const isCorrect = question ? pointsAwarded === question.points : pointsAwarded > 0;
+
           // Convert to plain object to avoid Mongoose subdocument issues
           return {
             questionId: answer.questionId,
@@ -233,8 +237,8 @@ class QuestionnaireSubmissionService {
             textAnswer: answer.textAnswer,
             selectedOptionId: answer.selectedOptionId,
             selectedOptionIds: (answer as any).selectedOptionIds,
-            isCorrect: answer.isCorrect,
-            pointsAwarded: graded.points,
+            isCorrect,
+            pointsAwarded,
             feedback: graded.feedback,
           };
         }
