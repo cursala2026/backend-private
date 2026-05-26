@@ -806,23 +806,51 @@ class CourseRepository {
         }
       }
 
-      // Duplicar las preguntas manteniendo URLs de media
-      const newQuestions = (originalQuestionnaire.questions || []).map((q: any) => ({
-        type: q.type,
-        questionText: q.questionText,
-        promptType: q.promptType,
-        promptMediaUrl: q.promptMediaUrl, // Mantener URL del media (no duplicar en Bunny)
-        promptMediaProvider: q.promptMediaProvider,
-        order: q.order,
-        points: q.points,
-        required: q.required,
-        options: q.options?.map((opt: any) => ({
-          text: opt.text,
-          order: opt.order,
-        })),
-        correctOptionId: q.correctOptionId,
-        correctOptionIds: q.correctOptionIds,
-      }));
+      // Duplicar las preguntas manteniendo URLs de media y mapeando correctamente las opciones
+      const newQuestions = (originalQuestionnaire.questions || []).map((q: any) => {
+        const optionIdMapping: { [oldId: string]: Types.ObjectId } = {};
+        
+        const newOptions = q.options?.map((opt: any) => {
+          const newOptId = new Types.ObjectId();
+          if (opt._id) {
+            optionIdMapping[opt._id.toString()] = newOptId;
+          }
+          return {
+            _id: newOptId,
+            text: opt.text,
+            order: opt.order,
+          };
+        });
+
+        // Mapear correctOptionId usando el mapa
+        let newCorrectOptionId = q.correctOptionId;
+        if (q.correctOptionId && optionIdMapping[q.correctOptionId.toString()]) {
+          newCorrectOptionId = optionIdMapping[q.correctOptionId.toString()];
+        }
+
+        // Mapear correctOptionIds usando el mapa
+        let newCorrectOptionIds = q.correctOptionIds;
+        if (Array.isArray(q.correctOptionIds)) {
+          newCorrectOptionIds = q.correctOptionIds.map((id: any) => {
+            const idStr = id.toString();
+            return optionIdMapping[idStr] || id;
+          });
+        }
+
+        return {
+          type: q.type,
+          questionText: q.questionText,
+          promptType: q.promptType,
+          promptMediaUrl: q.promptMediaUrl, // Mantener URL del media (no duplicar en Bunny)
+          promptMediaProvider: q.promptMediaProvider,
+          order: q.order,
+          points: q.points,
+          required: q.required,
+          options: newOptions,
+          correctOptionId: newCorrectOptionId,
+          correctOptionIds: newCorrectOptionIds,
+        };
+      });
 
       const newQuestionnaireData = {
         courseId: newCourseId,
