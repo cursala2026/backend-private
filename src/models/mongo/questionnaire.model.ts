@@ -127,8 +127,16 @@ const QuestionSchema = new Schema<IQuestion>(
     },
     points: {
       type: Number,
-      required: true,
-      min: 0,
+      required: function (this: any) {
+
+        const parent = this.parent ? this.parent() : null;
+        
+
+        if (parent && (parent.isSurvey || parent.status === 'DRAFT')) {
+          return false;
+        }
+        return true;
+      },
     },
     required: {
       type: Boolean,
@@ -218,7 +226,9 @@ export const QuestionnaireSchema: Schema<QuestionnaireModel> = new Schema<Questi
     },
     passingScore: {
       type: Number,
-      required: false,
+      required: function (this: any) {
+        return !this.isSurvey && this.status !== 'DRAFT';
+      },
       min: 0,
       max: 100,
     },
