@@ -62,7 +62,7 @@ export default class CourseController {
 
       // Helper para procesar la creación (comparte lógica entre multipart y JSON)
       const processCreate = async (body: any, files: Record<string, Express.Multer.File[]> | undefined) => {
-        // Extraemos los datos del body
+        
         const {
           name,
           description,
@@ -79,6 +79,8 @@ export default class CourseController {
           interestFree,
           isPublished,
           teachers,
+          numberOfClasses,
+          duration
         } = body;
 
         // Procesar teachers: puede venir como array o string separado por comas
@@ -91,8 +93,7 @@ export default class CourseController {
           }
         }
 
-        // Nota: Se elimina la restricción de cantidad de profesores (antes 1-3).
-        // Ahora se permite cualquier cantidad (incluyendo 0) para facilitar creación.
+
 
         // Convertir a ObjectIds
         const { Types } = require('mongoose');
@@ -107,20 +108,21 @@ export default class CourseController {
         const courseData = {
           name,
           description,
-          // category can be sent as object or string; store as JSON string with only id,name,description
-          ...(category
-            ? { category: typeof category === 'string' ? category : JSON.stringify({ id: category.id, name: category.name, description: category.description }) }
-            : {}),
+          ...(category ? { category: typeof category === 'string' ? category : JSON.stringify({ id: category.id, name: category.name, description: category.description }) } : {}),
           longDescription,
-          status: 'ACTIVE', // Siempre crear cursos con estado activo
-          order: order ? Number(order) : 0,
+          status: 'ACTIVE',
+          order: order !== undefined && order !== '' ? Number(order) : 0,
           days: typeof days === 'string' ? days.split(',').map((day: string) => day.trim()) : days,
           time,
           startDate: startDate ? new Date(startDate) : undefined,
           registrationOpenDate: registrationOpenDate ? new Date(registrationOpenDate) : undefined,
           modality,
-          price: price ? Number(price) : undefined,
-          maxInstallments: maxInstallments ? Number(maxInstallments) : 1,
+          // Cambiamos a esto para evitar el 0 si el campo está vacío:
+          price: (price !== undefined && price !== '') ? Number(price) : undefined,
+          maxInstallments: (maxInstallments !== undefined && maxInstallments !== '') ? Number(maxInstallments) : 1,
+          numberOfClasses: (numberOfClasses !== undefined && numberOfClasses !== '') ? Number(numberOfClasses) : undefined,
+          duration: (duration !== undefined && duration !== '') ? Number(duration) : undefined,
+          
           interestFree: interestFree === 'true' || interestFree === true,
           isPublished: (() => {
             if (isPublished === undefined) return true;
@@ -129,6 +131,7 @@ export default class CourseController {
           })(),
           teachers: teachersObjectIds,
         };
+        
 
         // Obtener imagenes (si vienen)
         const imageFile = files?.imageFile?.[0];

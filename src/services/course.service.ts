@@ -203,34 +203,42 @@ export default class CourseService {
     // Paso 1: Crear el curso en la base de datos
     let course = await this.courseRepository.create(courseData);
 
-    // Paso 2: Subir archivos y actualizar el curso
+    // Paso 2: Subir archivos
     try {
       const updateData: Partial<ICourse> = {};
 
-      // Subir imagen a Bunny CDN si se proporcionó
-      if (imageFile) {
-        const imageUrl = await courseUploadService.uploadCourseImage(imageFile);
-        updateData.imageUrl = imageUrl;
-        updateData.imageOriginalName = imageFile.originalname;
+      // 🛡️ BYPASS: Solo intentar subir a Bunny si NO estamos en desarrollo
+      if (process.env.NODE_ENV !== 'development') {
+        if (imageFile) {
+          const imageUrl = await courseUploadService.uploadCourseImage(imageFile);
+          updateData.imageUrl = imageUrl;
+          updateData.imageOriginalName = imageFile.originalname;
+        }
+
+        const programData = await mapCourseToPdfData(course);
+        const generator = new ProgramGeneratorService();
+        const pdfUrl = await generator.generateAndUploadProgramPDF(programData, course.programUrl);
+        updateData.programUrl = pdfUrl;
+        updateData.programOriginalName = `${programData.course?.name}.pdf`;
+        updateData.pdfSynced = true;
+      } else {
+        // En desarrollo, ponemos valores simulados para no romper el flujo
+        logger.info('Desarrollo: Saltando subida a Bunny.net');
+        updateData.imageUrl = 'https://via.placeholder.com/300x200';
+        updateData.pdfSynced = true; 
       }
 
-      // Subir PDF a Bunny CDN si se proporcionó
-      const programData = await mapCourseToPdfData(course);
-      const generator = new ProgramGeneratorService();
-      const pdfUrl = await generator.generateAndUploadProgramPDF(programData, course.programUrl);
-      updateData.programUrl = pdfUrl;
-      updateData.programOriginalName = `${programData.course?.name}.pdf`;
-      updateData.pdfSynced = true;
-
-      // Actualizar el curso con las URLs de los archivos
+      // Actualizar el curso con las URLs
       if (Object.keys(updateData).length > 0) {
         course = await this.courseRepository.update(course._id.toString(), updateData);
       }
 
       return course;
     } catch (uploadError) {
-      // Si falla la subida de archivos, eliminar el curso creado
-      await this.courseRepository.delete(course._id.toString());
+      // Solo eliminamos si es un error real en producción
+      if (process.env.NODE_ENV !== 'development') {
+        await this.courseRepository.delete(course._id.toString());
+      }
       throw new Error(`Error al subir archivos: ${(uploadError as Error).message}`);
     }
   }
