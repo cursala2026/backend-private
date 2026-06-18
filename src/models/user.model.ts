@@ -1,4 +1,4 @@
-import { Schema, model } from 'mongoose';
+import mongoose, { Schema, model } from 'mongoose';
 import { Types } from '@/models';
 import { UserStatus } from './enums';
 
@@ -77,4 +77,4 @@ export const UserSchema: Schema<UserModel> = new Schema<UserModel>(
   { timestamps: true }
 );
 
-export const User = model<UserModel>('User', UserSchema, 'users');
+export const User = mongoose.models.User || model<UserModel>('User', UserSchema, 'users');
