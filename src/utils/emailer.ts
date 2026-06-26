@@ -10,6 +10,7 @@ export interface EmailAttachment {
   path?: string;
   content?: Buffer | string;
   contentType?: string;
+  cid?: string;
 }
 
 export const sendEmail = async ({
@@ -17,11 +18,13 @@ export const sendEmail = async ({
   subject,
   html,
   attachments,
+  from,
 }: {
   email: string;
   subject: string;
   html: string;
   attachments?: EmailAttachment[];
+  from?: string;
 }) => {
   let transporter: nodemailer.Transporter;
   let usingEthereal = false;
@@ -63,7 +66,7 @@ export const sendEmail = async ({
   }
 
   const mailOptions = {
-    from: config.EMAIL_FROM,
+    from: from || config.EMAIL_FROM,
     to: email,
     subject,
     html,

@@ -10,7 +10,7 @@ export interface IQuestionOption {
 
 export interface IQuestion {
   _id?: Types.ObjectId;
-  type: 'MULTIPLE_CHOICE' | 'MULTIPLE_SELECT' | 'TEXT';
+  type: 'MULTIPLE_CHOICE' | 'MULTIPLE_SELECT' | 'TEXT' | 'LINEAR_SCALE'; // <-- AGREGADO LINEAR_SCALE
   // Texto breve del enunciado (para `promptType: 'TEXT'`) — se mantiene por compatibilidad
   questionText: string;
   // Tipo de enunciado/prompt: texto, imagen o video (imágenes/videos gestionados por Bunny)
@@ -26,12 +26,16 @@ export interface IQuestion {
   order: number;
   points: number;
   required: boolean;
-  // Solo para MULTIPLE_CHOICE
+  // Solo para MULTIPLE_CHOICE y MULTIPLE_SELECT
   options?: IQuestionOption[];
-  // Nota: soportamos múltiples respuestas correctas
-  // `correctOptionIds` es preferible; `correctOptionId` queda por compatibilidad
   correctOptionIds?: Types.ObjectId[];
   correctOptionId?: Types.ObjectId;
+  
+  // <-- AGREGADOS: Campos para LINEAR_SCALE
+  scaleMin?: number;
+  scaleMax?: number;
+  scaleMinLabel?: string;
+  scaleMaxLabel?: string;
 }
 
 export interface IQuestionnairePosition {
@@ -82,7 +86,7 @@ const QuestionSchema = new Schema<IQuestion>(
     type: {
       type: String,
       required: true,
-      enum: ['MULTIPLE_CHOICE', 'MULTIPLE_SELECT', 'TEXT'],
+      enum: ['MULTIPLE_CHOICE', 'MULTIPLE_SELECT', 'TEXT', 'LINEAR_SCALE'], // <-- AGREGADO LINEAR_SCALE
     },
     questionText: {
       type: String,
@@ -90,7 +94,6 @@ const QuestionSchema = new Schema<IQuestion>(
       trim: true,
       maxlength: 1000,
     },
-    // Prompt type and media URL for image/video prompts
     promptType: {
       type: String,
       required: false,
@@ -127,15 +130,19 @@ const QuestionSchema = new Schema<IQuestion>(
     },
     points: {
       type: Number,
-      required: true,
-      min: 0,
+      required: function (this: any) {
+        const parent = this.parent ? this.parent() : null;
+        if (parent && (parent.isSurvey || parent.status === 'DRAFT')) {
+          return false;
+        }
+        return true;
+      },
     },
     required: {
       type: Boolean,
       required: true,
       default: true,
     },
-    // Only for MULTIPLE_CHOICE
     options: {
       type: [QuestionOptionSchema],
       required: false,
@@ -148,6 +155,12 @@ const QuestionSchema = new Schema<IQuestion>(
       type: Schema.Types.ObjectId,
       required: false,
     },
+    
+    // <-- AGREGADOS: Campos para LINEAR_SCALE
+    scaleMin: { type: Number, default: 1 },
+    scaleMax: { type: Number, default: 10 },
+    scaleMinLabel: { type: String, default: '' },
+    scaleMaxLabel: { type: String, default: '' },
   },
   { _id: true }
 );
@@ -218,7 +231,9 @@ export const QuestionnaireSchema: Schema<QuestionnaireModel> = new Schema<Questi
     },
     passingScore: {
       type: Number,
-      required: false,
+      required: function (this: any) {
+        return !this.isSurvey && this.status !== 'DRAFT';
+      },
       min: 0,
       max: 100,
     },
@@ -268,5 +283,4 @@ QuestionnaireSchema.index({ 'position.afterClassId': 1 });
 const Questionnaire = model<QuestionnaireModel>('Questionnaire', QuestionnaireSchema, 'questionnaires');
 export { Questionnaire };
 
-// Document type for repositories
 export type QuestionnaireDoc = import('mongoose').HydratedDocument<IQuestionnaire>;

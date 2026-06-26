@@ -53,6 +53,7 @@ export async function main(req: Request, res: Response) {
 
 interface CursosPdfData {
     course?: {
+        id?: string;
         name: string;
         descripcion?: string;
     };
@@ -66,8 +67,9 @@ interface CursosPdfData {
 export async function mapCourseToPdfData(course: ICourse): Promise<CursosPdfData> {
     return {
         course: {
-        name: course.name,
-        descripcion: course.description,
+            id: course._id.toString(),
+            name: course.name,
+            descripcion: course.description,
         },
         dias: course.days,
         horarios: course.time,
@@ -99,7 +101,6 @@ export class ProgramGeneratorService {
                 });
 
                 doc.on('error', (err) => {
-                    console.error('Error generating PDF:', err);
                     reject(err);
                 });
 
@@ -127,30 +128,38 @@ export class ProgramGeneratorService {
                     y = doc.y + 3;
                     doc.fillColor('gray').fontSize(12).text(cleanText(`${programData.course?.descripcion}`), 35, y, { width: 350 });
                 }
-                doc.image('src/static/images/certificado.png', 470, y - 25, { fit: [70, 70] });
-                doc.image('src/static/images/birrete.png', 420, y, { fit: [70, 70] });
+                doc.image('src/static/images/certificado.png', 470, 100, { fit: [70, 70] });
+                doc.image('src/static/images/birrete.png', 420, 125, { fit: [70, 70] });
 
-                y = doc.y + 10;
+                const minSpace = 80;
+                y = Math.max(doc.y + 20, minSpace);
                 let lineY = y + 80;
 
                 // Días
                 doc.moveTo(35, y).lineTo(560, y).strokeColor('#e4e4e4').lineWidth(1).stroke();
                 doc.image('src/static/images/calendario.png', 77, y + 5, { fit: [35, 35] });
                 doc.fillColor('#5924d3').fontSize(14).text('Días', 80, y + 45);
-                if (programData.dias && programData.dias.filter(d => d && d.trim() !== '').length > 0) {
+                if (programData.dias) {
+                    const diasRaw = programData.dias || [];
+                    const diasValidos = diasRaw
+                    .flatMap(d => d.split(/[,;]+|\s+y\s+|\s+/))
+                    .map(d => d.trim())
+                    .filter(d => d !== '');
+
                     let diasY = y + 62;
-                    if (programData.dias.length > 2) {
+                    if (diasValidos.length > 2) {
                         doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('Varios días'), 65, diasY, { width: 60, align: 'center' });
-                    } else {
-                        programData.dias.forEach((dia: string) => {
+                    } else if (diasValidos.length > 0) {
+                        diasValidos.forEach((dia: string) => {
                             doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText(dia), 68, diasY, { width: 55, align: 'center' });
-                            diasY += 10;
+                            diasY += 15;
                         });
+                    }
+                     else {
+                        doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('-'), 67, y + 62, { width: 55, align: 'center' });
                     }
 
                     if (diasY > lineY) lineY = diasY;
-                } else {
-                    doc.font('Helvetica').fillColor('black').fontSize(12).text(cleanText('-'), 67, y + 62, { width: 55, align: 'center' });
                 }
 
                 // Horarios
@@ -289,8 +298,12 @@ export class ProgramGeneratorService {
 
         // Generar nuevo PDF y subirlo
         const pdfBuffer = await this.generateProgramPDF(programData);
-        const filename = `${programData.course?.name}_${Date.now()}.pdf`;
+        const filename = `${programData.course?.name}.pdf`;
         const programUrl = await this.courseUploadService.uploadProgramFile(pdfBuffer, filename, 'course-programs');
+        if (programData.course?.id) {
+            const { courseRepository } = await conection();
+            await courseRepository.update(programData.course.id, { programUrl });
+        }
         return programUrl;
     }
 }

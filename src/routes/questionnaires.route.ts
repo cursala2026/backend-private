@@ -5,6 +5,7 @@ import { requireAdminOrQuestionnaireOwner } from '@/middlewares/questionnaire.mi
 import { questionnaireController, questionnaireSubmissionController } from '@/controllers';
 import { questionnaireRepository } from '@/repositories';
 import { uploadQuestionMedia } from '@/utils/fileUpload.util';
+import { downloadQuestionnairePDF } from '@/controllers/report.controller';
 
 const router = Router();
 
@@ -48,7 +49,15 @@ router.get('/:questionnaireId/has-submissions', authorize, (req, res, next) => q
 router.get('/:questionnaireId/pending-grading', authorize, (req, res, next) =>
   questionnaireSubmissionController.getPendingGrading(req, res, next)
 );
-
+router.get(
+  '/:questionnaireId/report/pdf',
+  authorize,
+  (req, res, next) => {
+    const middleware = requireAdminOrQuestionnaireOwner(questionnaireRepository);
+    return middleware(req, res, next);
+  },
+  (req, res) => downloadQuestionnairePDF(req, res)
+);
 // Get questionnaire by ID
 router.get('/:questionnaireId', authorize, (req, res, next) => questionnaireController.findById(req, res, next));
 

@@ -1,7 +1,8 @@
 import { IUser, UserSchema, IAssignedCourseEdit } from '../models/user.model';
+import { ICourseStart, IRecommendedCourse, IUserMongo, UserModel } from '../models/mongo/user.model';
 import { IUserExtended } from '@/types/user.types';
 import { Connection, Model, Types, UserStatus } from '@/models';
-import { CourseSchema } from '../models/mongo/course.model';
+import { CourseSchema, ICourse } from '../models/mongo/course.model';
 import { logger } from '../utils';
 import bcrypt from 'bcryptjs';
 
@@ -57,6 +58,133 @@ class UserRepository {
       .exec();
     
     return res as unknown as IUser | null;
+  }
+
+  async findUsersWithNoEnrollments(): Promise<IUserMongo[]> {
+    const enrolledUserIds = await this.courseModel.distinct('students.userId');
+
+    const users = await UserModel.find({
+      roles:{ $in: ['ALUMNO'] },
+      _id: { $nin: enrolledUserIds },
+      $or: [
+        { notifiedOnNoCourse: { $exists: false } },
+        { notifiedOnNoCourse: null }
+      ]
+    }).lean<IUserMongo[]>().exec();
+
+    if (users.length === 0) {
+      return [{
+        id: new Types.ObjectId().toString(),
+        name: 'Nombre de usuario',
+        email: 'usuario@gmail.com',
+        courses: [],
+        notifiedOnNoCourse: undefined
+      }];
+    }
+    return users.map((u: any) => ({
+      id: u._id.toString(),
+      name: u.username,
+      email: u.email,
+      courses: u.courses || [],
+      notifiedOnNoCourse: u.notifiedOnNoCourse,
+      roles: u.roles
+    })) as IUserMongo[];
+  }
+
+  async markUserNotifiedNoCourse(userId: string): Promise<void> {
+    await UserModel.updateOne(
+      { _id: new Types.ObjectId(userId) },
+      { $set: { notifiedOnNoCourse: new Date() } }
+    ).exec();
+  }
+
+  async markUserNotifiedCourseStart(userId: string): Promise<void> {
+    await UserModel.updateOne(
+      { _id: new Types.ObjectId(userId) },
+      { $set: { notifiedOnCourseStart: new Date() } }
+    ).exec();
+  }
+
+  async findRecommendedCourses(): Promise<IRecommendedCourse[]> {
+    const user = await UserModel.find().lean();
+    const results: IRecommendedCourse[] = [];
+    const seen = new Set<string>();
+
+    for (const u of user) {
+      if (!u.interests || u.interests.length === 0) continue;
+
+      const courses = await this.courseModel.find({
+        _id: { $in: u.interests || [] }
+      })
+      .select('name imageUrl description duration level')
+      .lean<ICourse[]>();
+
+      for (const c of courses) {
+        if (seen.has(c._id.toString())) continue;
+        seen.add(c._id.toString());
+
+        results.push({
+          name: c.name,
+          img: c.imageUrl ?? '',
+          description: c.description ?? '',
+          duration: c.duration ?? 0,
+          level: c.category ? JSON.parse(c.category).name : 'Básico',
+        });
+      }
+    }
+
+    if (results.length === 0) {
+      return [{
+        name: 'Curso recomendado',
+        img: '',
+        description: 'Descripción del curso recomendado',
+        duration: 0,
+        level: 'Básico',
+      }];
+    }
+
+    return results;
+  }
+
+  async findCoursesStart(): Promise<ICourseStart[]> {
+    const now = new Date();
+    const oneWeekLater = new Date();
+    oneWeekLater.setDate(now.getDate() + 7);
+
+    const users = await UserModel.find().lean();
+    const results: ICourseStart[] = [];
+
+    for (const u of users) {
+      const courses = await this.courseModel.find({
+        "students.userId": u._id,
+        startDate: { $gt: now, $lte: oneWeekLater }
+      })
+      .select('name startDate')
+      .lean<ICourse[]>();
+
+      for (const c of courses) {
+        results.push({ 
+          id: String(c._id),
+          userId: String(u._id),
+          courseName: c.name, 
+          userName: u.username,
+          email: u.email,
+          startDate: c.startDate ?? new Date(),
+        });
+      }
+    }
+    if (results.length === 0) {
+      return [{
+        id: new Types.ObjectId().toString(),
+        userId: new Types.ObjectId().toString(),
+        courseName: 'Curso que empieza pronto',
+        userName: 'Nombre de usuario',
+        email: 'usuario@gmail.com',
+        startDate: new Date(),
+      }];
+    }
+
+    return results;
   }
 
   /**
