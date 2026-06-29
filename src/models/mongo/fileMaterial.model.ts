@@ -32,6 +32,7 @@ export interface IFileMaterial {
   downloadCount: number;
   uploadedBy: ObjectId;
   status: UserStatus;
+  folderPath?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -105,6 +106,12 @@ export const FileMaterialSchema: Schema<IFileMaterial> = new Schema<IFileMateria
       enum: Object.values(UserStatus),
       default: UserStatus.ACTIVE,
     },
+    folderPath: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -117,6 +124,7 @@ export const FileMaterialSchema: Schema<IFileMaterial> = new Schema<IFileMateria
 FileMaterialSchema.index({ status: 1, type: 1 });
 FileMaterialSchema.index({ category: 1, status: 1 });
 FileMaterialSchema.index({ isPublic: 1, status: 1 });
+FileMaterialSchema.index({ folderPath: 1, status: 1 });
 FileMaterialSchema.index({ uploadedBy: 1 });
 FileMaterialSchema.index({ createdAt: -1 });
 
