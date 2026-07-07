@@ -45,6 +45,16 @@ export default class UserController {
     }
   };
 
+  getSignedContract = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userId } = req.params as { userId: string };
+      const signedContract = await this.userService.getSignedContract(userId);
+      return res.json(prepareResponse(200, 'Signed contract fetched successfully', signedContract));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   removeRoleFromUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { user, role } = req.body;
