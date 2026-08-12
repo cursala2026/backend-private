@@ -49,6 +49,11 @@ export default class UserController {
     try {
       const { userId } = req.params as { userId: string };
       const signedContract = await this.userService.getSignedContract(userId);
+
+      if (!signedContract) {
+        return res.status(404).json(prepareResponse(404, 'Signed contract not found', null));
+      }
+
       return res.json(prepareResponse(200, 'Signed contract fetched successfully', signedContract));
     } catch (error) {
       return next(error);

@@ -6,6 +6,7 @@ const router = Router();
 
 router.post('/file-materials', authorize, fileMaterialController.uploadMaterial);
 router.get('/file-materials', authorize, fileMaterialController.getMaterials);
+router.get('/file-materials/folders', authorize, fileMaterialController.getDistinctFolders);
 router.get('/file-materials/public', authorize, fileMaterialController.getPublicMaterials);
 router.get('/file-materials/my-materials', authorize, fileMaterialController.getMyMaterials);
 router.get('/file-materials/stats', authorize, fileMaterialController.getMaterialStats);

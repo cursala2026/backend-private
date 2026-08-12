@@ -31,6 +31,9 @@ router.get('/getUnassignedCoursesEdit/:userId', authorize, requireAdmin, userCon
 router.get('/isCourseAccessible/:courseId', authorize, userController.isCourseAccessibleForUser);
 router.get('/course-access-info/:courseId', authorize, userController.getCourseAccessInfo);
 
+// Ruta Contrato firmado del profesor
+router.get('/signed-contract/:userId', authorize, requireAdminOrSelf, userController.getSignedContract);
+
 // Rutas con parámetros dinámicos - DEBEN estar al FINAL para evitar capturar rutas estáticas
 router.get('/:userId', authorize, requireAdminOrSelf, userController.getUserById);
 
