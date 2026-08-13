@@ -6,6 +6,10 @@ import { logger } from '../utils';
 import { fileMaterialService } from '@/services';
 import { ensureString } from '@utils/type-guards';
 
+function isValidFolderPath(folderPath: string): boolean {
+  return /^[a-zA-Z0-9_\-/]+$/.test(folderPath);
+}
+
 export class FileMaterialController {
   /**
    * Subir nuevo material/plantilla
@@ -30,7 +34,7 @@ export class FileMaterialController {
           });
         }
 
-        const { name, description, type, category, isPublic } = req.body;
+        const { name, description, type, category, isPublic, folderPath } = req.body;
         const authUser = (req as Request & { user?: { _id?: string } }).user;
         const userId = authUser?._id;
 
@@ -64,6 +68,14 @@ export class FileMaterialController {
           });
         }
 
+        // Validar folderPath
+        if (folderPath !== undefined && !isValidFolderPath(folderPath)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Formato de folderPath inválido',
+          });
+        }
+
         const materialData = {
           name: name.trim(),
           description: description?.trim(),
@@ -72,6 +84,7 @@ export class FileMaterialController {
           isPublic: isPublic === 'true' || isPublic === true,
           uploadedBy: userId,
           file: req.file,
+          folderPath: folderPath?.trim() || null,
         };
 
         const material = await fileMaterialService.createFileMaterial(materialData);
@@ -92,18 +105,40 @@ export class FileMaterialController {
   };
 
   /**
+   * Obtener carpetas distintas
+   * GET /api/file-materials/folders
+   */
+  getDistinctFolders = async (req: Request, res: Response) => {
+    try {
+      const folders = await fileMaterialService.getDistinctFolders();
+      res.status(200).json({
+        success: true,
+        message: 'Carpetas obtenidas exitosamente',
+        data: folders,
+      });
+    } catch (error) {
+      logger.error('Error getting distinct folders:', error);
+      res.status(500).json({
+        success: false,
+        message: (error as Error).message,
+      });
+    }
+  };
+
+  /**
    * Obtener todos los materiales con filtros
    * GET /api/file-materials
    */
   getMaterials = async (req: Request, res: Response) => {
     try {
-      const { type, category, isPublic, uploadedBy, page = 1, limit = 10, sort = '-createdAt' } = req.query;
+      const { type, category, isPublic, uploadedBy, folderPath, page = 1, limit = 10, sort = '-createdAt' } = req.query;
 
-      const filters: { type?: FileMaterialType; category?: FileMaterialCategory; isPublic?: boolean; uploadedBy?: string; page?: number; limit?: number; sort?: string } = {};
+      const filters: { type?: FileMaterialType; category?: FileMaterialCategory; isPublic?: boolean; uploadedBy?: string; folderPath?: string; page?: number; limit?: number; sort?: string } = {};
       if (type) filters.type = type as unknown as FileMaterialType;
       if (category) filters.category = category as unknown as FileMaterialCategory;
       if (isPublic !== undefined) filters.isPublic = isPublic === 'true';
       if (uploadedBy) filters.uploadedBy = String(uploadedBy);
+      if (folderPath) filters.folderPath = String(folderPath);
 
       filters.page = parseInt(page as string, 10);
       filters.limit = parseInt(limit as string, 10);
@@ -131,11 +166,12 @@ export class FileMaterialController {
    */
   getPublicMaterials = async (req: Request, res: Response) => {
     try {
-      const { type, category, page = 1, limit = 10 } = req.query;
+      const { type, category, folderPath, page = 1, limit = 10 } = req.query;
 
       const materials = await fileMaterialService.getPublicMaterials(
         type as FileMaterialType,
         category as FileMaterialCategory,
+        folderPath ? String(folderPath) : undefined,
         parseInt(page as string, 10),
         parseInt(limit as string, 10)
       );
@@ -193,7 +229,7 @@ export class FileMaterialController {
     try {
       const authUser = (req as Request & { user?: { _id?: string } }).user;
       const userId = authUser?._id;
-      const { page = 1, limit = 10 } = req.query;
+      const { page = 1, limit = 10, folderPath } = req.query;
 
       if (!userId) {
         return res.status(401).json({
@@ -205,7 +241,8 @@ export class FileMaterialController {
       const materials = await fileMaterialService.getUserMaterials(
         userId,
         parseInt(page as string, 10),
-        parseInt(limit as string, 10)
+        parseInt(limit as string, 10),
+        folderPath ? String(folderPath) : undefined
       );
 
       res.status(200).json({
@@ -229,7 +266,7 @@ export class FileMaterialController {
   updateMaterial = async (req: Request, res: Response) => {
     try {
       const id = ensureString(req.params.id);
-      const { name, description, isPublic, status } = req.body;
+      const { name, description, isPublic, status, folderPath } = req.body;
       const authUser = (req as Request & { user?: { _id?: string } }).user;
       const userId = authUser?._id;
 
@@ -256,11 +293,20 @@ export class FileMaterialController {
         });
       }
 
-      const updateData: { name?: string; description?: string; isPublic?: boolean; status?: UserStatus } = {};
+      // Validar folderPath
+      if (folderPath !== undefined && !isValidFolderPath(folderPath)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Formato de folderPath inválido',
+        });
+      }
+
+      const updateData: { name?: string; description?: string; isPublic?: boolean; status?: UserStatus, folderPath?: string } = {};
       if (name !== undefined) updateData.name = String(name).trim();
       if (description !== undefined) updateData.description = String(description).trim();
       if (isPublic !== undefined) updateData.isPublic = Boolean(isPublic);
       if (status !== undefined) updateData.status = status as unknown as UserStatus;
+      if (folderPath !== undefined) updateData.folderPath = String(folderPath).trim();
 
       const updatedMaterial = await fileMaterialService.updateFileMaterial(id, updateData);
 

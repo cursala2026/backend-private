@@ -73,19 +73,23 @@ export default class UserService {
       throw new Error('Usuario no encontrado');
     }
 
+    // Caso 1: contrato guardado en el modelo de usuario
     if (user.signedContracturl) {
       return { url: user.signedContracturl };
     }
 
+    // Caso 2: contrato guardado como FileMaterial
     const file = await FileMaterialMongo.findOne({
-      userId,
+      uploadedBy: userId,
       type: 'SIGNED_CONTRACT',
+      status: 'ACTIVE',
     }).lean();
 
     if (!file) {
       throw new Error('Contrato no disponible');
     }
-    return { url: file.url };
+    
+    return { url: file.fileUrl };
   }
 
   async createUser(userData: Partial<IUser>) {

@@ -111,6 +111,7 @@ export const FileMaterialSchema: Schema<IFileMaterial> = new Schema<IFileMateria
       trim: true,
       maxlength: 500,
       default: null,
+      match: /^[a-zA-Z0-9_\-/]+$/,
     },
   },
   {
