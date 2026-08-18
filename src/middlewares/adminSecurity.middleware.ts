@@ -440,3 +440,33 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
     }
   };
 }
+
+/**
+ * Middleware que permite acceso a admins O a professors a documentos.
+ * Usar para endpoints de lectura (GET) que los professors pueden ver.
+ */
+export async function requireAdminOrProfessor(req: Request, res:Response, next: NextFunction) {
+  const { user } = req;
+
+  if (!user) {
+    return res.status(401).json({ success: false, message: 'No autenticado' });
+  }
+
+  try {
+    const roles = user.roles || [];
+    const hasAdmin = roles.some((r: any) => (typeof r === 'string' ? r : r.code)?.toUpperCase() === 'ADMIN');
+    const hasProfessor = roles.some((r: any) => (typeof r === 'string' ? r : r.code)?.toUpperCase() === 'PROFESOR');
+
+    if (hasAdmin || hasProfessor) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      message: 'Acceso denegado. Solo el administrador o un profesor pueden realizar esta acción.'
+    });
+  } catch (err) {
+    logger.error('Error en requireAdminOrProfessor:', err);
+    return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+}

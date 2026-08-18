@@ -1,18 +1,20 @@
 import { Router } from 'express';
 import fileMaterialController from '@/controllers/fileMaterial.controller';
 import { authorize } from '@/middlewares/auth.middleware';
+import { requireAdminOrProfessor, requireAdmin } from '@/middlewares/adminSecurity.middleware';
 
 const router = Router();
 
-router.post('/file-materials', authorize, fileMaterialController.uploadMaterial);
-router.get('/file-materials', authorize, fileMaterialController.getMaterials);
-router.get('/file-materials/folders', authorize, fileMaterialController.getDistinctFolders);
-router.get('/file-materials/public', authorize, fileMaterialController.getPublicMaterials);
-router.get('/file-materials/my-materials', authorize, fileMaterialController.getMyMaterials);
-router.get('/file-materials/stats', authorize, fileMaterialController.getMaterialStats);
-router.get('/file-materials/:id', authorize, fileMaterialController.getMaterialById);
-router.get('/file-materials/:id/download', authorize, fileMaterialController.downloadMaterial);
-router.patch('/file-materials/:id', authorize, fileMaterialController.updateMaterial);
-router.delete('/file-materials/:id', authorize, fileMaterialController.deleteMaterial);
+router.get('/', authorize, requireAdminOrProfessor, fileMaterialController.getMaterials);
+router.get('/folders', authorize, requireAdminOrProfessor, fileMaterialController.getDistinctFolders);
+router.get('/public', authorize, requireAdminOrProfessor, fileMaterialController.getPublicMaterials);
+router.get('/my-materials', authorize, fileMaterialController.getMyMaterials);
+router.get('/stats', authorize, fileMaterialController.getMaterialStats);
+router.get('/:id', authorize, fileMaterialController.getMaterialById);
+router.get('/:id/download', authorize, requireAdminOrProfessor, fileMaterialController.downloadMaterial);
+
+router.post('/', authorize, requireAdmin, fileMaterialController.uploadMaterial);
+router.patch('/:id', authorize, requireAdmin, fileMaterialController.updateMaterial);
+router.delete('/:id', authorize, requireAdmin, fileMaterialController.deleteMaterial);
 
 export default router;

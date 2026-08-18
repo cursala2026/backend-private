@@ -90,6 +90,10 @@ export default async function registerRoutes() {
           const altRouter = Router();
           altRouter.use('/support-tickets', router);
           routers.push(altRouter);
+        } else if (prefix === 'fileMaterial') {
+          const altRouter = Router();
+          altRouter.use('/file-materials', router);
+          routers.push(altRouter);
         }
       } else {
         routers.push(router);
