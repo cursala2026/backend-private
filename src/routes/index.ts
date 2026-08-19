@@ -82,6 +82,10 @@ export default async function registerRoutes() {
         // también montar el mismo router bajo `/bank-accounts` para mantener compatibilidad
         // con llamadas que usan `/bank-accounts/...`.
         // Y para `supportTicket.route.ts` a `/support-tickets`.
+        // En src/routes/index.ts, dentro del bloque if (prefix !== 'auth' ...)
+
+        // En src/routes/index.ts, dentro del bloque if (prefix !== 'auth' ...)
+
         if (prefix === 'bankAccount') {
           const altRouter = Router();
           altRouter.use('/bank-accounts', router);
@@ -89,6 +93,10 @@ export default async function registerRoutes() {
         } else if (prefix === 'supportTicket') {
           const altRouter = Router();
           altRouter.use('/support-tickets', router);
+          routers.push(altRouter);
+        } else if (prefix === 'fileMaterial' || prefix === 'fileMaterials') {
+          const altRouter = Router();
+          altRouter.use('/file-materials', router);
           routers.push(altRouter);
         }
       } else {
