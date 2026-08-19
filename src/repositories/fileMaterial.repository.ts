@@ -27,6 +27,7 @@ class FileMaterialRepository {
     category: FileMaterialCategory;
     isPublic: boolean;
     uploadedBy: string | unknown;
+    folderPath?: string;
   }): Promise<FileMaterialDoc | IFileMaterial> {
     try {
       // Accept both string IDs and ObjectId; normalize uploadedBy to ObjectId | undefined.
@@ -91,12 +92,14 @@ class FileMaterialRepository {
   async findPublicMaterials(
     type?: FileMaterialType,
     category?: FileMaterialCategory,
+    folderPath?: string,
     options: { page?: number; limit?: number; sort?: string } = {}
   ): Promise<unknown> {
     try {
       const query: Record<string, unknown> = { isPublic: true, status: UserStatus.ACTIVE };
       if (type) query.type = type;
       if (category) query.category = category;
+      if (folderPath) query.folderPath = folderPath;
       return await this.findWithPagination(query, options);
     } catch (error) {
       throw new Error(`Error al obtener materiales públicos: ${(error as Error).message}`);
@@ -116,11 +119,18 @@ class FileMaterialRepository {
   }
 
   /**
+   * Obtener carpetas distintas
+   */
+  async getDistinctFolders(): Promise<string[]> {
+    return await this.model.distinct('folderPath', { status: UserStatus.ACTIVE });
+  }
+
+  /**
    * Actualizar material por ID
    */
   async updateById(
     id: string,
-    updateData: { name?: string; description?: string; isPublic?: boolean; status?: UserStatus }
+    updateData: { name?: string; description?: string; isPublic?: boolean; status?: UserStatus, folderPath?: string }
   ): Promise<FileMaterialDoc | IFileMaterial | null> {
     try {
       return (await this.model

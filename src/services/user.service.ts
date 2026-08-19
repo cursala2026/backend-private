@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import bcrypt from 'bcryptjs';
-import { IUser } from '../models/user.model';
+import { IUser, User } from '../models/user.model';
 import { sendEmail } from '../utils/emailer';
 import config from '@/config';
 import { IUserExtended } from '@/types/user.types';
@@ -16,6 +16,7 @@ import logger from '@/utils/logger';
 import { courseProgressRepository } from '@/repositories/courseProgress.repository';
 import QuestionnaireSubmissionRepository from '@/repositories/questionnaireSubmission.repository';
 import generalConnection from '@/config/databases';
+import { FileMaterialMongo } from '@/models/mongo/fileMaterial.model';
 
 // Directorio remoto (desarrollo) - verificar si está montado
 const remoteStaticDir = path.join(os.homedir(), 'cursala-remote-static');
@@ -64,6 +65,31 @@ export default class UserService {
 
   async getTeachers() {
     return this.userRepository.getTeachers();
+  }
+
+  async getSignedContract(userId: string) {
+    const user = await User.findById(userId).lean();
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    // Caso 1: contrato guardado en el modelo de usuario
+    if (user.signedContracturl) {
+      return { url: user.signedContracturl };
+    }
+
+    // Caso 2: contrato guardado como FileMaterial
+    const file = await FileMaterialMongo.findOne({
+      uploadedBy: userId,
+      type: 'SIGNED_CONTRACT',
+      status: 'ACTIVE',
+    }).lean();
+
+    if (!file) {
+      throw new Error('Contrato no disponible');
+    }
+    
+    return { url: file.fileUrl };
   }
 
   async createUser(userData: Partial<IUser>) {

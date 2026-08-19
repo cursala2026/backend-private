@@ -26,6 +26,7 @@ export interface IUser {
   professionalDescription?: string;
   profilePhotoUrl?: string;
   professionalSignatureUrl?: string;
+  signedContractUrl?: string;
   // Implementación Issue #15
   hasCompletedInterestsForm: boolean;
   interests: Types.ObjectId[];
@@ -59,6 +60,7 @@ export const UserSchema: Schema<UserModel> = new Schema<UserModel>(
     professionalDescription: { type: String, required: false },
     profilePhotoUrl: { type: String, required: false },
     professionalSignatureUrl: { type: String, required: false },
+    signedContractUrl: { type: String, required: false },
     
     // UBICACIÓN CORRECTA ISSUE #15
     hasCompletedInterestsForm: { 

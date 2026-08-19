@@ -150,3 +150,39 @@ describe('UserController.getUsersPaginated', () => {
     expect(next).toHaveBeenCalledWith(expect.any(Error));
   });
 });
+describe('UserController.getSignedContract', () => {
+  let controller: UserController;
+  const next = jest.fn();
+  const mockUserService = { getSignedContract: jest.fn() };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    controller = new UserController(mockUserService as any);
+  });
+
+  test('should return signed contract when service resolves', async () => {
+    const req = { params: { userId: '507f1f77bcf86cd799439011' } } as any;
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() } as any;
+
+    mockUserService.getSignedContract.mockResolvedValue({ url: 'http://cdn/contracts/abc.pdf' });
+
+    await controller.getSignedContract(req, res, next);
+
+    expect(mockUserService.getSignedContract).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ 
+      success: true,
+      data: { url: 'http://cdn/contracts/abc.pdf' }
+    }));
+  });
+  
+  test('should call next(error) when service throws', async () => {
+    const req = { params: { userId: '507f1f77bcf86cd799439011' } } as any;
+    const res = { json: jest.fn(), status: jest.fn().mockReturnThis() } as any;
+
+    mockUserService.getSignedContract.mockRejectedValue(new Error('Contrato no disponible'));
+
+    await controller.getSignedContract(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+  });
+});

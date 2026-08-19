@@ -15,6 +15,7 @@ interface CreateFileMaterialData {
   category: FileMaterialCategory;
   isPublic: boolean;
   uploadedBy: string;
+  folderPath?: string;
   file: {
     mimetype: string;
     filename: string;
@@ -28,6 +29,7 @@ interface UpdateFileMaterialData {
   description?: string;
   isPublic?: boolean;
   status?: UserStatus;
+  folderPath?: string;
 }
 
 interface FileMaterialFilters {
@@ -35,6 +37,7 @@ interface FileMaterialFilters {
   category?: FileMaterialCategory;
   isPublic?: boolean;
   uploadedBy?: string;
+  folderPath?: string;
   page?: number;
   limit?: number;
   sort?: string;
@@ -78,6 +81,7 @@ export class FileMaterialService {
         category,
         isPublic: data.isPublic,
         uploadedBy: new Types.ObjectId(data.uploadedBy),
+        folderPath: data.folderPath ? data.folderPath.trim() : undefined,
       };
 
       // Crear el registro en la base de datos
@@ -109,13 +113,14 @@ export class FileMaterialService {
    */
   async getFileMaterials(filters: FileMaterialFilters = {}) {
     try {
-      const { type, category, isPublic, uploadedBy, page = 1, limit = 10, sort = '-createdAt' } = filters;
+      const { type, category, isPublic, uploadedBy, folderPath, page = 1, limit = 10, sort = '-createdAt' } = filters;
 
       const rawQuery: Record<string, unknown> = {};
       if (type) rawQuery.type = type;
       if (category) rawQuery.category = category;
       if (isPublic !== undefined) rawQuery.isPublic = isPublic;
       if (uploadedBy) rawQuery.uploadedBy = String(uploadedBy);
+      if (folderPath) rawQuery.folderPath = String(folderPath);
 
       const options = { page, limit, sort };
 
@@ -131,12 +136,13 @@ export class FileMaterialService {
   async getPublicMaterials(
     type?: FileMaterialType,
     category?: FileMaterialCategory,
+    folderPath?: string,
     page: number = 1,
     limit: number = 10
   ) {
     try {
       const options = { page, limit, sort: '-createdAt' };
-      return await fileMaterialRepository.findPublicMaterials(type, category, options);
+      return await fileMaterialRepository.findPublicMaterials(type, category, folderPath, options);
     } catch (error) {
       throw new Error(`Error al obtener materiales públicos: ${(error as Error).message}`);
     }
@@ -145,17 +151,27 @@ export class FileMaterialService {
   /**
    * Obtener materiales subidos por un usuario
    */
-  async getUserMaterials(userId: string, page: number = 1, limit: number = 10) {
+  async getUserMaterials(userId: string, page: number = 1, limit: number = 10, folderPath?: string) {
     try {
       if (!Types.ObjectId.isValid(userId)) {
         throw new Error('ID de usuario inválido');
       }
 
       const options = { page, limit, sort: '-createdAt' };
-      return await fileMaterialRepository.findByUser(userId, options);
+      const query: Record<string, unknown> = { uploadedBy: String(userId), status: UserStatus.ACTIVE };
+      if (folderPath) query.folderPath = folderPath;
+
+      return await fileMaterialRepository.findWithPagination(query, options);
     } catch (error) {
       throw new Error(`Error al obtener materiales del usuario: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Obtener carpetas distintas
+   */
+  async getDistinctFolders(): Promise<string[]> {
+    return await fileMaterialRepository.getDistinctFolders();
   }
 
   /**
