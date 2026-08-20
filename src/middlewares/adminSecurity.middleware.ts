@@ -52,13 +52,46 @@ function extractUserRoles(user: any): string[] {
   return rolesList;
 }
 
-async function hasAdminRole(user: IUser | undefined): Promise<boolean> {
+async function hasAdminRole(user: any): Promise<boolean> {
   if (!user) return false;
   try {
-    const roles = extractUserRoles(user);
-    return roles.includes('ADMIN');
+    // 1. Estándar Cursala: String único (user.role === 'ADMIN')
+    if (typeof user.role === 'string' && user.role.trim().toUpperCase() === 'ADMIN') {
+      return true;
+    }
+
+    // 2. Compatibilidad: Array de roles o códigos
+    if (Array.isArray(user.roles)) {
+      return user.roles.some((r: any) => {
+        const code = typeof r === 'string' ? r : (r && r.code ? r.code : '');
+        return String(code).trim().toUpperCase() === 'ADMIN';
+      });
+    }
+
+    return false;
   } catch (err) {
     logger.error('Error checking admin role in hasAdminRole:', err);
+    return false;
+  }
+}
+
+async function hasVendedorRole(user: any): Promise<boolean> {
+  if (!user) return false;
+  try {
+    if (typeof user.role === 'string' && user.role.trim().toUpperCase() === 'VENDEDOR') {
+      return true;
+    }
+
+    if (Array.isArray(user.roles)) {
+      return user.roles.some((r: any) => {
+        const code = typeof r === 'string' ? r : (r && r.code ? r.code : '');
+        return String(code).trim().toUpperCase() === 'VENDEDOR';
+      });
+    }
+
+    return false;
+  } catch (err) {
+    logger.error('Error checking vendedor role in hasVendedorRole:', err);
     return false;
   }
 }
