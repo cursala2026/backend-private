@@ -7,7 +7,6 @@ import { IUser } from '../models/user.model';
 import { userRepository } from '@/repositories';
 import { ensureString } from '@/utils/type-guards';
 
-// Nombre del header donde el front enviará el token temporal recibido tras verify-code
 const TEMP_AUTH_HEADER = 'x-admin-temp-auth';
 
 interface TempAuthToken {
@@ -17,45 +16,16 @@ interface TempAuthToken {
   expiresAt: number;
 }
 
-// Adaptador de tipos a cadena
 function toUserIdString(user: IUser): string {
   // eslint-disable-next-line no-underscore-dangle
   const id = user._id as unknown as Types.ObjectId | string;
   return typeof id === 'string' ? id : id.toHexString();
 }
 
-/**
- * Normaliza las fuentes de rol del usuario (role escalar o roles array)
- * a una lista unificada de strings en mayúsculas.
- */
-function extractUserRoles(user: any): string[] {
-  if (!user) return [];
-
-  const rolesList: string[] = [];
-
-  // 1. Caso String escalar nativo de Cursala (user.role)
-  if (typeof user.role === 'string' && user.role.trim()) {
-    rolesList.push(user.role.trim().toUpperCase());
-  }
-
-  // 2. Caso Array (user.roles) ya sea de strings o de objetos { code: string }
-  if (Array.isArray(user.roles)) {
-    user.roles.forEach((r: any) => {
-      if (typeof r === 'string' && r.trim()) {
-        rolesList.push(r.trim().toUpperCase());
-      } else if (typeof r === 'object' && r !== null && 'code' in r && typeof r.code === 'string') {
-        rolesList.push(r.code.trim().toUpperCase());
-      }
-    });
-  }
-
-  return rolesList;
-}
-
-async function hasAdminRole(user: any): Promise<boolean> {
+export async function hasAdminRole(user: any): Promise<boolean> {
   if (!user) return false;
   try {
-    // 1. Estándar Cursala: String único (user.role === 'ADMIN')
+    // 1. Estándar Cursala: String único (user.role = "ADMIN")
     if (typeof user.role === 'string' && user.role.trim().toUpperCase() === 'ADMIN') {
       return true;
     }
@@ -75,7 +45,7 @@ async function hasAdminRole(user: any): Promise<boolean> {
   }
 }
 
-async function hasVendedorRole(user: any): Promise<boolean> {
+export async function hasVendedorRole(user: any): Promise<boolean> {
   if (!user) return false;
   try {
     if (typeof user.role === 'string' && user.role.trim().toUpperCase() === 'VENDEDOR') {
@@ -90,17 +60,6 @@ async function hasVendedorRole(user: any): Promise<boolean> {
     }
 
     return false;
-  } catch (err) {
-    logger.error('Error checking vendedor role in hasVendedorRole:', err);
-    return false;
-  }
-}
-
-async function hasVendedorRole(user: IUser | undefined): Promise<boolean> {
-  if (!user) return false;
-  try {
-    const roles = extractUserRoles(user);
-    return roles.includes('VENDEDOR');
   } catch (err) {
     logger.error('Error checking vendedor role in hasVendedorRole:', err);
     return false;
@@ -132,10 +91,6 @@ function decodeTempToken(token: string | undefined): TempAuthToken | null {
   }
 }
 
-/**
- * Middleware básico que solo verifica si el usuario tiene rol de administrador.
- * NO requiere verificación de email adicional.
- */
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const { user } = req;
 
@@ -152,7 +107,6 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     let userIdString: string;
 
     if (!userId) {
-      logger.warn('requireAdmin: user._id is undefined or null', { user });
       return res.status(403).json({ success: false, message: 'Acceso denegado. Usuario no válido.' });
     }
 
@@ -177,9 +131,6 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   }
 }
 
-/**
- * Middleware que permite acceso a admin o vendedor.
- */
 export async function requireAdminOrVendedor(req: Request, res: Response, next: NextFunction) {
   const { user } = req;
 
@@ -188,7 +139,7 @@ export async function requireAdminOrVendedor(req: Request, res: Response, next: 
   }
 
   try {
-    if ((await hasAdminRole(user)) || (await hasVendedorRole(user))) {
+    if (await hasAdminRole(user) || await hasVendedorRole(user)) {
       return next();
     }
 
@@ -208,7 +159,7 @@ export async function requireAdminOrVendedor(req: Request, res: Response, next: 
     }
 
     const fullUser = await userRepository.getUserById(userIdString);
-    if (fullUser && ((await hasAdminRole(fullUser as IUser)) || (await hasVendedorRole(fullUser as IUser)))) {
+    if (fullUser && (await hasAdminRole(fullUser as IUser) || await hasVendedorRole(fullUser as IUser))) {
       req.user = fullUser as any;
       return next();
     }
@@ -220,10 +171,6 @@ export async function requireAdminOrVendedor(req: Request, res: Response, next: 
   }
 }
 
-/**
- * Middleware de guardia administrativa por ruta.
- * Requiere rol de admin + verificación de email con código de seguridad.
- */
 export function requireAdminVerification(requiredActionId?: string) {
   return (req: Request, res: Response, next: NextFunction) => {
     (async () => {
@@ -242,7 +189,6 @@ export function requireAdminVerification(requiredActionId?: string) {
       const actionId = requiredActionId ?? derivedAction;
 
       const tempToken = req.header(TEMP_AUTH_HEADER);
-
       const queryToken = req.query.tempAuthToken as string | undefined;
       if (queryToken) {
         logger.error('🚨 SECURITY VIOLATION: Attempt to pass tempAuthToken in query string');
@@ -264,9 +210,7 @@ export function requireAdminVerification(requiredActionId?: string) {
       }
 
       if (payload.userId !== toUserIdString(user)) {
-        return res
-          .status(403)
-          .json({ success: false, message: 'Token inválido para este usuario.', requiredAction: actionId });
+        return res.status(403).json({ success: false, message: 'Token inválido para este usuario.', requiredAction: actionId });
       }
 
       if (Date.now() > payload.expiresAt) {
@@ -274,9 +218,7 @@ export function requireAdminVerification(requiredActionId?: string) {
       }
 
       if (payload.action !== actionId) {
-        return res
-          .status(403)
-          .json({ success: false, message: 'Token no autorizado para esta ruta.', requiredAction: actionId });
+        return res.status(403).json({ success: false, message: 'Token no autorizado para esta ruta.', requiredAction: actionId });
       }
 
       return next();
@@ -287,12 +229,6 @@ export function requireAdminVerification(requiredActionId?: string) {
   };
 }
 
-export default requireAdminVerification;
-export { hasAdminRole, hasVendedorRole, extractUserRoles };
-
-/**
- * Middleware que permite acceso a admins O al usuario actualizando su propio perfil.
- */
 export function requireAdminOrSelf(req: Request, res: Response, next: NextFunction) {
   (async () => {
     const { user } = req;
@@ -310,7 +246,6 @@ export function requireAdminOrSelf(req: Request, res: Response, next: NextFuncti
       let userIdString: string;
 
       if (!userId) {
-        logger.warn('requireAdminOrSelf: user._id is undefined or null', { user });
         return res.status(403).json({ success: false, message: 'Acceso denegado. Usuario no válido.' });
       }
 
@@ -339,12 +274,6 @@ export function requireAdminOrSelf(req: Request, res: Response, next: NextFuncti
         return next();
       }
 
-      logger.warn(`requireAdminOrSelf: Authorization failed`, {
-        authenticatedUserId: userIdString,
-        targetUserId: targetUserIdString,
-        roles: extractUserRoles(user)
-      });
-
       return res.status(403).json({
         success: false,
         message: 'Acceso denegado. Solo puedes actualizar tu propio perfil o necesitas ser administrador.',
@@ -359,9 +288,6 @@ export function requireAdminOrSelf(req: Request, res: Response, next: NextFuncti
   });
 }
 
-/**
- * Middleware que permite acceso a admins O al profesor propietario del curso.
- */
 export function requireAdminOrCourseOwner(courseRepository: any) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const { user } = req;
@@ -379,7 +305,6 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
       let userIdString: string;
 
       if (!userIdObj) {
-        logger.warn('requireAdminOrCourseOwner: user._id is undefined or null', { user });
         return res.status(403).json({ success: false, message: 'Acceso denegado. Usuario no válido.' });
       }
 
@@ -412,13 +337,6 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
       const teacherIds = teachers.map((t: any) => String(t));
       const isTeacher = teacherIds.includes(userId);
 
-      logger.info('requireAdminOrCourseOwner - Verification:', {
-        userId,
-        teacherIds,
-        courseId,
-        isTeacher,
-      });
-
       if (isTeacher) {
         return next();
       }
@@ -434,3 +352,5 @@ export function requireAdminOrCourseOwner(courseRepository: any) {
     }
   };
 }
+
+export default requireAdminVerification;
