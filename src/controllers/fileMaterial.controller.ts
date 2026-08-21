@@ -36,15 +36,15 @@ export class FileMaterialController {
         }
 
         // Conciliación: mapear name/title y category/type
+        // Conciliación: mapear name/title y category/type
         const rawName = req.body.name || req.body.title || uploadedFile.originalname;
-        const rawCategory = req.body.category || FileMaterialCategory.OTHER;
-        
-        // Inferir type si no viene explícito en el body
-        let rawType = req.body.type;
-        if (!rawType) {
+        let rawCategory = req.body.category;
+        if (!rawCategory) {
           const ext = uploadedFile.originalname.split('.').pop()?.toLowerCase();
-          rawType = ext === 'pdf' ? FileMaterialType.PDF : FileMaterialType.DOCUMENT;
+          rawCategory = ext === 'pdf' ? FileMaterialCategory.PDF : FileMaterialCategory.OTHER;
         }
+        // Inferir type si no viene explícito en el body
+        const rawType = req.body.type || FileMaterialType.EDUCATIONAL_MATERIAL;
 
         const authUser = (req as Request & { user?: { _id?: string } }).user;
         const userId = authUser?._id;
@@ -122,29 +122,30 @@ export class FileMaterialController {
    * GET /api/file-materials/public
    */
   getPublicMaterials = async (req: Request, res: Response) => {
-    try {
-      const { type, category, page = 1, limit = 10 } = req.query;
+  try {
+    const { type, category, folderPath, page = 1, limit = 10 } = req.query;
 
-      const materials = await fileMaterialService.getPublicMaterials(
-        type as FileMaterialType,
-        category as FileMaterialCategory,
-        parseInt(page as string, 10),
-        parseInt(limit as string, 10)
-      );
+    const materials = await fileMaterialService.getPublicMaterials(
+      type as FileMaterialType,
+      category as FileMaterialCategory,
+      folderPath ? String(folderPath) : undefined,
+      parseInt(page as string, 10),
+      parseInt(limit as string, 10)
+    );
 
-      res.status(200).json({
-        success: true,
-        message: 'Materiales públicos obtenidos exitosamente',
-        data: materials,
-      });
-    } catch (error) {
-      logger.error('Error getting public materials:', error);
-      res.status(500).json({
-        success: false,
-        message: (error as Error).message,
-      });
-    }
-  };
+    res.status(200).json({
+      success: true,
+      message: 'Materiales públicos obtenidos exitosamente',
+      data: materials,
+    });
+  } catch (error) {
+    logger.error('Error getting public materials:', error);
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+};
 
   /**
    * Obtener material por ID
