@@ -1,5 +1,7 @@
 import { Router } from 'express';
-import { authorize as authMiddleware } from '../middlewares/auth.middleware';
+// Usamos el nombre original sin alias para evitar confusiones
+import { authorize } from '../middlewares/auth.middleware'; 
+import { requireRole, Role } from '@/middlewares/role.middleware';
 import {
   generateVerificationCode,
   verifyCode,
@@ -14,14 +16,29 @@ import {
 
 const router = Router();
 
-router.post('/generate-code', authMiddleware, generateVerificationCode);
-router.post('/verify-code', authMiddleware, verifyCode);
-router.post('/validate-temp-auth', authMiddleware, validateTempAuth);
-router.get('/stats', authMiddleware, getSecurityStats);
+// ==========================================
+// 1. RUTAS PÚBLICAS (No requieren token)
+// ==========================================
+
 router.get('/system-stats-public', getSystemStatsPublic);
-router.get('/system-stats', authMiddleware, getSystemStats);
+
+// ==========================================
+// 2. BLINDAJE GLOBAL
+// ==========================================
+// A partir de esta línea, TODO requiere token válido Y ser ADMIN
+router.use(authorize, requireRole([Role.ADMIN]));
+
+// ==========================================
+// 3. RUTAS PRIVADAS (Solo Admin)
+// ==========================================
+// Ya no hace falta repetir los middlewares en cada línea
+router.post('/generate-code', generateVerificationCode);
+router.post('/verify-code', verifyCode);
+router.post('/validate-temp-auth', validateTempAuth);
+router.get('/stats', getSecurityStats);
+router.get('/system-stats', getSystemStats);
 router.get('/admin-role', getAdminRole);
 router.get('/roles', getRolesMap);
-router.get('/chart-data', authMiddleware, getChartData);
+router.get('/chart-data', getChartData);
 
 export default router;

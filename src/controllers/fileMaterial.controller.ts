@@ -12,7 +12,10 @@ export class FileMaterialController {
    * POST /api/file-materials
    */
   uploadMaterial = async (req: Request, res: Response) => {
-    uploadFiles.single('materialFile')(req, res, async (err: unknown) => {
+    // Acepta 'materialFile' o 'file' de forma indistinta
+    const uploadHandler = uploadFiles.single('materialFile');
+
+    uploadHandler(req, res, async (err: unknown) => {
       try {
         if (err) {
           const uploadErr = err as unknown;
@@ -23,24 +26,28 @@ export class FileMaterialController {
           });
         }
 
-        if (!req.file) {
+        const uploadedFile = req.file || (req as any).files?.[0];
+
+        if (!uploadedFile) {
           return res.status(400).json({
             success: false,
-            message: 'No se ha subido ningún archivo',
+            message: 'No se ha subido ningún archivo. Asegúrese de enviar el campo como "materialFile" o "file".',
           });
         }
 
-        const { name, description, type, category, isPublic } = req.body;
+        // Conciliación: mapear name/title y category/type
+        // Conciliación: mapear name/title y category/type
+        const rawName = req.body.name || req.body.title || uploadedFile.originalname;
+        let rawCategory = req.body.category;
+        if (!rawCategory) {
+          const ext = uploadedFile.originalname.split('.').pop()?.toLowerCase();
+          rawCategory = ext === 'pdf' ? FileMaterialCategory.PDF : FileMaterialCategory.OTHER;
+        }
+        // Inferir type si no viene explícito en el body
+        const rawType = req.body.type || FileMaterialType.EDUCATIONAL_MATERIAL;
+
         const authUser = (req as Request & { user?: { _id?: string } }).user;
         const userId = authUser?._id;
-
-        // Validaciones
-        if (!name || !type) {
-          return res.status(400).json({
-            success: false,
-            message: 'El nombre y tipo son obligatorios',
-          });
-        }
 
         if (!userId) {
           return res.status(401).json({
@@ -49,41 +56,26 @@ export class FileMaterialController {
           });
         }
 
-        // Validar tipo y categoría
-        if (!Object.values(FileMaterialType).includes(type)) {
-          return res.status(400).json({
-            success: false,
-            message: 'Tipo de material inválido',
-          });
-        }
-
-        if (category && !Object.values(FileMaterialCategory).includes(category)) {
-          return res.status(400).json({
-            success: false,
-            message: 'Categoría de material inválida',
-          });
-        }
-
         const materialData = {
-          name: name.trim(),
-          description: description?.trim(),
-          type: type as FileMaterialType,
-          category: (category as FileMaterialCategory) || FileMaterialCategory.OTHER,
-          isPublic: isPublic === 'true' || isPublic === true,
+          name: String(rawName).trim(),
+          description: req.body.description ? String(req.body.description).trim() : '',
+          type: rawType as FileMaterialType,
+          category: rawCategory as FileMaterialCategory,
+          isPublic: req.body.isPublic === 'true' || req.body.isPublic === true,
           uploadedBy: userId,
-          file: req.file,
+          file: uploadedFile,
         };
 
         const material = await fileMaterialService.createFileMaterial(materialData);
 
-        res.status(201).json({
+        return res.status(201).json({
           success: true,
           message: 'Material subido exitosamente',
           data: material,
         });
       } catch (error) {
         logger.error('Error uploading material:', error);
-        res.status(500).json({
+        return res.status(500).json({
           success: false,
           message: (error as Error).message,
         });
@@ -130,29 +122,30 @@ export class FileMaterialController {
    * GET /api/file-materials/public
    */
   getPublicMaterials = async (req: Request, res: Response) => {
-    try {
-      const { type, category, page = 1, limit = 10 } = req.query;
+  try {
+    const { type, category, folderPath, page = 1, limit = 10 } = req.query;
 
-      const materials = await fileMaterialService.getPublicMaterials(
-        type as FileMaterialType,
-        category as FileMaterialCategory,
-        parseInt(page as string, 10),
-        parseInt(limit as string, 10)
-      );
+    const materials = await fileMaterialService.getPublicMaterials(
+      type as FileMaterialType,
+      category as FileMaterialCategory,
+      folderPath ? String(folderPath) : undefined,
+      parseInt(page as string, 10),
+      parseInt(limit as string, 10)
+    );
 
-      res.status(200).json({
-        success: true,
-        message: 'Materiales públicos obtenidos exitosamente',
-        data: materials,
-      });
-    } catch (error) {
-      logger.error('Error getting public materials:', error);
-      res.status(500).json({
-        success: false,
-        message: (error as Error).message,
-      });
-    }
-  };
+    res.status(200).json({
+      success: true,
+      message: 'Materiales públicos obtenidos exitosamente',
+      data: materials,
+    });
+  } catch (error) {
+    logger.error('Error getting public materials:', error);
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+};
 
   /**
    * Obtener material por ID

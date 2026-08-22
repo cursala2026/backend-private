@@ -39,6 +39,7 @@ describe('QuestionnaireRepository (with mongodb-memory-server)', () => {
       courseId: cId,
       title: 'Q1',
       description: 'Desc',
+      passingScore: 70,
       position: { type: 'BETWEEN_CLASSES', order: 1 },
       questions: [
         {

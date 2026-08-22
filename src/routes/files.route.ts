@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authorize } from '@/middlewares/auth.middleware';
+import { requireRole, Role } from '@/middlewares/role.middleware';
 import { fileController } from '@/controllers';
 import multer from 'multer';
 
@@ -21,11 +22,54 @@ const upload = multer({
 
 const router = Router();
 
-router.get('/file/:videoFileName/video', authorize, fileController.getFileVideo);
-router.get('/file/:fileName/download', authorize, fileController.getFile);
-router.patch('/direct', authorize, fileController.proxyDirectRequest);
-router.post('/direct', authorize, fileController.proxyDirectRequest);
-router.put('/direct', authorize, fileController.proxyDirectRequest);
-router.post('/upload/profile-image', authorize, upload.single('image'), fileController.uploadProfileImage);
+// ==========================================
+// ENDPOINTS DE LECTURA (GET) - PROFESOR y ADMIN
+// ==========================================
+router.get(
+  '/file/:videoFileName/video', 
+  authorize, 
+  requireRole([Role.PROFESOR, Role.ADMIN]), 
+  fileController.getFileVideo
+);
+
+router.get(
+  '/file/:fileName/download', 
+  authorize, 
+  requireRole([Role.PROFESOR, Role.ADMIN]), 
+  fileController.getFile
+);
+
+// ==========================================
+// ENDPOINTS DE SUBIDA Y MUTACIÓN - SOLO ADMIN
+// ==========================================
+router.patch(
+  '/direct', 
+  authorize, 
+  requireRole([Role.ADMIN]), 
+  fileController.proxyDirectRequest
+);
+
+router.post(
+  '/direct', 
+  authorize, 
+  requireRole([Role.ADMIN]), 
+  fileController.proxyDirectRequest
+);
+
+router.put(
+  '/direct', 
+  authorize, 
+  requireRole([Role.ADMIN]), 
+  fileController.proxyDirectRequest
+);
+
+
+router.post(
+  '/upload/profile-image', 
+  authorize, 
+  requireRole([Role.ADMIN]), 
+  upload.single('image'), 
+  fileController.uploadProfileImage
+);
 
 export default router;

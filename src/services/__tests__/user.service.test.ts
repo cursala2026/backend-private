@@ -78,6 +78,32 @@ describe('UserService - getUserProfileImage Security Tests', () => {
       }
     });
   });
+  describe('UserService - getSignedContract', () => {
+    test('should return signedContractUrl from user when available', async () => {
+      const mockUser = { _id: '507f1f77bcf86cd799439011', signedContractUrl: 'http://cdn/contracts/abc.pdf' };
+      (mockUserRepository.getUserById as jest.Mock).mockResolvedValue(mockUser);
+      const result = await userService.getSignedContract('507f1f77bcf86cd799439011');
+      expect(result).toEqual({ url: 'http://cdn/contracts/abc.pdf' });
+    });
+
+    test('should return contract from FileMaterial when signedContractUrl is missing', async () => {
+      const mockUser = { _id: '507f1f77bcf86cd799439011', signedContractUrl: null };
+      (mockUserRepository.getUserById as jest.Mock).mockResolvedValue(mockUser);
+      const mockFile = { url: 'http://cdn/contracts/fileMaterial.pdf' };
+      const FileMaterialMongo = { findOne: jest.fn().mockResolvedValue(mockFile) };
+      (userService as any).FileMaterialMongo = FileMaterialMongo;
+      const result = await userService.getSignedContract('507f1f77bcf86cd799439011');
+      expect(result).toEqual({ url: 'http://cdn/contracts/fileMaterial.pdf' });
+    });
+
+    test('should throw error when no signed contract exists', async () => {
+      const mockUser = { _id: '507f1f77bcf86cd799439011', signedContractUrl: null };
+      (mockUserRepository.getUserById as jest.Mock).mockResolvedValue(mockUser);
+      const FileMaterialMongo = { findOne: jest.fn().mockResolvedValue(null) };
+      (userService as any).FileMaterialMongo = FileMaterialMongo;
+      await expect(userService.getSignedContract('507f1f77bcf86cd799439011')).rejects.toThrow('Contrato no disponible')
+    });
+  });
   describe('File Extension Validation', () => {
     test('should reject files without allowed extensions', async () => {
       await expect(userService.getUserProfileImage('malicious.exe')).rejects.toThrow('Invalid file name');

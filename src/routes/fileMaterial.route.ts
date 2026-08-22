@@ -4,14 +4,14 @@ import { authorize } from '@/middlewares/auth.middleware';
 
 const router = Router();
 
-router.post('/file-materials', authorize, fileMaterialController.uploadMaterial);
-router.get('/file-materials', authorize, fileMaterialController.getMaterials);
-router.get('/file-materials/public', authorize, fileMaterialController.getPublicMaterials);
-router.get('/file-materials/my-materials', authorize, fileMaterialController.getMyMaterials);
-router.get('/file-materials/stats', authorize, fileMaterialController.getMaterialStats);
-router.get('/file-materials/:id', authorize, fileMaterialController.getMaterialById);
-router.get('/file-materials/:id/download', authorize, fileMaterialController.downloadMaterial);
-router.patch('/file-materials/:id', authorize, fileMaterialController.updateMaterial);
-router.delete('/file-materials/:id', authorize, fileMaterialController.deleteMaterial);
+router.post('/', authorize, fileMaterialController.uploadMaterial);
+router.get('/', authorize, fileMaterialController.getMaterials);
+router.get('/public', authorize, fileMaterialController.getPublicMaterials);
+router.get('/my-materials', authorize, fileMaterialController.getMyMaterials);
+router.get('/stats', authorize, fileMaterialController.getMaterialStats);
+router.get('/:id', authorize, fileMaterialController.getMaterialById);
+router.get('/:id/download', authorize, fileMaterialController.downloadMaterial);
+router.patch('/:id', authorize, fileMaterialController.updateMaterial);
+router.delete('/:id', authorize, fileMaterialController.deleteMaterial);
 
 export default router;
