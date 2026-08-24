@@ -47,40 +47,33 @@ class AuthService {
    */
   async login(user: string, plainTextPassword: string) {
     const userDoc = await this.validateUser(user, plainTextPassword);
-    // Obtener la versión completa y actualizada del usuario desde la BD
-    // Esto asegura que `roles` venga en el formato real almacenado (ObjectId[] o string[])
-    // y evita problemas de casting/inferencia de Mongoose en documentos parciales.
     const fullUserDoc = await this.userRepository.getUserById(String(userDoc._id));
-    const rolesSource = fullUserDoc && Array.isArray(fullUserDoc.roles) ? fullUserDoc.roles : userDoc.roles;
+    
+    // 1. Extraer rol asegurando la Regla de Oro: String único
+    const rawRole = (fullUserDoc as any)?.role || (userDoc as any)?.role || 
+                    (Array.isArray((fullUserDoc as any)?.roles) ? (fullUserDoc as any).roles[0] : 'ALUMNO');
+    const roleString = String(rawRole).trim().toUpperCase();
+
     const jwtSecret = config.JWT_SECRET;
     if (!jwtSecret) throw new Error('JWT_SECRET not configured');
     const expiresIn = String(config.EXPIRE_TIME_TOKEN_USER_LOGGED ?? '1h');
 
     const signFn = jwt.sign as unknown as (payload: unknown, secret: jwt.Secret, options?: any) => string;
     const userId = String(userDoc._id);
-    const token = signFn({ _id: userId }, jwtSecret as jwt.Secret, { expiresIn });
 
-    let resolvedRoles = await this.resolveRoleCodes(rolesSource);
-    // Si la resolución no devuelve roles pero el documento indica isAdmin o contiene 'ADMIN', forzar ADMIN
-    try {
-      if ((!Array.isArray(resolvedRoles) || resolvedRoles.length === 0) && fullUserDoc) {
-        const rolesRaw = (fullUserDoc as any).roles;
-        const isAdminFlag = Boolean((fullUserDoc as any).isAdmin);
-        const hasAdminString = Array.isArray(rolesRaw) && rolesRaw.map((r: any) => String(r).toUpperCase()).includes('ADMIN');
-        if (isAdminFlag || hasAdminString) {
-          resolvedRoles = ['ADMIN'];
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
+    // 2. Incluir el rol directamente en el payload del JWT
+    const token = signFn(
+      { _id: userId, id: userId, role: roleString, roles: [roleString] }, 
+      jwtSecret as jwt.Secret, 
+      { expiresIn }
+    );
 
     const userInfo = {
       _id: userDoc._id,
       email: userDoc.email,
       username: userDoc.username,
-      // Normalize roles to role codes for frontend convenience (e.g. ['ADMIN','ALUMNO'])
-      roles: resolvedRoles,
+      role: roleString,          // <-- Regla de Oro: String único
+      roles: [roleString],       // <-- Compatibilidad retroactiva
       firstName: userDoc.firstName,
       lastName: userDoc.lastName,
       phone: userDoc.phone,

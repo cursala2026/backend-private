@@ -24,7 +24,7 @@ export default async function registerRoutes() {
 
       // En Windows import dinámico necesita un file:// URL
       const fileUrl = pathToFileURL(filePath).href;
-      
+
       let module: any;
       try {
         // Prefer CommonJS require when running the compiled `dist` (avoids passing file:// URLs to require)
@@ -51,7 +51,7 @@ export default async function registerRoutes() {
 
       // Manejar tanto ESM como CommonJS
       let router: any = module.default;
-      
+
       // Si module.default es un objeto con una propiedad default (CommonJS wrapping)
       if (router && typeof router === 'object' && router.default && !isRouterLike(router)) {
         router = router.default;
@@ -68,10 +68,10 @@ export default async function registerRoutes() {
           continue;
         }
       }
-      
+
       // Extraer el nombre del archivo sin extensión y sin sufijo .route
       let prefix = file.replace(/\.(ts|js)$/, '').replace(/.route$/, '').replace(/^a-/, '');
-      
+
       // Registrar directamente con el prefijo apropiado
       if (prefix !== 'auth' && prefix !== 'role' && prefix !== 'category' && prefix !== 'files') {
         const wrappedRouter = Router();
@@ -82,6 +82,7 @@ export default async function registerRoutes() {
         // también montar el mismo router bajo `/bank-accounts` para mantener compatibilidad
         // con llamadas que usan `/bank-accounts/...`.
         // Y para `supportTicket.route.ts` a `/support-tickets`.
+
         if (prefix === 'bankAccount') {
           const altRouter = Router();
           altRouter.use('/bank-accounts', router);
@@ -90,7 +91,7 @@ export default async function registerRoutes() {
           const altRouter = Router();
           altRouter.use('/support-tickets', router);
           routers.push(altRouter);
-        } else if (prefix === 'fileMaterial') {
+        } else if (prefix === 'fileMaterial' || prefix === 'fileMaterials') {
           const altRouter = Router();
           altRouter.use('/file-materials', router);
           routers.push(altRouter);

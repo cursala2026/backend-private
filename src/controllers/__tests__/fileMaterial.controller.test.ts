@@ -127,6 +127,100 @@ describe('FileMaterialController', () => {
         });
     });
 
+    describe('getPublicMaterials', () => {
+        it('should call the service with type, category, folderPath, page and limit in the correct positions', async () => {
+            req.query = {
+                type: FileMaterialType.EDUCATIONAL_MATERIAL,
+                category: FileMaterialCategory.PDF,
+                folderPath: 'cursos/2026',
+                page: '2',
+                limit: '5',
+            };
+            const mockMaterials = { docs: [], totalDocs: 0 };
+            (fileMaterialService.getPublicMaterials as jest.Mock).mockResolvedValue(mockMaterials);
+
+            await fileMaterialController.getPublicMaterials(req as Request, res as Response);
+
+            expect(fileMaterialService.getPublicMaterials).toHaveBeenCalledWith(
+                FileMaterialType.EDUCATIONAL_MATERIAL,
+                FileMaterialCategory.PDF,
+                'cursos/2026', // folderPath must land in the 3rd position, NOT page
+                2,             // page must land in the 4th position
+                5              // limit must land in the 5th position
+            );
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                success: true,
+                data: mockMaterials,
+            }));
+        });
+
+        it('should pass folderPath as undefined when not present in query', async () => {
+            req.query = { page: '1', limit: '10' };
+            const mockMaterials = { docs: [], totalDocs: 0 };
+            (fileMaterialService.getPublicMaterials as jest.Mock).mockResolvedValue(mockMaterials);
+
+            await fileMaterialController.getPublicMaterials(req as Request, res as Response);
+
+            expect(fileMaterialService.getPublicMaterials).toHaveBeenCalledWith(
+                undefined,
+                undefined,
+                undefined, // folderPath absent, must not be page or a number
+                1,
+                10
+            );
+        });
+
+        it('should default page and limit when not present in query', async () => {
+            req.query = {};
+            const mockMaterials = { docs: [], totalDocs: 0 };
+            (fileMaterialService.getPublicMaterials as jest.Mock).mockResolvedValue(mockMaterials);
+
+            await fileMaterialController.getPublicMaterials(req as Request, res as Response);
+
+            expect(fileMaterialService.getPublicMaterials).toHaveBeenCalledWith(
+                undefined,
+                undefined,
+                undefined,
+                1,
+                10
+            );
+        });
+
+        // Explicit regression test for the reported bug: professors were seeing an
+        // empty list because `page` was being sent in the `folderPath` argument
+        // position, producing a query like { folderPath: 1 } that never matches
+        // any real document (folderPath is a string field).
+        it('should NOT leak the page number into the folderPath argument', async () => {
+            req.query = { page: '3', limit: '10' };
+            const mockMaterials = { docs: [], totalDocs: 0 };
+            (fileMaterialService.getPublicMaterials as jest.Mock).mockResolvedValue(mockMaterials);
+
+            await fileMaterialController.getPublicMaterials(req as Request, res as Response);
+
+            const callArgs = (fileMaterialService.getPublicMaterials as jest.Mock).mock.calls[0];
+            const folderPathArg = callArgs[2];
+            const pageArg = callArgs[3];
+
+            expect(folderPathArg).not.toBe(3);
+            expect(folderPathArg).toBeUndefined();
+            expect(pageArg).toBe(3);
+        });
+
+        it('should return 500 if the service throws', async () => {
+            req.query = {};
+            (fileMaterialService.getPublicMaterials as jest.Mock).mockRejectedValue(new Error('DB error'));
+
+            await fileMaterialController.getPublicMaterials(req as Request, res as Response);
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                success: false,
+                message: 'DB error',
+            }));
+        });
+    });
+
     describe('downloadMaterial', () => {
         it('should download material successfully', async () => {
             req.params = { id: 'mat-123' };

@@ -6,17 +6,16 @@ import { logger } from '../utils';
 import { fileMaterialService } from '@/services';
 import { ensureString } from '@utils/type-guards';
 
-function isValidFolderPath(folderPath: string): boolean {
-  return /^[a-zA-Z0-9_\-/]+$/.test(folderPath);
-}
-
 export class FileMaterialController {
   /**
    * Subir nuevo material/plantilla
    * POST /api/file-materials
    */
   uploadMaterial = async (req: Request, res: Response) => {
-    uploadFiles.single('materialFile')(req, res, async (err: unknown) => {
+    // Acepta 'materialFile' o 'file' de forma indistinta
+    const uploadHandler = uploadFiles.single('materialFile');
+
+    uploadHandler(req, res, async (err: unknown) => {
       try {
         if (err) {
           const uploadErr = err as unknown;
@@ -27,24 +26,28 @@ export class FileMaterialController {
           });
         }
 
-        if (!req.file) {
+        const uploadedFile = req.file || (req as any).files?.[0];
+
+        if (!uploadedFile) {
           return res.status(400).json({
             success: false,
-            message: 'No se ha subido ningún archivo',
+            message: 'No se ha subido ningún archivo. Asegúrese de enviar el campo como "materialFile" o "file".',
           });
         }
 
-        const { name, description, type, category, isPublic, folderPath } = req.body;
+        // Conciliación: mapear name/title y category/type
+        // Conciliación: mapear name/title y category/type
+        const rawName = req.body.name || req.body.title || uploadedFile.originalname;
+        let rawCategory = req.body.category;
+        if (!rawCategory) {
+          const ext = uploadedFile.originalname.split('.').pop()?.toLowerCase();
+          rawCategory = ext === 'pdf' ? FileMaterialCategory.PDF : FileMaterialCategory.OTHER;
+        }
+        // Inferir type si no viene explícito en el body
+        const rawType = req.body.type || FileMaterialType.EDUCATIONAL_MATERIAL;
+
         const authUser = (req as Request & { user?: { _id?: string } }).user;
         const userId = authUser?._id;
-
-        // Validaciones
-        if (!name || !type) {
-          return res.status(400).json({
-            success: false,
-            message: 'El nombre y tipo son obligatorios',
-          });
-        }
 
         if (!userId) {
           return res.status(401).json({
@@ -53,50 +56,26 @@ export class FileMaterialController {
           });
         }
 
-        // Validar tipo y categoría
-        if (!Object.values(FileMaterialType).includes(type)) {
-          return res.status(400).json({
-            success: false,
-            message: 'Tipo de material inválido',
-          });
-        }
-
-        if (category && !Object.values(FileMaterialCategory).includes(category)) {
-          return res.status(400).json({
-            success: false,
-            message: 'Categoría de material inválida',
-          });
-        }
-
-        // Validar folderPath
-        if (folderPath !== undefined && !isValidFolderPath(folderPath)) {
-          return res.status(400).json({
-            success: false,
-            message: 'Formato de folderPath inválido',
-          });
-        }
-
         const materialData = {
-          name: name.trim(),
-          description: description?.trim(),
-          type: type as FileMaterialType,
-          category: (category as FileMaterialCategory) || FileMaterialCategory.OTHER,
-          isPublic: isPublic === 'true' || isPublic === true,
+          name: String(rawName).trim(),
+          description: req.body.description ? String(req.body.description).trim() : '',
+          type: rawType as FileMaterialType,
+          category: rawCategory as FileMaterialCategory,
+          isPublic: req.body.isPublic === 'true' || req.body.isPublic === true,
           uploadedBy: userId,
-          file: req.file,
-          folderPath: folderPath?.trim() || null,
+          file: uploadedFile,
         };
 
         const material = await fileMaterialService.createFileMaterial(materialData);
 
-        res.status(201).json({
+        return res.status(201).json({
           success: true,
           message: 'Material subido exitosamente',
           data: material,
         });
       } catch (error) {
         logger.error('Error uploading material:', error);
-        res.status(500).json({
+        return res.status(500).json({
           success: false,
           message: (error as Error).message,
         });
@@ -105,40 +84,18 @@ export class FileMaterialController {
   };
 
   /**
-   * Obtener carpetas distintas
-   * GET /api/file-materials/folders
-   */
-  getDistinctFolders = async (req: Request, res: Response) => {
-    try {
-      const folders = await fileMaterialService.getDistinctFolders();
-      res.status(200).json({
-        success: true,
-        message: 'Carpetas obtenidas exitosamente',
-        data: folders,
-      });
-    } catch (error) {
-      logger.error('Error getting distinct folders:', error);
-      res.status(500).json({
-        success: false,
-        message: (error as Error).message,
-      });
-    }
-  };
-
-  /**
    * Obtener todos los materiales con filtros
    * GET /api/file-materials
    */
   getMaterials = async (req: Request, res: Response) => {
     try {
-      const { type, category, isPublic, uploadedBy, folderPath, page = 1, limit = 10, sort = '-createdAt' } = req.query;
+      const { type, category, isPublic, uploadedBy, page = 1, limit = 10, sort = '-createdAt' } = req.query;
 
-      const filters: { type?: FileMaterialType; category?: FileMaterialCategory; isPublic?: boolean; uploadedBy?: string; folderPath?: string; page?: number; limit?: number; sort?: string } = {};
+      const filters: { type?: FileMaterialType; category?: FileMaterialCategory; isPublic?: boolean; uploadedBy?: string; page?: number; limit?: number; sort?: string } = {};
       if (type) filters.type = type as unknown as FileMaterialType;
       if (category) filters.category = category as unknown as FileMaterialCategory;
       if (isPublic !== undefined) filters.isPublic = isPublic === 'true';
       if (uploadedBy) filters.uploadedBy = String(uploadedBy);
-      if (folderPath) filters.folderPath = String(folderPath);
 
       filters.page = parseInt(page as string, 10);
       filters.limit = parseInt(limit as string, 10);
@@ -165,30 +122,30 @@ export class FileMaterialController {
    * GET /api/file-materials/public
    */
   getPublicMaterials = async (req: Request, res: Response) => {
-    try {
-      const { type, category, folderPath, page = 1, limit = 10 } = req.query;
+  try {
+    const { type, category, folderPath, page = 1, limit = 10 } = req.query;
 
-      const materials = await fileMaterialService.getPublicMaterials(
-        type as FileMaterialType,
-        category as FileMaterialCategory,
-        folderPath ? String(folderPath) : undefined,
-        parseInt(page as string, 10),
-        parseInt(limit as string, 10)
-      );
+    const materials = await fileMaterialService.getPublicMaterials(
+      type as FileMaterialType,
+      category as FileMaterialCategory,
+      folderPath ? String(folderPath) : undefined,
+      parseInt(page as string, 10),
+      parseInt(limit as string, 10)
+    );
 
-      res.status(200).json({
-        success: true,
-        message: 'Materiales públicos obtenidos exitosamente',
-        data: materials,
-      });
-    } catch (error) {
-      logger.error('Error getting public materials:', error);
-      res.status(500).json({
-        success: false,
-        message: (error as Error).message,
-      });
-    }
-  };
+    res.status(200).json({
+      success: true,
+      message: 'Materiales públicos obtenidos exitosamente',
+      data: materials,
+    });
+  } catch (error) {
+    logger.error('Error getting public materials:', error);
+    res.status(500).json({
+      success: false,
+      message: (error as Error).message,
+    });
+  }
+};
 
   /**
    * Obtener material por ID
@@ -229,7 +186,7 @@ export class FileMaterialController {
     try {
       const authUser = (req as Request & { user?: { _id?: string } }).user;
       const userId = authUser?._id;
-      const { page = 1, limit = 10, folderPath } = req.query;
+      const { page = 1, limit = 10 } = req.query;
 
       if (!userId) {
         return res.status(401).json({
@@ -241,8 +198,7 @@ export class FileMaterialController {
       const materials = await fileMaterialService.getUserMaterials(
         userId,
         parseInt(page as string, 10),
-        parseInt(limit as string, 10),
-        folderPath ? String(folderPath) : undefined
+        parseInt(limit as string, 10)
       );
 
       res.status(200).json({
@@ -266,7 +222,7 @@ export class FileMaterialController {
   updateMaterial = async (req: Request, res: Response) => {
     try {
       const id = ensureString(req.params.id);
-      const { name, description, isPublic, status, folderPath } = req.body;
+      const { name, description, isPublic, status } = req.body;
       const authUser = (req as Request & { user?: { _id?: string } }).user;
       const userId = authUser?._id;
 
@@ -293,20 +249,11 @@ export class FileMaterialController {
         });
       }
 
-      // Validar folderPath
-      if (folderPath !== undefined && !isValidFolderPath(folderPath)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Formato de folderPath inválido',
-        });
-      }
-
-      const updateData: { name?: string; description?: string; isPublic?: boolean; status?: UserStatus, folderPath?: string } = {};
+      const updateData: { name?: string; description?: string; isPublic?: boolean; status?: UserStatus } = {};
       if (name !== undefined) updateData.name = String(name).trim();
       if (description !== undefined) updateData.description = String(description).trim();
       if (isPublic !== undefined) updateData.isPublic = Boolean(isPublic);
       if (status !== undefined) updateData.status = status as unknown as UserStatus;
-      if (folderPath !== undefined) updateData.folderPath = String(folderPath).trim();
 
       const updatedMaterial = await fileMaterialService.updateFileMaterial(id, updateData);
 
