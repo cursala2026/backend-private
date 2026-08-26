@@ -275,7 +275,10 @@ class QuestionnaireSubmissionRepository {
     }
 
     const count = await this.model
-      .countDocuments({ questionnaireId: questionnaireId as any })
+      .countDocuments({
+        questionnaireId: questionnaireId as any,
+        status: { $in: ['SUBMITTED', 'GRADED'] },
+      })
       .exec();
 
     return count > 0;

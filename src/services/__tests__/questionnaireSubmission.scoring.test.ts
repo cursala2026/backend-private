@@ -151,11 +151,61 @@ describe('autoGradeMultipleChoice', () => {
     const answer = { questionId: { toString: () => 'q1' }, questionType: 'MULTIPLE_CHOICE', selectedOptionId: { toString: () => 'opt_array' } };
 
     const { gradedAnswers } = grade([q], [answer]);
-
-    expect(gradedAnswers[0].isCorrect).toBe(true);
-    expect(gradedAnswers[0].pointsAwarded).toBe(10);
-  });
-});
+ 
+     expect(gradedAnswers[0].isCorrect).toBe(true);
+     expect(gradedAnswers[0].pointsAwarded).toBe(10);
+   });
+ 
+   test('MULTIPLE_CHOICE: correctOptionId es un índice string ("1") → se mapea al ID del objeto de la opción e identifica la respuesta correcta', () => {
+     const q = {
+       _id: { toString: () => 'q1' },
+       type: 'MULTIPLE_CHOICE',
+       points: 10,
+       correctOptionId: '1',
+       options: [
+         { _id: 'opt0', text: 'Opción 0', order: 0 },
+         { _id: 'opt1', text: 'Opción 1', order: 1 },
+         { _id: 'opt2', text: 'Opción 2', order: 2 },
+       ],
+     };
+     const answer = {
+       questionId: { toString: () => 'q1' },
+       questionType: 'MULTIPLE_CHOICE',
+       selectedOptionId: 'opt1',
+     };
+ 
+     const { gradedAnswers, autoGradedScore } = grade([q], [answer]);
+ 
+     expect(gradedAnswers[0].isCorrect).toBe(true);
+     expect(gradedAnswers[0].pointsAwarded).toBe(10);
+     expect(autoGradedScore).toBe(100);
+   });
+ 
+   test('MULTIPLE_SELECT: correctOptionIds contiene índices string (["0", "2"]) → se mapea a los IDs de las opciones e identifica la respuesta correcta', () => {
+     const q = {
+       _id: { toString: () => 'q1' },
+       type: 'MULTIPLE_SELECT',
+       points: 20,
+       correctOptionIds: ['0', '2'],
+       options: [
+         { _id: 'opt0', text: 'Opción 0', order: 0 },
+         { _id: 'opt1', text: 'Opción 1', order: 1 },
+         { _id: 'opt2', text: 'Opción 2', order: 2 },
+       ],
+     };
+     const answer = {
+       questionId: { toString: () => 'q1' },
+       questionType: 'MULTIPLE_SELECT',
+       selectedOptionIds: ['opt0', 'opt2'],
+     };
+ 
+     const { gradedAnswers, autoGradedScore } = grade([q], [answer]);
+ 
+     expect(gradedAnswers[0].isCorrect).toBe(true);
+     expect(gradedAnswers[0].pointsAwarded).toBe(20);
+     expect(autoGradedScore).toBe(100);
+   });
+ });
 
 // ---------------------------------------------------------------------------
 // calculateFinalScore — accedido vía cast

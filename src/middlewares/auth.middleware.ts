@@ -38,32 +38,41 @@ const options = {
 passport.use(
   new JwtStrategy(options, async (jwtPayload, done) => {
     try {
-        const user = await userRepository.findById(jwtPayload._id);
-        if (user) {
-          return done(null, user);
-        }
+      // 1. Extraer identificador tolerando _id, id o sub
+      const userId = jwtPayload._id || jwtPayload.id || jwtPayload.sub;
 
-        // En desarrollo, permitir usar el payload del JWT como usuario si no existe en BD
-        if (process.env.NODE_ENV !== 'production') {
-          try {
-            const fakeUser = {
-              _id: jwtPayload._id,
-              username: (jwtPayload as any).username || (jwtPayload as any).email || 'dev.user',
-              email: (jwtPayload as any).email,
-              firstName: (jwtPayload as any).firstName || '',
-              lastName: (jwtPayload as any).lastName || '',
-              roles: (jwtPayload as any).roles || [],
-              status: 'ACTIVE'
-            } as any;
-            return done(null, fakeUser);
-          } catch (e) {
-            logger.warn('Failed to construct fake user from JWT payload', { error: e });
-          }
-        }
+      let user = null;
+      if (userId) {
+        user = await userRepository.findById(userId);
+      }
 
-        return done(null, false);
+      if (user) {
+        return done(null, user);
+      }
+
+      // 2. Fallback de desarrollo con estricto cumplimiento de la Regla de Oro (role String)
+      if (process.env.NODE_ENV !== 'production') {
+        const rawRole = (jwtPayload as any).role || 
+          (Array.isArray((jwtPayload as any).roles) ? (jwtPayload as any).roles[0] : 'ADMIN');
+        const roleString = String(rawRole).trim().toUpperCase();
+
+        const fakeUser = {
+          _id: userId || 'dev-admin-id',
+          username: (jwtPayload as any).username || (jwtPayload as any).email || 'admin@dev.local',
+          email: (jwtPayload as any).email || 'admin@dev.local',
+          firstName: (jwtPayload as any).firstName || 'Admin',
+          lastName: (jwtPayload as any).lastName || 'Dev',
+          role: roleString,
+          roles: [roleString],
+          status: 'ACTIVE'
+        } as any;
+
+        return done(null, fakeUser);
+      }
+
+      return done(null, false);
     } catch (error) {
-      logger.error(`JWT Strategy error:`, error);
+      logger.error('JWT Strategy error:', error);
       return done(error, false);
     }
   })
