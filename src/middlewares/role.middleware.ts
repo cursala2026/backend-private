@@ -8,7 +8,7 @@ export enum Role {
 
 export const requireRole = (allowedRoles: Role[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as { roles?: string[] };
+    const user = req.user as { roles?: string };
 
     const userRoles: string[] = Array.isArray(user?.roles)
       ? user.roles.map((r) => String(r).toUpperCase())
