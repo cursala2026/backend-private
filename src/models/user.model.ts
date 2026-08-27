@@ -1,6 +1,6 @@
 import mongoose, { Schema, model } from 'mongoose';
 import { Types } from '@/models';
-import { UserStatus } from './enums';
+import { UserRoles, UserStatus } from './enums';
 
 export interface IAssignedCourseEdit {
   courseId: Types.ObjectId;
@@ -19,7 +19,7 @@ export interface IUser {
   status: UserStatus;
   createdAt: Date;
   updatedAt: Date;
-  roles: string[];
+  roles: UserRoles;
   resetPasswordToken: string;
   assignedCoursesEdit?: IAssignedCourseEdit[];
   lastConnection?: Date;
@@ -31,6 +31,16 @@ export interface IUser {
   hasCompletedInterestsForm: boolean;
   interests: Types.ObjectId[];
   interestsSuggestions?: string;
+  //Implementación Issue #53
+  teacherStatus: 'NOT_REQUESTED' | 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED';
+  title: string;
+  yearsOfExperience: number;
+  bio: string;
+  photoUrl: string;
+  cvUrl: string;
+  signatureUrl: string;
+  agreementAccepted: boolean;
+  agreementTimestamp?: Date;
 }
 
 export interface UserModel extends IUser { }
@@ -53,7 +63,7 @@ export const UserSchema: Schema<UserModel> = new Schema<UserModel>(
     birthDate: { type: Date, required: false },
     dni: { type: String, required: false },
     status: { type: String, enum: Object.values(UserStatus) },
-    roles: [{ type: String }],
+    roles: { type: String, enum: Object.values(UserRoles), required: true },
     resetPasswordToken: String,
     assignedCoursesEdit: [AssignedCoursesEditSchema],
     lastConnection: { type: Date, required: false, default: Date.now },
@@ -75,6 +85,17 @@ export const UserSchema: Schema<UserModel> = new Schema<UserModel>(
       type: String, 
       required: false 
     },
+
+    // ISSUE #53
+    teacherStatus: { type: String, enum: ['NOT_REQUESTED', 'PENDING_APPROVAL', 'ACTIVE', 'REJECTED'], default: 'NOT_REQUESTED' },
+    title: { type: String, required: true },
+    yearsOfExperience: { type: Number, min: 0, required: true },
+    bio: { type: String, maxlength: 500, required: true },
+    photoUrl: { type: String, required: true },
+    cvUrl: { type: String, required: true },
+    signatureUrl: { type: String, required: true },
+    agreementAccepted: { type: Boolean, default: false },
+    agreementTimestamp: { type: Date, validate: { validator: function (this: any, value: Date) { if (this.agreementAccepted && !value) {return false; } return true; }, message: 'agreementTimestamp is required if agreementAccepted is true', }, },
   },
   { timestamps: true }
 );
