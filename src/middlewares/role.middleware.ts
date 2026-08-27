@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 export enum Role {
   ADMIN = 'ADMIN',
   PROFESOR = 'PROFESOR',
-  ALUMNO = 'ALUMNO'
+  ALUMNO = 'ALUMNO',
 }
 
 export const requireRole = (allowedRoles: Role[]) => {
@@ -22,7 +22,7 @@ export const requireRole = (allowedRoles: Role[]) => {
 
     if (!hasAllowedRole) {
       return res.status(403).json({
-        message: 'Acceso denegado: No tienes los permisos necesarios para esta acción'
+        message: 'Acceso denegado: No tienes los permisos necesarios para esta acción',
       });
     }
 
