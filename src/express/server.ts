@@ -89,7 +89,9 @@ export default class Server implements NodeServer {
     logger.info(`Stopping server. Waiting for connections to end...`);
     this.server.close(() => {
       logger.info(`Server closed successfully`);
-      process.exit(exitCode);
+      if (config.NODE_ENV !== 'test') {
+        process.exit(exitCode);
+      }
     });
   }
 
@@ -274,5 +276,9 @@ export default class Server implements NodeServer {
     process.on('exit', (code) => {
       logger.info(`Exiting with code ${code}`);
     });
+  }
+
+  getApp(): Express {
+    return this.app;
   }
 }

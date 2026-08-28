@@ -3,6 +3,7 @@ import { ICourseStart, IRecommendedCourse, IUserMongo, UserModel } from '../mode
 import { IUserExtended } from '@/types/user.types';
 import { Connection, Model, Types, UserStatus } from '@/models';
 import { CourseSchema, ICourse } from '../models/mongo/course.model';
+import { UserRoles } from '@/models/enums/user.enum';
 import { logger } from '../utils';
 import bcrypt from 'bcryptjs';
 
@@ -64,7 +65,7 @@ class UserRepository {
     const enrolledUserIds = await this.courseModel.distinct('students.userId');
 
     const users = await UserModel.find({
-      roles:{ $in: ['ALUMNO'] },
+      roles: 'ALUMNO',
       _id: { $nin: enrolledUserIds },
       $or: [
         { notifiedOnNoCourse: { $exists: false } },
@@ -305,7 +306,7 @@ class UserRepository {
       // Support roles stored as strings or as objects with `code` property
       matchConditions.push({
         $or: [
-          { roles: { $in: [r] } },
+          { roles: r },
           { 'roles.code': r },
         ],
       });
@@ -499,10 +500,9 @@ class UserRepository {
   }
 
   async getTeachers(): Promise<IUser[]> {
-    // Filtrar usuarios que tengan el rol PROFESOR en su array de roles
-    // Usar $in para buscar en el array de roles
+    // Filtrar usuarios que tengan el rol PROFESOR en su string escalar de roles
     const teachers = await this.model
-      .find({ roles: { $in: ['PROFESOR'] } })
+      .find({ roles: UserRoles.PROFESOR })
       .select('-password -resetPasswordToken')
       .sort({ firstName: 1, lastName: 1 })
       .lean()
@@ -1355,7 +1355,7 @@ class UserRepository {
    * @returns El número total de estudiantes
    */
   async countStudents(): Promise<number> {
-    return this.model.countDocuments({ roles: { $in: ['ALUMNO'] } });
+    return this.model.countDocuments({ roles: UserRoles.ALUMNO });
   }
 
   /**
@@ -1363,7 +1363,7 @@ class UserRepository {
    * @returns El número total de profesores
    */
   async countTeachers(): Promise<number> {
-    return this.model.countDocuments({ roles: { $in: ['PROFESOR'] } });
+    return this.model.countDocuments({ roles: UserRoles.PROFESOR });
   }
 
   /**
@@ -1371,7 +1371,7 @@ class UserRepository {
    * @returns El número total de administradores
    */
   async countAdmins(): Promise<number> {
-    return this.model.countDocuments({ roles: { $in: ['ADMIN'] } });
+    return this.model.countDocuments({ roles: UserRoles.ADMIN });
   }
 
   /**
