@@ -133,8 +133,12 @@ export default class UserController {
 
   uploadFiles = async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ success: false, message: 'Archivo inválido o faltante' });
+      }
+
       const files = req.files as Record<string, Express.Multer.File[]>;
-      const userId = (req.user as any)._id;
+      const userId = (req.user as any)?._id;
       const results: Record<string, string> = {};
 
       for (const field of Object.keys(files)) {
@@ -154,8 +158,7 @@ export default class UserController {
 
       return res.json({ success: true, urls: results });
     } catch (err) {
-      logger.error('Error subiendo archivo a Bunny Storage', { err, userId: (req.user as any)._id });
-      return res.status(502).json({ success: false, message: 'Error al subir archivo' });
+      return res.status(500).json({ success: false, message: 'Error al subir archivo', detail: err });
     }
   };
 

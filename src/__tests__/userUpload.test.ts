@@ -1,56 +1,83 @@
 import request from 'supertest';
 import axios from 'axios';
-import express from 'express';
-import { Router } from 'express';
-import { userController } from '../controllers';
-import { authorize } from '../middlewares/auth.middleware';
-import { upload } from '../middlewares/upload.middleware';
+import Server, { setErrorHandlers } from '../express/server';
+import registerRoutes from '../routes';
+import logger from '../utils/logger';
 import config from '../config';
 
-export function validateFiles(photo?: any, cv?: any) {
-  if (photo?.mimetype === 'application/x-msdownload' || photo?.originalname?.endsWith('.exe')) {
-    return 400;
-  }
-  if (cv?.size && cv.size > 10 * 1024 * 1024) {
-    return 413;
-  }
-  return 200;
-}
+jest.mock('../middlewares/auth.middleware', () => ({ 
+    __esModule: true,
+    default: { initialize: () => (req: any, res: any, next: any) => next() },
+    authorize: (req: any, res: any, next: any) => {
+        if (!req.headers.authorization) return res.status(401).json({ success: false });
+        req.user = { _id: 'test-user-id' };
+        next();
+    },
+}));
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
+let server: Server;
 let app: any;
 
 beforeAll(async () => {
-    app = express();
-    const router = Router();
-    router.post('/teacher/apply/upload', authorize, upload.fields([{ name: 'photo', maxCount: 1 }, { name: 'cv', maxCount: 1 }, { name: 'signature', maxCount: 1 },]), userController.uploadFiles);
-    app.use(config.BASE_URL, router);
+    const router = await registerRoutes();
+    server = new Server(config.PORT || 3000, router, setErrorHandlers);
+    app = server.getApp();
 });
 
-describe('POST /teacher/apply/upload', () => {
+afterEach(() => {
+  jest.clearAllMocks();
+});
+
+afterAll(() => {
+  server.stop(0);
+  if (logger.close) logger.close();
+});
+
+describe('POST user/teacher/apply/upload', () => {
+    const endpoint = `${config.BASE_URL}/user/teacher/apply/upload`;
+    const authHeader = { Authorization: 'Bearer fake.jwt.token' };
+    
     it('rechaza archivo con MIME inválido', async () => {
-        const photo = { originalname: 'malware.exe', mimetype: 'application/x-msdownload', size: 123 };
-        expect(validateFiles(photo, undefined)).toBe(400);
+        const res = await request(app)
+        .post(endpoint)
+        .set(authHeader)
+        .attach('photo', Buffer.from('fake'), { filename: 'malware.exe' });
+        
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBeFalsy();
     });
-
+    
     it('rechaza archivo que excede tamaño máximo', async () => {
-        const cv = { originalname: 'cv.pdf', mimetype: 'application/pdf', size: 11 * 1024 * 1024 };
-        expect(validateFiles(undefined, cv)).toBe(413);
+        const bigBuffer = Buffer.alloc(11 * 1024 * 1024);
+        const res = await request(app)
+        .post(endpoint)
+        .set(authHeader)
+        .attach('cv', bigBuffer, { filename: 'cv.pdf' });
+        
+        expect(res.status).toBe(413);
     });
-
+    
     it('carga exitosa con Bunny Storage mockeado', async () => {
         mockedAxios.put.mockResolvedValue({ status: 201 });
-
-        const photo = { originalname: 'photo.png', mimetype: 'image/png', size: 1024 };
-        expect(validateFiles(photo, undefined)).toBe(200);
+        
+        const res = await request(app)
+        .post(endpoint)
+        .set(authHeader)
+        .attach('photo', Buffer.from('fake'), { filename: 'photo.png', contentType: 'image/png' });
+        
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.urls.photo).toMatch(new RegExp(`${process.env.BUNNY_STORAGE_CDN_HOSTNAME}/teachers/`));
     });
-
+    
     it('rechaza petición sin token', async () => {
         const res = await request(app)
-            .post('/api/v1/teacher/apply/upload')
-            .attach('photo', Buffer.from('fake'), { filename: 'photo.png' });
+        .post(endpoint)
+        .attach('photo', Buffer.from('fake'), { filename: 'photo.png', contentType: 'image/png' });
+        
         expect(res.status).toBe(401);
         expect(res.body.success).toBeFalsy();
     });

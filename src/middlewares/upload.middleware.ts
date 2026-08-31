@@ -12,17 +12,12 @@ export const upload = multer({
     fileFilter: (req, file, cb) => {
         const rule = rules[file.fieldname];
         if (!rule) {
-            return cb(new Error('Campo de archivo no permitido.'));
+            return cb(new Error('INVALID_FIELD'));
         }
 
         if (!rule.types.includes(file.mimetype)) {
-            return cb(new Error(`Tipo de archivo no permitido para ${file.fieldname}`));
+            return cb(new Error('INVALID_FILE_TYPE'));
         }
-
-        if (file.size > rule.maxSize) {
-            return cb(new Error(`Archivo demasiado grande para ${file.fieldname}. Máximo ${rule.maxSize / (1024 * 1024)} MB.`));
-        }
-
         cb(null, true);
     },
 });
