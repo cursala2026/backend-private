@@ -8,6 +8,7 @@ import { IUser } from '@/models/user.model';
 import { uploadFiles } from '@/utils/fileUpload.util';
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 import { ensureString } from '@/utils/type-guards';
 
 export default class UserController {
@@ -127,6 +128,37 @@ export default class UserController {
       return res.json(prepareResponse(200, 'Course assigned successfully', resp));
     } catch (error) {
       return next(error);
+    }
+  };
+
+  uploadFiles = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ success: false, message: 'Archivo inválido o faltante' });
+      }
+
+      const files = req.files as Record<string, Express.Multer.File[]>;
+      const userId = (req.user as any)?._id;
+      const results: Record<string, string> = {};
+
+      for (const field of Object.keys(files)) {
+        const file = files[field][0];
+        const filename = `teachers/${userId}/${field}-${Date.now()}`;
+        const url = `https://${process.env.BUNNY_STORAGE_REGION}.storage.bunnycdn.com/${process.env.BUNNY_STORAGE_ZONE_NAME}/${filename}`;
+
+        await axios.put(url, file.buffer, {
+          headers: {
+            AccessKey: process.env.BUNNY_STORAGE_ACCESS_KEY!,
+            'Content-Type': file.mimetype,
+          },
+        });
+
+        results[field] = `${process.env.BUNNY_STORAGE_CDN_HOSTNAME}/${filename}`;
+      }
+
+      return res.json({ success: true, urls: results });
+    } catch (err) {
+      return res.status(500).json({ success: false, message: 'Error al subir archivo', detail: err });
     }
   };
 

@@ -3,7 +3,7 @@ import ms from 'ms';
 import * as jwt from 'jsonwebtoken';
 import { JwtPayload } from 'jsonwebtoken';
 import { IUser } from '../models/user.model';
-import { UserRoles } from '@/models';
+import { UserRoles, UserStatus } from '@/models';
 import { sendEmail } from '../utils/emailer';
 import fs from 'fs';
 import path from 'path';
@@ -339,9 +339,13 @@ class AuthService {
       birthDate: birthDateValue,
       dni: user.dni as string,
       roles: userRoles,
-      status: 'ACTIVE', // Siempre crear usuarios con estado activo
-    } as IUser;
+      status: UserStatus.ACTIVE, // Siempre crear usuarios con estado activo
+    } as Partial<IUser>;
     const created = await this.userRepository.createUser(newUser);
+
+    if (!newUser.email) {
+      throw new Error('El email es obligatorio para enviar el correo de bienvenida');
+    }
 
     // Enviar email de bienvenida. Si el envío falla (p. ej. en dev sin SMTP),
     // no debemos hacer que el registro falle por completo. Logueamos el error
