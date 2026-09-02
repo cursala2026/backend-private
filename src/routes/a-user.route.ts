@@ -48,6 +48,7 @@ router.post('/removeCourseFromUser', authorize, requireAdmin, userController.rem
 router.post('/assignCourseToUserEdit', authorize, requireAdmin, userController.assignCourseToUserEdit);
 router.post('/removeCourseFromUserEdit', authorize, requireAdmin, userController.removeCourseFromUserEdit);
 router.post('/changueStatus', authorize, requireAdmin, userController.changueStatus);
+router.post('/teacher/apply', authorize, userController.applyTeacher);
 router.post('/teacher/apply/upload', authorize, upload.fields([{ name: 'photo', maxCount: 1 }, { name: 'cv', maxCount: 1 }, { name: 'signature', maxCount: 1 },]), userController.uploadFiles);
 
 // PATCH routes

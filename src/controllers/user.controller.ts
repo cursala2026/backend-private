@@ -46,6 +46,74 @@ export default class UserController {
     }
   };
 
+  applyTeacher = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = req.user as IUser;
+      if (!user) {
+        return res.status(401).json(prepareResponse(401, 'Unauthorized', null));
+      }
+
+      const {
+        title,
+        yearsOfExperience,
+        bio,
+        photoUrl,
+        cvUrl,
+        signatureUrl,
+        agreementAccepted,
+      } = req.body;
+
+      // Validaciones de negocio
+      if (!title || typeof title !== 'string' || !title.trim()) {
+        return res.status(400).json(prepareResponse(400, 'Title is required', null));
+      }
+      if (typeof yearsOfExperience !== 'number' || yearsOfExperience < 0) {
+        return res.status(400).json(prepareResponse(400, 'Year of experience must be a non-negative number', null));
+      }
+      if (!bio || typeof bio !== 'string' || bio.trim().length === 0) {
+        return res.status(400).json(prepareResponse(400, 'Bio is required', null));
+      }
+      if (bio.length > 500) {
+        return res.status(400).json(prepareResponse(400, 'Bio must be less than 500 characters', null));
+      }
+      if (!photoUrl || typeof photoUrl !== 'string') {
+        return res.status(400).json(prepareResponse(400, 'Photo URL is required', null));
+      }
+      if (!cvUrl || typeof cvUrl !== 'string') {
+        return res.status(400).json(prepareResponse(400, 'CV URL is required', null));
+      }
+      if (!signatureUrl || typeof signatureUrl !== 'string') {
+        return res.status(400).json(prepareResponse(400, 'Signature URL is required', null));
+      }
+      if (agreementAccepted !== true) {
+        return res.status(400).json(prepareResponse(400, 'Agreement accepted is required', null));
+      }
+
+      // Actualización con trazabilidad legal
+      const updateData: Partial<IUser> = {
+        title,
+        yearsOfExperience,
+        bio,
+        profilePhotoUrl: photoUrl,
+        cvUrl,
+        professionalSignatureUrl: signatureUrl,
+        agreementAccepted,
+        agreementTimestamp: new Date(),
+        teacherStatus: 'PENDING_APPROVAL',
+      };
+      
+      const updatedUser = await this.userService.updateUser(user._id.toString(), updateData);
+
+      if (!updatedUser) {
+        return res.status(404).json(prepareResponse(404, 'User not found', null));
+      }
+
+      return res.json(prepareResponse(200, 'Teacher application submitted successfully', updatedUser));
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   getSignedContract = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { userId } = req.params as { userId: string };
