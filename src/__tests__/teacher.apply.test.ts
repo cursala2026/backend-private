@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 import request from 'supertest';
 import Server, { setErrorHandlers } from '../express/server';
 import registerRoutes from '../routes';
@@ -5,13 +6,14 @@ import logger from '../utils/logger';
 import jwt from 'jsonwebtoken';
 import config from '../config';
 import UserRepository from '@/repositories/user.repository';
+import mongoose from 'mongoose';
 
 const token = jwt.sign(
     { userId: 'fakeUserId' }, 
     config.JWT_SECRET, 
     { expiresIn: '1h' }
 );
-
+jest.spyOn(mongoose, 'connect').mockResolvedValue(mongoose as any);
 let server: Server;
 let app: any;
 jest.setTimeout(30000);
@@ -32,8 +34,8 @@ afterAll(async () => {
     jest.restoreAllMocks();
     if (server) server.stop(0);
     if (logger.close) logger.close();
+    await mongoose.disconnect(); // <--- Agregá esto acá
 });
-
 describe('POST user/teacher/apply', () => {
     const endpoint = `${config.BASE_URL}/user/teacher/apply`;
     const authHeader = { 'authorization': `Bearer ${token}` };
