@@ -11,7 +11,12 @@ import { TeacherStatus, UserRoles, UserStatus } from '@/models/enums/user.enum';
 import { Course, User, IUser } from '@/models';
 import { userRepository } from '@/repositories';
 
-jest.spyOn(mongoose, 'connect').mockResolvedValue(mongoose as any);
+jest.mock('mongoose', () => {
+  const actualMongoose = jest.requireActual('mongoose');
+  actualMongoose.connect = jest.fn().mockResolvedValue(actualMongoose);
+  return actualMongoose;
+});
+
 
 const fakeId = new mongoose.Types.ObjectId();
 let server: Server;
@@ -31,10 +36,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    await mongoose.disconnect();
     jest.restoreAllMocks();
     if (server) server.stop(0);
     if (logger.close) logger.close();
+    await mongoose.connection.close(true);
+    await mongoose.disconnect();
 });
 
 describe('GET /courses/:courseId/students', () => {
