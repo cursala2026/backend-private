@@ -3,6 +3,8 @@ import { authorize } from '@/middlewares/auth.middleware';
 import { requireAdmin, requireAdminOrCourseOwner, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';
 import { courseController } from '@/controllers';
 import { courseRepository } from '@/repositories';
+import { requireActiveTeacher } from '@/middlewares/teacherSecurity.middleware';
+import { Course, User } from '@/models';
 
 const router = Router();
 
@@ -14,7 +16,29 @@ router.get('/published', authorize, courseController.findPublishedCourses); // C
 router.get('/teacher/:teacherId', authorize, courseController.findByTeacherId); // Cursos de un profesor
 
 // 🟡 AUTENTICADO: Rutas de estudiantes (DEBEN IR ANTES DE /:courseId)
-router.get('/me/courses', authorize, courseController.getStudentCourses); // Obtener cursos del estudiante
+router.get('/:courseId/students', authorize, requireActiveTeacher, async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const userId = String(req.user?._id);
+
+        const course = await Course.findById(courseId);
+        if (!course) {
+            return res.status(404).json({ message: 'Curso no encontrado' });
+        }
+
+        if (String(course.teacherId) !== userId) {
+            return res.status(403).json({ message: 'Acceso denegado' });
+        }
+
+        const students = await User.find({ _id: { $in: course.students } })
+            .select('name lastName education -_id');
+
+        return res.json(students);
+    } catch (error) {
+        return res.status(500).json({ message: 'Error al obtener los estudiantes', error });
+    }
+});
+router.get('/me/courses', authorize, courseController.getStudentCourses);
 
 // 🟡 AUTENTICADO: Listar todos (solo admin y vendedor)
 router.get('/', authorize, requireAdminOrVendedor, courseController.findAll); // Todos los cursos (solo admin/vendedor)

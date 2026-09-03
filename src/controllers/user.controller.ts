@@ -3,7 +3,7 @@ import prepareResponse from '../utils/api-response';
 import { logger } from '../utils';
 import UserService from '@/services/user.service';
 import BunnyService from '@/services/bunny.service';
-import { UserStatus } from '@/models';
+import { UserStatus, TeacherStatus } from '@/models';
 import { IUser } from '@/models/user.model';
 import { uploadFiles } from '@/utils/fileUpload.util';
 import fs from 'fs';
@@ -99,7 +99,7 @@ export default class UserController {
         professionalSignatureUrl: signatureUrl,
         agreementAccepted,
         agreementTimestamp: new Date(),
-        teacherStatus: 'PENDING_APPROVAL',
+        teacherStatus: TeacherStatus.PENDING_APPROVAL,
       };
       
       const updatedUser = await this.userService.updateUser(user._id.toString(), updateData);

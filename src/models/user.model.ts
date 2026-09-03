@@ -1,6 +1,6 @@
 import mongoose, { Schema, model } from 'mongoose';
 import { Types } from '@/models';
-import { UserRoles, UserStatus } from './enums';
+import { UserRoles, UserStatus, TeacherStatus } from './enums';
 
 export interface IAssignedCourseEdit {
   courseId: Types.ObjectId;
@@ -32,7 +32,7 @@ export interface IUser {
   interests: Types.ObjectId[];
   interestsSuggestions?: string;
   //Implementación Issue #53
-  teacherStatus: 'NOT_REQUESTED' | 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED';
+  teacherStatus: TeacherStatus;
   title: string;
   yearsOfExperience: number;
   bio: string;
@@ -87,7 +87,7 @@ export const UserSchema: Schema<UserModel> = new Schema<UserModel>(
     },
 
     // ISSUE #53
-    teacherStatus: { type: String, enum: ['NOT_REQUESTED', 'PENDING_APPROVAL', 'ACTIVE', 'REJECTED'], default: 'NOT_REQUESTED' },
+    teacherStatus: { type: String, enum: Object.values(TeacherStatus), default: TeacherStatus.NOT_REQUESTED },
     title: { type: String, required: true },
     yearsOfExperience: { type: Number, min: 0, required: true },
     bio: { type: String, maxlength: 500, required: true },
