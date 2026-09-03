@@ -9,3 +9,10 @@ export enum UserRoles {
   PROFESOR = 'PROFESOR',
   VENDEDOR = 'VENDEDOR',
 }
+
+export enum TeacherStatus {
+  NOT_REQUESTED = 'NOT_REQUESTED',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  ACTIVE = 'ACTIVE',
+  REJECTED = 'REJECTED',
+}
