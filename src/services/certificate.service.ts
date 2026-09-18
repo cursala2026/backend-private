@@ -323,7 +323,12 @@ export default class CertificateService {
     logger.debug('Certificado generado exitosamente');
 
     // Enviar por email
-    await this.sendCertificateByEmail(student.email, certificateForPdf, pdfBuffer);
+    // Enviar por email sin bloquear la emisión del certificado
+try {
+  await this.sendCertificateByEmail(student.email, certificateForPdf, pdfBuffer);
+} catch (emailError) {
+  logger.error(`No se pudo enviar el certificado por email a ${student.email}:`, emailError);
+}
 
     // Codificar el verificationCode para que sea seguro en URLs
     const encodedCode = this.encodeVerificationCode(verificationCode);
