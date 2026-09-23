@@ -208,7 +208,7 @@ export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
   }
 );
 
-CourseSchema.index({ instructor: 1, status: 1 });
+CourseSchema.index({ teachers: 1, status: 1 });
 CourseSchema.index({ modality: 1, status: 1 });
 
 CourseSchema.pre('save', async function () {

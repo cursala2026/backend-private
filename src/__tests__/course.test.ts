@@ -1,7 +1,7 @@
 import mongoose, { Types } from 'mongoose';
 import { CourseSchema } from '../models/mongo/course.model';
 
-const Course = mongoose.model('Course', CourseSchema);
+const Course = mongoose.models.Course || mongoose.model('Course', CourseSchema);
 
 describe('Course Model', () => {
     it('crea curso SYNC en estado DRAFT sin errores', async () => {
