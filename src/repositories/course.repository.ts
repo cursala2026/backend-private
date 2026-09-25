@@ -1,4 +1,4 @@
-import { CourseSchema, ICourse, Connection, Model, Types } from '@/models';
+import { CourseSchema, ICourse, Connection, Model, Types, UserStatus } from '@/models';
 
 class CourseRepository {
   private readonly model: Model<ICourse>;
@@ -733,7 +733,7 @@ class CourseRepository {
       name: newCourseName,
       description: originalCourse.description,
       longDescription: originalCourse.longDescription,
-      status: 'ACTIVE',
+      status: UserStatus.ACTIVE,
       days: originalCourse.days,
       time: originalCourse.time,
       startDate: originalCourse.startDate,

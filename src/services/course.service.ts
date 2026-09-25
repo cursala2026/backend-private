@@ -1,7 +1,7 @@
 import fs from 'fs';
 import axios from 'axios';
 import path from 'path';
-import { ICourse, Types } from '@/models';
+import { ICourse, IAttachment, Course, Types } from '@/models';
 import { IUser } from '@/models/user.model';
 import { logger } from '@/utils';
 import CourseRepository from '@/repositories/course.repository';
@@ -44,6 +44,35 @@ export default class CourseService {
     } catch (error: any) {
       return false;
     }
+  }
+
+  async addAttachment(courseId: string, lessonId: string, attachment: IAttachment) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    const lesson = course.modules?.flatMap((m: any) => m.lessons).find((l: any) => l._id?.toString() === lessonId);
+    if (!lesson) throw new Error('Lesson not found');
+
+    lesson.attachments = lesson.attachments || [];
+    lesson.attachments.push(attachment);
+
+    await course.save();
+    return course;
+  }
+
+  async addVideo(courseId: string, lessonId: string, videoData: { title: string; videoUrl: string; durationSeconds: number }) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    const lesson = course.modules?.flatMap((m: any) => m.lessons).find((l: any) => l._id?.toString() === lessonId);
+    if (!lesson) throw new Error('Lesson not found');
+
+    lesson.title = videoData.title;
+    lesson.videoUrl = videoData.videoUrl;
+    lesson.durationSeconds = videoData.durationSeconds;
+
+    await course.save();
+    return course;
   }
 
   /**

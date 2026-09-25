@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { authorize } from '@/middlewares/auth.middleware';
 import { requireAdmin, requireAdminOrCourseOwner, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';
-import { courseController } from '@/controllers';
+import { courseController, courseAttachmentController } from '@/controllers';
 import { courseRepository } from '@/repositories';
 import { requireActiveTeacher } from '@/middlewares/teacherSecurity.middleware';
+import { upload } from '../middlewares/upload.middleware';
 import { Course, User } from '@/models';
 
 const router = Router();
@@ -26,7 +27,7 @@ router.get('/:courseId/students', authorize, requireActiveTeacher, async (req, r
             return res.status(404).json({ message: 'Curso no encontrado' });
         }
 
-        if (String(course.teacherId) !== userId) {
+        if (!course.teachers?.some((t: any) => String(t) === userId)) {
             return res.status(403).json({ message: 'Acceso denegado' });
         }
 
@@ -45,6 +46,10 @@ router.get('/', authorize, requireAdminOrVendedor, courseController.findAll); //
 
 // 🟠 Administración: listado de categorías para selects (debe ir antes de /:courseId)
 router.get('/categories', authorize, requireAdmin, courseController.getCategoriesForSelect);
+
+// 🟡 AUTENTICADO: Adjuntos y videos de curso
+router.post('/:id/attachments', authorize, upload.single('file'), courseAttachmentController.uploadCourseAttachment);
+router.post('/:id/videos', authorize, courseAttachmentController.registerCourseVideo);
 
 // 🟡 AUTENTICADO: Rutas específicas por courseId
 router.get('/:courseId', authorize, courseController.findOneById); // Ver detalles del curso

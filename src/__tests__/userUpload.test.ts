@@ -51,7 +51,7 @@ describe('POST user/teacher/apply/upload', () => {
     });
     
     it('rechaza archivo que excede tamaño máximo', async () => {
-        const bigBuffer = Buffer.alloc(11 * 1024 * 1024);
+        const bigBuffer = Buffer.alloc(51 * 1024 * 1024);
         const res = await request(app)
         .post(endpoint)
         .set(authHeader)

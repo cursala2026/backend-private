@@ -5,6 +5,7 @@ import { categoryService, courseService } from '@/services';
 import { ICourse } from '@/models';
 import { courseUploadFiles } from '@/services/course-upload.service';
 import { ensureString } from '../utils/type-guards';
+import { UserStatus } from '@/models/enums/user.enum';
 
 // Re-exportar para compatibilidad con rutas
 export { courseUploadFiles as uploadFiles } from '@/services/course-upload.service';
@@ -110,7 +111,7 @@ export default class CourseController {
           description,
           ...(category ? { category: typeof category === 'string' ? category : JSON.stringify({ id: category.id, name: category.name, description: category.description }) } : {}),
           longDescription,
-          status: 'ACTIVE',
+          status: UserStatus.ACTIVE,
           order: order !== undefined && order !== '' ? Number(order) : 0,
           days: typeof days === 'string' ? days.split(',').map((day: string) => day.trim()) : days,
           time,

@@ -50,7 +50,7 @@ export interface ICourse {
   category?: string | null;
   description?: string;
   longDescription?: string;
-  status: 'ACTIVE' | 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
+  status: UserStatus;
   order?: number;
   imageUrl?: string;
   imageOriginalName?: string; // Added original image filename
@@ -162,7 +162,7 @@ export const CourseSchema: Schema<CourseModel> = new Schema<CourseModel>(
     category: { type: String },
     description: { type: String, maxlength: 2000 },
     longDescription: { type: String },
-    status: { type: String, enum: ['ACTIVE', 'DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ARCHIVED'], default: 'DRAFT' },
+    status: { type: String, enum: Object.values(UserStatus), default: UserStatus.DRAFT },
     order: { type: Number, required: true, min: 0 },
     imageUrl: { type: String, match: /\.(jpg|jpeg|png|webp)$/i },
     classes: {
@@ -252,4 +252,4 @@ CourseSchema.set('toJSON', {
 });
 
 const Course = generalConnection.model<CourseModel>('Course', CourseSchema, 'courses');
-export default Course;
+export { Course };
