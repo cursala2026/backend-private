@@ -56,6 +56,16 @@ router.get('/:courseId', authorize, courseController.findOneById); // Ver detall
 router.post('/:courseId/enroll', authorize, courseController.enrollStudent); // Inscribirse en un curso gratis
 router.post('/:courseId/unenroll', authorize, courseController.unenrollStudent); // Desinscribirse de un curso
 
+router.post('/:id/modules', authorize, requireActiveTeacher, courseController.createModule);
+router.put('/:id/modules/:moduleId', authorize, requireActiveTeacher, courseController.updateModule);
+router.delete('/:id/modules/:moduleId', authorize, requireActiveTeacher, courseController.deleteModule);
+
+router.post('/:id/modules/:moduleId/lessons', authorize, requireActiveTeacher, courseController.createLesson);
+router.put('/:id/modules/:moduleId/lessons/:lessonId', authorize, requireActiveTeacher, courseController.updateLesson);
+router.delete('/:id/modules/:moduleId/lessons/:lessonId', authorize, requireActiveTeacher, courseController.deleteLesson);
+
+router.put('/:id/reorder', authorize, requireActiveTeacher, courseController.reorderContent);
+
 // 🔴 ADMIN: Gestión manual de estudiantes (asociar/desasociar)
 router.post('/:courseId/enroll/:userId', authorize, requireAdmin, courseController.enrollStudentByAdmin); // Asociar estudiante manualmente
 router.delete('/:courseId/unenroll/:userId', authorize, requireAdmin, courseController.unenrollStudentByAdmin); // Desasociar estudiante completamente

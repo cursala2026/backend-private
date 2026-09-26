@@ -1,6 +1,7 @@
 import fs from 'fs';
 import axios from 'axios';
 import path from 'path';
+import mongoose from 'mongoose';
 import { ICourse, IAttachment, Course, Types } from '@/models';
 import { IUser } from '@/models/user.model';
 import { logger } from '@/utils';
@@ -768,5 +769,94 @@ export default class CourseService {
         logger.error(`Error procesando teacher removed ${teacherId}: ${(err as Error).message}`);
       }
     }
+  }
+
+  async createModule(courseId: string, data: any) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    const newModule = { _id: new mongoose.Types.ObjectId(), ...data, lessons: [] };
+    course.modules.push(newModule);
+    await course.save();
+
+    return newModule;
+  }
+
+  async updateModule(courseId: string, moduleId: string, data: any) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    const module = course.modules.id(moduleId);
+    if (!module) throw new Error('Module not found');
+
+    Object.assign(module, data);
+    await course.save();
+
+    return module;
+  }
+
+  async deleteModule(courseId: string, moduleId: string) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    course.modules.id(moduleId)?.remove();
+    await course.save();
+  }
+
+  async createLesson(courseId: string, moduleId: string, data: any) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    const module = course.modules.id(moduleId);
+    if (!module) throw new Error('Module not found');
+
+    const newLesson = { _id: new mongoose.Types.ObjectId(), ...data };
+    module.lessons.push(newLesson);
+    await course.save();
+
+    return newLesson;
+  }
+
+  async updateLesson(courseId: string, moduleId: string, lessonId: string, data: any) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    const module = course.modules.id(moduleId);
+    if (!module) throw new Error('Module not found');
+
+    const lesson = module.lessons.id(lessonId);
+    if (!lesson) throw new Error('Lesson not found');
+
+    Object.assign(lesson, data);
+    await course.save();
+
+    return lesson;
+  }
+
+  async deleteLesson(courseId: string, moduleId: string, lessonId: string) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+
+    const module = course.modules.id(moduleId);
+    if (!module) throw new Error('Module not found');
+
+    module.lessons.id(lessonId)?.remove();
+    await course.save();
+  }
+
+  async reorderContent(courseId: string, type: 'MODULES' | 'LESSONS', orderedIds: string[], moduleId?: string) {
+    const course = await Course.findById(courseId);
+    if (!course) throw new Error('Course not found');
+    
+    if (type === 'MODULES') {
+      course.modules.sort((a: any, b: any) => orderedIds.indexOf(a._id.toString()) - orderedIds.indexOf(b._id.toString()));
+    } else if (type === 'LESSONS') {
+      const module = course.modules.id(moduleId);
+      if (!module) throw new Error('Module not found');
+      module.lessons.sort((a: any, b: any) => orderedIds.indexOf(a._id.toString()) - orderedIds.indexOf(b._id.toString()));
+    }
+
+    await course.save();
+    return course;
   }
 }

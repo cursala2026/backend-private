@@ -818,4 +818,81 @@ export default class CourseController {
       return next(error);
     }
   };
+
+  createModule = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const module = await this.courseService.createModule(courseId, req.body);
+      return res.status(201).json(module);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  updateModule = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      const module = await this.courseService.updateModule(courseId, moduleId, req.body);
+      return res.status(200).json(module);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  deleteModule = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      await this.courseService.deleteModule(courseId, moduleId);
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  createLesson = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      const lesson = await this.courseService.createLesson(courseId, moduleId, req.body);
+      return res.status(201).json(lesson);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  updateLesson = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      const lessonId = ensureString(req.params.lessonId);
+      const lesson = await this.courseService.updateLesson(courseId, moduleId, lessonId, req.body);
+      return res.status(200).json(lesson);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  deleteLesson = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      const lessonId = ensureString(req.params.lessonId);
+      await this.courseService.deleteLesson(courseId, moduleId, lessonId);
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  reorderContent = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const updated = await this.courseService.reorderContent(courseId, req.body.type, req.body.orderedIds, req.body.moduleId);
+      return res.json(updated);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
 }
