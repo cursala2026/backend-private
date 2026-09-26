@@ -18,6 +18,7 @@ export const upload = multer({
         if (!rule.types.includes(file.mimetype)) {
             return cb(new Error('INVALID_FILE_TYPE'));
         }
+
         cb(null, true);
     },
 });

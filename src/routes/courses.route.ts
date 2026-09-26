@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { authorize } from '@/middlewares/auth.middleware';
 import { requireAdmin, requireAdminOrCourseOwner, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';
-import { courseController } from '@/controllers';
+import { courseController, courseAttachmentController } from '@/controllers';
 import { courseRepository } from '@/repositories';
 import { requireActiveTeacher } from '@/middlewares/teacherSecurity.middleware';
+import { uploadCourseAttachment } from '../middlewares/courseAttachment.middleware';
 import { Course, User } from '@/models';
 
 const router = Router();
@@ -26,7 +27,7 @@ router.get('/:courseId/students', authorize, requireActiveTeacher, async (req, r
             return res.status(404).json({ message: 'Curso no encontrado' });
         }
 
-        if (String(course.teacherId) !== userId) {
+        if (!course.teachers?.some((t: any) => String(t) === userId)) {
             return res.status(403).json({ message: 'Acceso denegado' });
         }
 
@@ -46,10 +47,24 @@ router.get('/', authorize, requireAdminOrVendedor, courseController.findAll); //
 // 🟠 Administración: listado de categorías para selects (debe ir antes de /:courseId)
 router.get('/categories', authorize, requireAdmin, courseController.getCategoriesForSelect);
 
+// 🟡 AUTENTICADO: Adjuntos y videos de curso
+router.post('/:id/attachments', authorize, uploadCourseAttachment.single('file'), courseAttachmentController.uploadCourseAttachment);
+router.post('/:id/videos', authorize, courseAttachmentController.registerCourseVideo);
+
 // 🟡 AUTENTICADO: Rutas específicas por courseId
 router.get('/:courseId', authorize, courseController.findOneById); // Ver detalles del curso
 router.post('/:courseId/enroll', authorize, courseController.enrollStudent); // Inscribirse en un curso gratis
 router.post('/:courseId/unenroll', authorize, courseController.unenrollStudent); // Desinscribirse de un curso
+
+router.post('/:id/modules', authorize, requireActiveTeacher, courseController.createModule);
+router.put('/:id/modules/:moduleId', authorize, requireActiveTeacher, courseController.updateModule);
+router.delete('/:id/modules/:moduleId', authorize, requireActiveTeacher, courseController.deleteModule);
+
+router.post('/:id/modules/:moduleId/lessons', authorize, requireActiveTeacher, courseController.createLesson);
+router.put('/:id/modules/:moduleId/lessons/:lessonId', authorize, requireActiveTeacher, courseController.updateLesson);
+router.delete('/:id/modules/:moduleId/lessons/:lessonId', authorize, requireActiveTeacher, courseController.deleteLesson);
+
+router.put('/:id/reorder', authorize, requireActiveTeacher, courseController.reorderContent);
 
 // 🔴 ADMIN: Gestión manual de estudiantes (asociar/desasociar)
 router.post('/:courseId/enroll/:userId', authorize, requireAdmin, courseController.enrollStudentByAdmin); // Asociar estudiante manualmente

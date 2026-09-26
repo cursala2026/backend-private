@@ -5,6 +5,7 @@ import { categoryService, courseService } from '@/services';
 import { ICourse } from '@/models';
 import { courseUploadFiles } from '@/services/course-upload.service';
 import { ensureString } from '../utils/type-guards';
+import { UserStatus } from '@/models/enums/user.enum';
 
 // Re-exportar para compatibilidad con rutas
 export { courseUploadFiles as uploadFiles } from '@/services/course-upload.service';
@@ -110,7 +111,7 @@ export default class CourseController {
           description,
           ...(category ? { category: typeof category === 'string' ? category : JSON.stringify({ id: category.id, name: category.name, description: category.description }) } : {}),
           longDescription,
-          status: 'ACTIVE',
+          status: UserStatus.ACTIVE,
           order: order !== undefined && order !== '' ? Number(order) : 0,
           days: typeof days === 'string' ? days.split(',').map((day: string) => day.trim()) : days,
           time,
@@ -815,6 +816,83 @@ export default class CourseController {
         }
       }
       return next(error);
+    }
+  };
+
+  createModule = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const module = await this.courseService.createModule(courseId, req.body);
+      return res.status(201).json(module);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  updateModule = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      const module = await this.courseService.updateModule(courseId, moduleId, req.body);
+      return res.status(200).json(module);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  deleteModule = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      await this.courseService.deleteModule(courseId, moduleId);
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  createLesson = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      const lesson = await this.courseService.createLesson(courseId, moduleId, req.body);
+      return res.status(201).json(lesson);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  updateLesson = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      const lessonId = ensureString(req.params.lessonId);
+      const lesson = await this.courseService.updateLesson(courseId, moduleId, lessonId, req.body);
+      return res.status(200).json(lesson);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  deleteLesson = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const moduleId = ensureString(req.params.moduleId);
+      const lessonId = ensureString(req.params.lessonId);
+      await this.courseService.deleteLesson(courseId, moduleId, lessonId);
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
+    }
+  };
+
+  reorderContent = async (req: Request, res: Response) => {
+    try {
+      const courseId = ensureString(req.params.id);
+      const updated = await this.courseService.reorderContent(courseId, req.body.type, req.body.orderedIds, req.body.moduleId);
+      return res.json(updated);
+    } catch (error) {
+      return res.status(400).json({ message: (error as Error).message });
     }
   };
 }

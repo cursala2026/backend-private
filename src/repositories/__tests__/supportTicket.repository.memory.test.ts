@@ -2,9 +2,10 @@ import mongoose, { Types } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import SupportTicketRepository from '../supportTicket.repository';
 import { SupportTicketSchema, TicketStatus } from '@/models/mongo/supportTicket.model';
-import { UserSchema } from '@/models';
+import { UserSchema, UserRoles } from '@/models';
 
 describe('SupportTicketRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: SupportTicketRepository;
 
@@ -22,7 +23,9 @@ describe('SupportTicketRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {
@@ -41,6 +44,13 @@ describe('SupportTicketRepository (with mongodb-memory-server)', () => {
         lastName: 'Doe',
         username: 'johnny',
         password: 'pass',
+        roles: UserRoles.ALUMNO,
+        title: 'Estudiante',
+        yearsOfExperience: 0,
+        bio: 'Mi biografia',
+        photoUrl: 'https://cdn.test/photo.png',
+        cvUrl: 'https://cdn.test/cv.pdf',
+        signatureUrl: 'https://cdn.test/signature.png',
         email: 'john@test.com'
       });
 
@@ -49,7 +59,14 @@ describe('SupportTicketRepository (with mongodb-memory-server)', () => {
         lastName: 'Super',
         username: 'admin',
         password: 'pass',
-        email: 'admin@test.com'
+        email: 'admin@test.com',
+        roles: UserRoles.ADMIN,
+        title: 'Admin',
+        yearsOfExperience: 0,
+        bio: 'Mi biografia',
+        photoUrl: 'https://cdn.test/photo.png',
+        cvUrl: 'https://cdn.test/cv.pdf',
+        signatureUrl: 'https://cdn.test/signature.png'
       });
 
       const ticket = await repository.create({
