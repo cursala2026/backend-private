@@ -16,6 +16,7 @@ import { ClassSchema } from '@/models/mongo/class.model';
 import { QuestionnaireSchema } from '@/models/mongo/questionnaire.model';
 
 describe('CourseProgressRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repositoryRef: any;
   let cpModel: any;
@@ -37,7 +38,9 @@ describe('CourseProgressRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {

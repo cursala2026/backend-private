@@ -4,7 +4,7 @@ import { requireAdmin, requireAdminOrCourseOwner, requireAdminOrVendedor } from 
 import { courseController, courseAttachmentController } from '@/controllers';
 import { courseRepository } from '@/repositories';
 import { requireActiveTeacher } from '@/middlewares/teacherSecurity.middleware';
-import { upload } from '../middlewares/upload.middleware';
+import { uploadCourseAttachment } from '../middlewares/courseAttachment.middleware';
 import { Course, User } from '@/models';
 
 const router = Router();
@@ -48,7 +48,7 @@ router.get('/', authorize, requireAdminOrVendedor, courseController.findAll); //
 router.get('/categories', authorize, requireAdmin, courseController.getCategoriesForSelect);
 
 // 🟡 AUTENTICADO: Adjuntos y videos de curso
-router.post('/:id/attachments', authorize, upload.single('file'), courseAttachmentController.uploadCourseAttachment);
+router.post('/:id/attachments', authorize, uploadCourseAttachment.single('file'), courseAttachmentController.uploadCourseAttachment);
 router.post('/:id/videos', authorize, courseAttachmentController.registerCourseVideo);
 
 // 🟡 AUTENTICADO: Rutas específicas por courseId

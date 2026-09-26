@@ -3,6 +3,7 @@ import UserRepository from '../repositories/user.repository';
 import mongoose from 'mongoose';
 import { sendEmail } from '../utils/emailer';
 import { getConfig } from '../repositories/config.repository';
+import { logger } from '../utils';
 
 mongoose.connect(process.env.DATABASE_URL!);
 
@@ -12,13 +13,11 @@ const userRepository = new UserRepository(connection);
 export async function runCourseStartOnce() {
   const config = await getConfig('course-start');
   if (!config.enabled) {
-    console.log('Notificaciones de inicio de curso deshabilitadas');
     return;
   }
 
   const users = await userRepository.findCoursesStart();
   if (!Array.isArray(users)) {
-    console.error('findCoursesStart no devolvió un array');
     return;
   }
 
@@ -38,7 +37,7 @@ export async function runCourseStartOnce() {
 
       await userRepository.markUserNotifiedCourseStart(user.id);
     } catch (err) {
-      console.error(`Error enviando a ${user.email}`, err);
+      logger.error(`Error enviando a ${user.email}`, err);
     }
   }
 }

@@ -343,7 +343,9 @@ export default class CourseService {
 
     // Eliminar todo el progreso de este curso
     try {
-      await courseProgressRepository.deleteAllByCourseId(id);
+      if (Types.ObjectId.isValid(id)) {
+        await courseProgressRepository.deleteAllByCourseId(id);
+      }
     } catch (error) {
       console.error('Error al eliminar progreso del curso:', error);
     }
@@ -384,7 +386,9 @@ export default class CourseService {
   async delete(id: string): Promise<ICourse | null> {
     // Eliminar todo el progreso de este curso
     try {
-      await courseProgressRepository.deleteAllByCourseId(id);
+      if (Types.ObjectId.isValid(id)) {
+        await courseProgressRepository.deleteAllByCourseId(id);
+      }
     } catch (error) {
       console.error('Error al eliminar progreso del curso:', error);
     }

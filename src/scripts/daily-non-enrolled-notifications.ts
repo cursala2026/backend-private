@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { sendEmail } from '../utils/emailer';
 import { getConfig } from '../repositories/config.repository';
 import { buildNoEnrollmentEmail } from '@/utils/notifications.utils';
+import { logger } from '../utils';
 
 mongoose.connect(process.env.DATABASE_URL!);
 
@@ -13,7 +14,6 @@ const userRepository = new UserRepository(connection);
 export async function runOnce() {
   const config = await getConfig('non-enrolled');
   if (!config.enabled) {
-    console.log('Notificaciones para usuarios sin cursos deshabilitadas');
     return;
   }
 
@@ -21,12 +21,10 @@ export async function runOnce() {
   const recommendedCourses = await userRepository.findRecommendedCourses();
 
   if (!Array.isArray(users) || users.length === 0) {
-    console.error('findUsersWithNoEnrollments no devolvió un array');
     return;
   }
 
   for (const user of users) {
-    console.log(`Enviando notificación a ${user.email}`);
     try {
       const html= buildNoEnrollmentEmail(user, recommendedCourses, config);
       
@@ -38,7 +36,7 @@ export async function runOnce() {
       });
       await userRepository.markUserNotifiedNoCourse(user.id);
     } catch (err) {
-      console.error(`Error enviando a ${user.email}`, err);
+      logger.error(`Error enviando a ${user.email}`, err);
     }
   }
 }

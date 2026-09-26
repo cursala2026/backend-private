@@ -101,7 +101,7 @@ describe('FileMaterialController', () => {
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 success: false,
-                message: 'No se ha subido ningún archivo',
+                message: 'No se ha subido ningún archivo. Asegúrese de enviar el campo como "materialFile" o "file".',
             }));
         });
     });

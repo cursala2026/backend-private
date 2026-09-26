@@ -139,7 +139,7 @@ describe('FileMaterialService', () => {
       mockFileMaterialRepository.findPublicMaterials.mockResolvedValue(materials);
       const result = await fileMaterialService.getPublicMaterials();
       expect(result).toEqual(materials);
-      expect(mockFileMaterialRepository.findPublicMaterials).toHaveBeenCalledWith(undefined, undefined, { page: 1, limit: 10, sort: '-createdAt' });
+      expect(mockFileMaterialRepository.findPublicMaterials).toHaveBeenCalledWith(undefined, undefined, undefined, { page: 1, limit: 10, sort: '-createdAt' });
     });
     test('handles error during retrieval', async () => {
       mockFileMaterialRepository.findPublicMaterials.mockRejectedValue(new Error('DB error'));
@@ -148,17 +148,17 @@ describe('FileMaterialService', () => {
   });
   describe('getUserMaterials', () => {
     test('retrieves user materials successfully', async () => {
-      const materials = [{ _id: new mongoose.Types.ObjectId(), name: 'Test' }];
-      mockFileMaterialRepository.findByUser.mockResolvedValue(materials);
+      const materials = [{ name: 'Doc1', type: 'PDF' }, { name: 'Doc2', type: 'VIDEO' }];
+      mockFileMaterialRepository.findWithPagination.mockResolvedValue(materials);
       const result = await fileMaterialService.getUserMaterials('507f1f77bcf86cd799439011');
       expect(result).toEqual(materials);
-      expect(mockFileMaterialRepository.findByUser).toHaveBeenCalledWith('507f1f77bcf86cd799439011', { page: 1, limit: 10, sort: '-createdAt' });
+      expect(mockFileMaterialRepository.findWithPagination).toHaveBeenCalledWith({ uploadedBy: '507f1f77bcf86cd799439011', status: UserStatus.ACTIVE }, { page: 1, limit: 10, sort: '-createdAt' });
     });
     test('throws error for invalid user ID', async () => {
       await expect(fileMaterialService.getUserMaterials('invalid')).rejects.toThrow('ID de usuario inválido');
     });
     test('handles error during retrieval', async () => {
-      mockFileMaterialRepository.findByUser.mockRejectedValue(new Error('DB error'));
+      mockFileMaterialRepository.findWithPagination.mockRejectedValue(new Error('DB error'));
       await expect(fileMaterialService.getUserMaterials('507f1f77bcf86cd799439011')).rejects.toThrow('Error al obtener materiales del usuario: DB error');
     });
   });

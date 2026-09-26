@@ -194,7 +194,7 @@ class CourseRepository {
     // Asigna el siguiente valor de order basado en el último curso creado.
     const lastCourse = await this.model.findOne().sort({ order: -1 }).exec();
     const nextOrder = lastCourse ? (lastCourse as unknown as ICourse).order! + 1 : 1;
-    const payload = { ...(courseData as Partial<ICourse>), status: 'ACTIVE', order: nextOrder } as Partial<ICourse>;
+    const payload = { ...(courseData as Partial<ICourse>), status: 'ACTIVE', order: nextOrder, modality: 'SYNC' } as Partial<ICourse>;
     const created = await this.model.create(payload);
     return created as unknown as ICourse;
   }
