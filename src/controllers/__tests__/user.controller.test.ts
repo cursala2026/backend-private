@@ -170,8 +170,11 @@ describe('UserController.getSignedContract', () => {
 
     expect(mockUserService.getSignedContract).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ 
-      success: true,
-      data: { url: 'http://cdn/contracts/abc.pdf' }
+      data: { url: 'http://cdn/contracts/abc.pdf' },
+      errors: undefined,
+      message: 'Signed contract fetched successfully',
+      pagination: undefined,
+      status: 200
     }));
   });
   

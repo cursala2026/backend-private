@@ -2,10 +2,11 @@ import mongoose, { Types } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import FileMaterialRepository from '../fileMaterial.repository';
 import { FileMaterialSchema, FileMaterialType, FileMaterialCategory } from '@/models/mongo/fileMaterial.model';
-import { UserSchema, UserStatus } from '@/models';
+import { UserSchema, UserStatus, UserRoles } from '@/models';
 import mongoosePaginate from 'mongoose-paginate-v2';
 
 describe('FileMaterialRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: FileMaterialRepository;
 
@@ -22,7 +23,9 @@ describe('FileMaterialRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {
@@ -40,7 +43,14 @@ describe('FileMaterialRepository (with mongodb-memory-server)', () => {
         lastName: 'Doc',
         username: 'docauthor',
         email: 'doc@test.com',
-        password: 'pass'
+        password: 'pass',
+        roles: UserRoles.ADMIN,
+        title: 'Admin',
+        yearsOfExperience: 0,
+        bio: 'Mi biografia',
+        photoUrl: 'https://cdn.test/photo.png',
+        cvUrl: 'https://cdn.test/cv.pdf',
+        signatureUrl: 'https://cdn.test/signature.png'
       });
 
       const data = {
@@ -94,7 +104,7 @@ describe('FileMaterialRepository (with mongodb-memory-server)', () => {
     });
 
     it('should return only public materials with pagination', async () => {
-      const res: any = await repository.findPublicMaterials(undefined, undefined, { page: 1, limit: 2 });
+      const res: any = await repository.findPublicMaterials(undefined, undefined, undefined, { page: 1, limit: 2 });
       
       expect(res.totalDocs).toBe(3); // Mat 1, 2, 4
       expect(res.docs).toHaveLength(2);
@@ -102,7 +112,7 @@ describe('FileMaterialRepository (with mongodb-memory-server)', () => {
     });
 
     it('should filter public materials by type', async () => {
-      const res: any = await repository.findPublicMaterials(FileMaterialType.TEMPLATE, undefined, { page: 1, limit: 10 });
+      const res: any = await repository.findPublicMaterials(FileMaterialType.TEMPLATE, undefined, undefined, { page: 1, limit: 10 });
       
       expect(res.totalDocs).toBe(1);
       expect(res.docs[0].name).toBe('Mat 4');

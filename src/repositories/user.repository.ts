@@ -524,7 +524,7 @@ class UserRepository {
 
     // roleId is actually a role code after refactor
     const updatedUser = await this.model
-      .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $pull: { roles: roleId } }, { new: true })
+      .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $set: { roles: roleId } }, { new: true })
       .exec();
 
     return updatedUser as unknown as IUser | null;
@@ -543,7 +543,7 @@ class UserRepository {
 
     // roleId is actually a role code after refactor
     const updatedUser = await this.model
-      .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $addToSet: { roles: roleId } }, { new: true })
+      .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $set: { roles: roleId } }, { new: true })
       .exec();
 
     return updatedUser as unknown as IUser | null;

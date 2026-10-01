@@ -10,6 +10,12 @@ jest.mock('@/models/enums', () => ({
     ALUMNO: 'ALUMNO',
     PROFESOR: 'PROFESOR',
   },
+  TeacherStatus: {
+    NOT_REQUESTED: 'NOT_REQUESTED',
+    PENDING_APPROVAL: 'PENDING_APPROVAL',
+    ACTIVE: 'ACTIVE',
+    REJECTED: 'REJECTED',
+  },
   CorporateMails: {
     INFO: 'info@example.com',
   },

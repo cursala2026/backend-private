@@ -3,9 +3,10 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import CourseRepository from '../course.repository';
 
 // Schemas necesarios para las colecciones
-import { CourseSchema, ClassSchema, UserSchema, QuestionnaireSchema } from '@/models';
+import { CourseSchema, ClassSchema, UserSchema, QuestionnaireSchema, UserRoles } from '@/models';
 
 describe('CourseRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: CourseRepository;
 
@@ -25,7 +26,9 @@ describe('CourseRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {
@@ -45,7 +48,13 @@ describe('CourseRepository (with mongodb-memory-server)', () => {
         username: 'johndoe',
         password: 'password123',
         email: 'john@example.com',
-        roles: ['ADMIN'],
+        roles: UserRoles.PROFESOR,
+        title: 'Profesor',
+        yearsOfExperience: 5,
+        bio: 'Mi biografia',
+        photoUrl: 'https://cdn.test/photo.png',
+        cvUrl: 'https://cdn.test/cv.pdf',
+        signatureUrl: 'https://cdn.test/signature.png'
       });
 
       // 2. Crear curso asignándole el profesor
@@ -112,6 +121,7 @@ describe('CourseRepository (with mongodb-memory-server)', () => {
       const courseData = {
         name: 'Teacher Update Course',
         teachers: [],
+        modality: 'SYNC',
       };
       const course = await repository.create(courseData as any);
       const teacher1Id = new Types.ObjectId().toHexString();

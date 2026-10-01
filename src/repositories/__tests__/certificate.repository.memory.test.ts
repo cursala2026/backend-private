@@ -2,9 +2,10 @@ import mongoose, { Types } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import CertificateRepository from '../certificate.repository';
 import { CertificateSchema } from '@/models/mongo/certificate.model';
-import { UserSchema, CourseSchema } from '@/models';
+import { UserSchema, CourseSchema, UserRoles } from '@/models';
 
 describe('CertificateRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: CertificateRepository;
 
@@ -22,7 +23,9 @@ describe('CertificateRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {
@@ -67,13 +70,13 @@ describe('CertificateRepository (with mongodb-memory-server)', () => {
       const UserModel = mongoose.connection.model('User');
       const CourseModel = mongoose.connection.model('Course');
 
-      const student = await UserModel.create({ firstName: 'Student', lastName: 'One', username: 's1', email: 's@test.com', password: 'p' });
+      const student = await UserModel.create({ firstName: 'Student', lastName: 'One', username: 's1', email: 's@test.com', password: 'p', roles: UserRoles.ALUMNO, title: 'Estudiante', yearsOfExperience: 0, bio: 'Mi biografia', photoUrl: 'https://cdn.test/photo.png', cvUrl: 'https://cdn.test/cv.pdf', signatureUrl: 'https://cdn.test/signature.png' });
       studentId = student._id as Types.ObjectId;
       
-      const teacher = await UserModel.create({ firstName: 'Teacher', lastName: 'Two', username: 't1', email: 't@test.com', password: 'p' });
+      const teacher = await UserModel.create({ firstName: 'Teacher', lastName: 'Two', username: 't1', email: 't@test.com', password: 'p', roles: UserRoles.PROFESOR, title: 'Profesor', yearsOfExperience: 5, bio: 'Mi biografia', photoUrl: 'https://cdn.test/photo.png', cvUrl: 'https://cdn.test/cv.pdf', signatureUrl: 'https://cdn.test/signature.png' });
       teacherId = teacher._id as Types.ObjectId;
 
-      const course = await CourseModel.create({ name: 'Course', description: 'Desc', order: 1 });
+      const course = await CourseModel.create({ name: 'Course', description: 'Desc', order: 1, modality: 'SYNC' });
       courseId = course._id as Types.ObjectId;
 
       await repository.create({

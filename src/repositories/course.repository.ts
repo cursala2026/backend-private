@@ -1,4 +1,4 @@
-import { CourseSchema, ICourse, Connection, Model, Types } from '@/models';
+import { CourseSchema, ICourse, Connection, Model, Types, UserStatus } from '@/models';
 
 class CourseRepository {
   private readonly model: Model<ICourse>;
@@ -193,8 +193,8 @@ class CourseRepository {
   async create(courseData: Partial<ICourse>): Promise<ICourse> {
     // Asigna el siguiente valor de order basado en el último curso creado.
     const lastCourse = await this.model.findOne().sort({ order: -1 }).exec();
-    const nextOrder = lastCourse ? (lastCourse as unknown as ICourse).order + 1 : 1;
-    const payload = { ...(courseData as Partial<ICourse>), status: 'ACTIVE', order: nextOrder } as Partial<ICourse>;
+    const nextOrder = lastCourse ? (lastCourse as unknown as ICourse).order! + 1 : 1;
+    const payload = { ...(courseData as Partial<ICourse>), status: 'ACTIVE', order: nextOrder, modality: 'SYNC' } as Partial<ICourse>;
     const created = await this.model.create(payload);
     return created as unknown as ICourse;
   }
@@ -733,7 +733,7 @@ class CourseRepository {
       name: newCourseName,
       description: originalCourse.description,
       longDescription: originalCourse.longDescription,
-      status: 'ACTIVE',
+      status: UserStatus.ACTIVE,
       days: originalCourse.days,
       time: originalCourse.time,
       startDate: originalCourse.startDate,

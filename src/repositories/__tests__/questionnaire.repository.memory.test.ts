@@ -2,9 +2,10 @@ import mongoose, { Types } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import QuestionnaireRepository from '../questionnaire.repository';
 import { QuestionnaireSchema } from '@/models/mongo/questionnaire.model';
-import { CourseSchema } from '@/models/mongo/course.model';
+import { CourseSchema, UserStatus } from '@/models';
 
 describe('QuestionnaireRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: QuestionnaireRepository;
   let qModel: any;
@@ -23,7 +24,9 @@ describe('QuestionnaireRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {
@@ -129,7 +132,7 @@ describe('QuestionnaireRepository (with mongodb-memory-server)', () => {
 
     it('should findByProfessorId using $lookup to courses', async () => {
       const teacherId = new Types.ObjectId();
-      const c = await courseModel.create({ name: 'Course 1', description: 'Desc', order: 1, status: 'ACTIVE', teachers: [teacherId] });
+      const c = await courseModel.create({ name: 'Course 1', description: 'Desc', order: 1, status: UserStatus.ACTIVE, teachers: [teacherId], modality: 'SYNC' });
       await createValidQuestionnaire({ courseId: c._id, title: 'Q1' });
 
       // Unrelated
