@@ -3,7 +3,7 @@ import { authorize } from '@/middlewares/auth.middleware';
 import { requireAdmin, requireAdminOrCourseOwner, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';
 import { courseController } from '@/controllers';
 import { courseRepository } from '@/repositories';
-
+import { courseUploadFiles } from '@/services/course-upload.service';
 const router = Router();
 
 // 🟢 PÚBLICO: Imágenes de cursos (sin autenticación para permitir carga en navegador)
@@ -32,9 +32,9 @@ router.post('/:courseId/enroll/:userId', authorize, requireAdmin, courseControll
 router.delete('/:courseId/unenroll/:userId', authorize, requireAdmin, courseController.unenrollStudentByAdmin); // Desasociar estudiante completamente
 // 🔴 ADMIN: Duplicar curso con todas sus clases y cuestionarios
 router.post('/:courseId/duplicate', authorize, requireAdmin, courseController.duplicateCourse);
-router.post('/course', authorize, requireAdmin, courseController.create);
+router.post('/course', authorize, requireAdmin, courseUploadFiles.single('imageFile'), courseController.create);
 router.patch('/:courseId/teachers', authorize, requireAdminOrCourseOwner(courseRepository), courseController.updateTeachers);
-router.patch('/:courseId', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);
+router.patch('/:courseId', authorize, requireAdminOrCourseOwner(courseRepository), courseUploadFiles.single('imageFile'), courseController.update);
 router.delete('/:courseId/delete', authorize, requireAdmin, courseController.delete);
 router.patch('/:courseId/status', authorize, requireAdmin, courseController.changeStatus);
 router.patch('/:courseId/up', authorize, requireAdmin, courseController.moveUpOrder);

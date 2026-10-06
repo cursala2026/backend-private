@@ -1,0 +1,25 @@
+[1mdiff --git a/src/routes/courses.route.ts b/src/routes/courses.route.ts[m
+[1mindex 34d71c4..40fac93 100644[m
+[1m--- a/src/routes/courses.route.ts[m
+[1m+++ b/src/routes/courses.route.ts[m
+[36m@@ -3,7 +3,7 @@[m [mimport { authorize } from '@/middlewares/auth.middleware';[m
+ import { requireAdmin, requireAdminOrCourseOwner, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';[m
+ import { courseController } from '@/controllers';[m
+ import { courseRepository } from '@/repositories';[m
+[31m-[m
+[32m+[m[32mimport { courseUploadFiles } from '@/services/course-upload.service';[m
+ const router = Router();[m
+ [m
+ // 🟢 PÚBLICO: Imágenes de cursos (sin autenticación para permitir carga en navegador)[m
+[36m@@ -32,9 +32,9 @@[m [mrouter.post('/:courseId/enroll/:userId', authorize, requireAdmin, courseControll[m
+ router.delete('/:courseId/unenroll/:userId', authorize, requireAdmin, courseController.unenrollStudentByAdmin); // Desasociar estudiante completamente[m
+ // 🔴 ADMIN: Duplicar curso con todas sus clases y cuestionarios[m
+ router.post('/:courseId/duplicate', authorize, requireAdmin, courseController.duplicateCourse);[m
+[31m-router.post('/course', authorize, requireAdmin, courseController.create);[m
+[32m+[m[32mrouter.post('/course', authorize, requireAdmin, courseUploadFiles.single('imageFile'), courseController.create);[m
+ router.patch('/:courseId/teachers', authorize, requireAdminOrCourseOwner(courseRepository), courseController.updateTeachers);[m
+[31m-router.patch('/:courseId', authorize, requireAdminOrCourseOwner(courseRepository), courseController.update);[m
+[32m+[m[32mrouter.patch('/:courseId', authorize, requireAdminOrCourseOwner(courseRepository), courseUploadFiles.single('imageFile'), courseController.update);[m
+ router.delete('/:courseId/delete', authorize, requireAdmin, courseController.delete);[m
+ router.patch('/:courseId/status', authorize, requireAdmin, courseController.changeStatus);[m
+ router.patch('/:courseId/up', authorize, requireAdmin, courseController.moveUpOrder);[m

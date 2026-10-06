@@ -126,9 +126,9 @@ export default class Server implements NodeServer {
         .map((s) => s.trim())
         .filter(Boolean);
 
-      // En desarrollo, permitir localhost automáticamente
+      // en desarrollo, permitir localhost automáticamente
       if (config.NODE_ENV === 'development') {
-        allowed.push('http://localhost:4200', 'http://localhost:3000', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000', 'http://10.231.218.153:4200');
+        allowed.push('http://localhost:4200', 'http://localhost:3000', 'http://localhost:3002', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000', 'http://10.231.218.153:4200');
       }
 
       corsOptions = {

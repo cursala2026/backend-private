@@ -1,9 +1,18 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { userController } from '../controllers';
+import TeacherController from '../controllers/teacher.controller';
 import { authorize } from '@/middlewares/auth.middleware';
 import { requireAdmin, requireAdminOrSelf, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';
 
 const router = Router();
+const teacherController = new TeacherController();
+
+// configurar multer para uploads
+const upload = multer({
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10mb por archivo
+  storage: multer.memoryStorage(),
+});
 
 // 🟠 ALTO: Consultas administrativas de usuarios
 // Esta ruta DEBE estar aquí arriba para evitar el error 404 durante el login
@@ -59,5 +68,8 @@ router.patch('/:userId/interests', authorize, requireAdminOrSelf, userController
 // DELETE routes
 router.delete('/deleteUser/:userId', authorize, requireAdmin, userController.deleteUser);
 router.delete('/delete-self', authorize, userController.deleteSelfProfile);
+
+// teacher upload routes
+router.post('/teacher/apply/upload', upload.fields([{ name: 'photo' }, { name: 'cv' }, { name: 'signature' }]), teacherController.uploadDocuments);
 
 export default router;
