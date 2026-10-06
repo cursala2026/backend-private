@@ -43,7 +43,9 @@ export default class Server implements NodeServer {
       }
       
       this.setServerConfig();
-      this.setListeners();
+      if (config.NODE_ENV !== 'test') {
+        this.setListeners();
+      }
     } catch (error: any) {
       logger.error('❌ Error in Server constructor:');
       logger.error(`   Message: ${error?.message || 'Unknown error'}`);
@@ -86,15 +88,36 @@ export default class Server implements NodeServer {
   }
 
   stop(exitCode = 0): void {
-    logger.info(`Stopping server. Waiting for connections to end...`);
+    if (config.NODE_ENV !== 'test') {
+      logger.info(`Stopping server. Waiting for connections to end...`);
+    }
     this.server.close(() => {
-      logger.info(`Server closed successfully`);
-      process.exit(exitCode);
+      if (config.NODE_ENV !== 'test') {
+        logger.info(`Server closed successfully`);
+        process.exit(exitCode);
+      }
     });
   }
 
   setServerConfig(): void {
     try {
+      if (config.NODE_ENV !== 'test') {
+        this.app.use(
+          loggerMiddleware({
+            winstonInstance: logger,
+            expressFormat: true,
+            colorize: true,
+            meta: false,
+          })
+        );
+
+        this.app.use(
+          errorLogger({
+            winstonInstance: logger,
+          })
+        );
+      }
+
       this.app.set('port', this.port);
       this.app.set('trust proxy', 1);
       // Disable X-Powered-By to avoid leak of Express
@@ -171,16 +194,6 @@ export default class Server implements NodeServer {
     // this.app.use(express.urlencoded({ extended: true }));
     // this.app.use(express.json());
 
-    // Logger
-    this.app.use(
-      loggerMiddleware({
-        winstonInstance: logger,
-        expressFormat: true,
-        colorize: true,
-        meta: false,
-      })
-    );
-
     // this.app.use(
     //   middleware({
     //    apiSpec: config.DIR_SWAGGER || '',
@@ -226,13 +239,6 @@ export default class Server implements NodeServer {
       throw err;
     }
 
-    // Middleware de logging de errores
-    this.app.use(
-      errorLogger({
-        winstonInstance: logger,
-      })
-    );
-
     // Custom error handlers
       this.setErrorHandlers(this.app);
     } catch (error: any) {
@@ -244,7 +250,7 @@ export default class Server implements NodeServer {
   }
 
   setListeners(): void {
-    process.on('uncaughtException', (error: Error, origin: string) => {
+      process.on('uncaughtException', (error: Error, origin: string) => {
       logger.error(`Caught exception:\n${util.format(error)}`);
       logger.error(`Origin: ${origin}`);
 
@@ -275,4 +281,23 @@ export default class Server implements NodeServer {
       logger.info(`Exiting with code ${code}`);
     });
   }
+
+  getApp(): Express {
+    return this.app;
+  }
+}
+
+export function setErrorHandlers(app: Express) {
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err.message === 'INVALID_FILE_TYPE') {
+      return res.status(400).json({ success: false, message: 'Tipo de archivo no permitido' });
+    }
+    if (err.message === 'INVALID_FIELD') {
+      return res.status(400).json({ success: false, message: 'Campo de archivo no permitido' });
+    }
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ success: false, message: 'Archivo demasiado grande' });
+    }
+    return res.status(500).json({ success: false, message: 'Error inesperado en upload', detail: err.message });
+  });
 }

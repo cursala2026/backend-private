@@ -1,16 +1,12 @@
-import mongoose from 'mongoose';
+import { userRepository } from '../repositories'; 
 import { Request, Response } from 'express';
 import { getConfig, updateConfig } from '../repositories/config.repository';
-import UserRepository  from '../repositories/user.repository';
 import { sendEmail } from '../utils/emailer';
 import { buildNoEnrollmentEmail, buildCourseStartEmail } from '../utils/notifications.utils';
 import { logger } from '@/utils';
 import path from 'path';
 
 // Conexión a la base de datos
-mongoose.connect(process.env.DATABASE_URL!);
-const connection = mongoose.connection;
-const userRepository = new UserRepository(connection);
 
 export async function getNonEnrolledConfig(_req: Request, res: Response) {
   try {

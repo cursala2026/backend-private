@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import fileMaterialController from '@/controllers/fileMaterial.controller';
 import { authorize } from '@/middlewares/auth.middleware';
+import { requireAdmin } from '@/middlewares/adminSecurity.middleware';
 
 const router = Router();
 

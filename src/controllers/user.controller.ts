@@ -3,11 +3,12 @@ import prepareResponse from '../utils/api-response';
 import { logger } from '../utils';
 import UserService from '@/services/user.service';
 import BunnyService from '@/services/bunny.service';
-import { UserStatus } from '@/models';
+import { UserStatus, TeacherStatus } from '@/models';
 import { IUser } from '@/models/user.model';
 import { uploadFiles } from '@/utils/fileUpload.util';
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 import { ensureString } from '@/utils/type-guards';
 
 export default class UserController {
@@ -44,6 +45,74 @@ export default class UserController {
       return next(error);
     }
   };
+
+  applyTeacher = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = req.user as IUser;
+      if (!user) {
+        return res.status(401).json(prepareResponse(401, 'Unauthorized', null));
+      }
+
+      const {
+        title,
+        yearsOfExperience,
+        bio,
+        photoUrl,
+        cvUrl,
+        signatureUrl,
+        agreementAccepted,
+      } = req.body;
+
+      // Validaciones de negocio
+      if (!title || typeof title !== 'string' || !title.trim()) {
+        return res.status(400).json(prepareResponse(400, 'Title is required', null));
+      }
+      if (typeof yearsOfExperience !== 'number' || yearsOfExperience < 0) {
+        return res.status(400).json(prepareResponse(400, 'Year of experience must be a non-negative number', null));
+      }
+      if (!bio || typeof bio !== 'string' || bio.trim().length === 0) {
+        return res.status(400).json(prepareResponse(400, 'Bio is required', null));
+      }
+      if (bio.length > 500) {
+        return res.status(400).json(prepareResponse(400, 'Bio must be less than 500 characters', null));
+      }
+      if (!photoUrl || typeof photoUrl !== 'string') {
+        return res.status(400).json(prepareResponse(400, 'Photo URL is required', null));
+      }
+      if (!cvUrl || typeof cvUrl !== 'string') {
+        return res.status(400).json(prepareResponse(400, 'CV URL is required', null));
+      }
+      if (!signatureUrl || typeof signatureUrl !== 'string') {
+        return res.status(400).json(prepareResponse(400, 'Signature URL is required', null));
+      }
+      if (agreementAccepted !== true) {
+        return res.status(400).json(prepareResponse(400, 'Agreement accepted is required', null));
+      }
+
+      // Actualización con trazabilidad legal
+      const updateData: Partial<IUser> = {
+        title,
+        yearsOfExperience,
+        bio,
+        profilePhotoUrl: photoUrl,
+        cvUrl,
+        professionalSignatureUrl: signatureUrl,
+        agreementAccepted,
+        agreementTimestamp: new Date(),
+        teacherStatus: TeacherStatus.PENDING_APPROVAL,
+      };
+      
+      const updatedUser = await this.userService.updateUser(user._id.toString(), updateData);
+
+      if (!updatedUser) {
+        return res.status(404).json(prepareResponse(404, 'User not found', null));
+      }
+
+      return res.json(prepareResponse(200, 'Teacher application submitted successfully', updatedUser));
+    } catch (error) {
+      return next(error);
+    }
+  }
 
   getSignedContract = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -127,6 +196,37 @@ export default class UserController {
       return res.json(prepareResponse(200, 'Course assigned successfully', resp));
     } catch (error) {
       return next(error);
+    }
+  };
+
+  uploadFiles = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ success: false, message: 'Archivo inválido o faltante' });
+      }
+
+      const files = req.files as Record<string, Express.Multer.File[]>;
+      const userId = (req.user as any)?._id;
+      const results: Record<string, string> = {};
+
+      for (const field of Object.keys(files)) {
+        const file = files[field][0];
+        const filename = `teachers/${userId}/${field}-${Date.now()}`;
+        const url = `https://${process.env.BUNNY_STORAGE_REGION}.storage.bunnycdn.com/${process.env.BUNNY_STORAGE_ZONE_NAME}/${filename}`;
+
+        await axios.put(url, file.buffer, {
+          headers: {
+            AccessKey: process.env.BUNNY_STORAGE_ACCESS_KEY!,
+            'Content-Type': file.mimetype,
+          },
+        });
+
+        results[field] = `${process.env.BUNNY_STORAGE_CDN_HOSTNAME}/${filename}`;
+      }
+
+      return res.json({ success: true, urls: results });
+    } catch (err) {
+      return res.status(500).json({ success: false, message: 'Error al subir archivo', detail: err });
     }
   };
 
