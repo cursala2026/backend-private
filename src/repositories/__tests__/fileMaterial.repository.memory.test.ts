@@ -94,7 +94,7 @@ describe('FileMaterialRepository (with mongodb-memory-server)', () => {
     });
 
     it('should return only public materials with pagination', async () => {
-      const res: any = await repository.findPublicMaterials(undefined, undefined, { page: 1, limit: 2 });
+      const res: any = await repository.findPublicMaterials(undefined, undefined, undefined, { page: 1, limit: 2 });
       
       expect(res.totalDocs).toBe(3); // Mat 1, 2, 4
       expect(res.docs).toHaveLength(2);
@@ -102,7 +102,7 @@ describe('FileMaterialRepository (with mongodb-memory-server)', () => {
     });
 
     it('should filter public materials by type', async () => {
-      const res: any = await repository.findPublicMaterials(FileMaterialType.TEMPLATE, undefined, { page: 1, limit: 10 });
+      const res: any = await repository.findPublicMaterials(FileMaterialType.TEMPLATE, undefined, undefined, { page: 1, limit: 10 });
       
       expect(res.totalDocs).toBe(1);
       expect(res.docs[0].name).toBe('Mat 4');

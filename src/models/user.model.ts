@@ -19,7 +19,7 @@ export interface IUser {
   status: UserStatus;
   createdAt: Date;
   updatedAt: Date;
-  roles: UserRoles;
+  roles: UserRoles[];
   resetPasswordToken: string;
   assignedCoursesEdit?: IAssignedCourseEdit[];
   lastConnection?: Date;
@@ -45,6 +45,11 @@ export interface IUser {
 
 export interface UserModel extends IUser { }
 
+// Los campos de profesor solo son obligatorios cuando el usuario tiene rol PROFESOR
+const isTeacherRequired = function (this: any): boolean {
+  return Array.isArray(this.roles) && this.roles.includes(UserRoles.PROFESOR);
+};
+
 export const AssignedCoursesEditSchema = new Schema<IAssignedCourseEdit>(
   {
     courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
@@ -63,7 +68,7 @@ export const UserSchema: Schema<UserModel> = new Schema<UserModel>(
     birthDate: { type: Date, required: false },
     dni: { type: String, required: false },
     status: { type: String, enum: Object.values(UserStatus) },
-    roles: { type: String, enum: Object.values(UserRoles), required: true },
+    roles: [{ type: String, enum: Object.values(UserRoles) }],
     resetPasswordToken: String,
     assignedCoursesEdit: [AssignedCoursesEditSchema],
     lastConnection: { type: Date, required: false, default: Date.now },
@@ -88,12 +93,12 @@ export const UserSchema: Schema<UserModel> = new Schema<UserModel>(
 
     // ISSUE #53
     teacherStatus: { type: String, enum: Object.values(TeacherStatus), default: TeacherStatus.NOT_REQUESTED },
-    title: { type: String, required: true },
-    yearsOfExperience: { type: Number, min: 0, required: true },
-    bio: { type: String, maxlength: 500, required: true },
-    photoUrl: { type: String, required: true },
-    cvUrl: { type: String, required: true },
-    signatureUrl: { type: String, required: true },
+    title: { type: String, required: isTeacherRequired },
+    yearsOfExperience: { type: Number, min: 0, required: isTeacherRequired },
+    bio: { type: String, maxlength: 500, required: isTeacherRequired },
+    photoUrl: { type: String, required: isTeacherRequired },
+    cvUrl: { type: String, required: isTeacherRequired },
+    signatureUrl: { type: String, required: isTeacherRequired },
     agreementAccepted: { type: Boolean, default: false },
     agreementTimestamp: { type: Date, validate: { validator: function (this: any, value: Date) { if (this.agreementAccepted && !value) {return false; } return true; }, message: 'agreementTimestamp is required if agreementAccepted is true', }, },
   },

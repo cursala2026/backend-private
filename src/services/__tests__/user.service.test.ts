@@ -2,6 +2,12 @@
 import path from 'path';
 import fs from 'fs';
 import UserService from '@/services/user.service';
+import { FileMaterialMongo } from '@/models/mongo/fileMaterial.model';
+
+jest.mock('@/models/mongo/fileMaterial.model', () => ({
+  ...jest.requireActual('@/models/mongo/fileMaterial.model'),
+  FileMaterialMongo: { findOne: jest.fn() },
+}));
 
 // Mocks para repositorios
 const mockUserRepository: any = {
@@ -89,9 +95,8 @@ describe('UserService - getUserProfileImage Security Tests', () => {
     test('should return contract from FileMaterial when signedContractUrl is missing', async () => {
       const mockUser = { _id: '507f1f77bcf86cd799439011', signedContractUrl: null };
       (mockUserRepository.getUserById as jest.Mock).mockResolvedValue(mockUser);
-      const mockFile = { url: 'http://cdn/contracts/fileMaterial.pdf' };
-      const FileMaterialMongo = { findOne: jest.fn().mockResolvedValue(mockFile) };
-      (userService as any).FileMaterialMongo = FileMaterialMongo;
+      const mockFile = { fileUrl: 'http://cdn/contracts/fileMaterial.pdf' };
+      (FileMaterialMongo.findOne as jest.Mock).mockReturnValue({ lean: jest.fn().mockResolvedValue(mockFile) });
       const result = await userService.getSignedContract('507f1f77bcf86cd799439011');
       expect(result).toEqual({ url: 'http://cdn/contracts/fileMaterial.pdf' });
     });
@@ -99,8 +104,7 @@ describe('UserService - getUserProfileImage Security Tests', () => {
     test('should throw error when no signed contract exists', async () => {
       const mockUser = { _id: '507f1f77bcf86cd799439011', signedContractUrl: null };
       (mockUserRepository.getUserById as jest.Mock).mockResolvedValue(mockUser);
-      const FileMaterialMongo = { findOne: jest.fn().mockResolvedValue(null) };
-      (userService as any).FileMaterialMongo = FileMaterialMongo;
+      (FileMaterialMongo.findOne as jest.Mock).mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
       await expect(userService.getSignedContract('507f1f77bcf86cd799439011')).rejects.toThrow('Contrato no disponible')
     });
   });

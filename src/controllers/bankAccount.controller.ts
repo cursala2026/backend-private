@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { IUser } from '../models/user.model';
 import prepareResponse from '../utils/api-response';
 import BankAccountService from '@/services/bankAccount.service';
+import { UserRoles } from '@/models/enums/user.enum';
 
 export default class BankAccountController {
   constructor(private readonly bankAccountService: BankAccountService) {}
@@ -24,7 +25,7 @@ export default class BankAccountController {
   getBankAccountsForStudent = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = req.user as IUser;
-      if (!user || !user.roles || !user.roles.includes('ALUMNO')) {
+      if (!user || !user.roles || !user.roles.includes(UserRoles.ALUMNO)) {
         return res.status(403).json(prepareResponse(403, 'Access denied. Only students can access this resource.'));
       }
 

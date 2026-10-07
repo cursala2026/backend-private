@@ -169,8 +169,9 @@ describe('UserController.getSignedContract', () => {
     await controller.getSignedContract(req, res, next);
 
     expect(mockUserService.getSignedContract).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ 
-      success: true,
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 200,
+      message: 'Signed contract fetched successfully',
       data: { url: 'http://cdn/contracts/abc.pdf' }
     }));
   });

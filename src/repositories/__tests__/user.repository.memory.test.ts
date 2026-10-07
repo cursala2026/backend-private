@@ -111,7 +111,7 @@ describe('UserRepository (with mongodb-memory-server)', () => {
     });
 
     it('should get Teachers', async () => {
-      await repository.createUser({ firstName: 'T', lastName: 'T', username: 't', email: 't@t.c', password: 'h', roles: ['PROFESOR'] } as any);
+      await repository.createUser({ firstName: 'T', lastName: 'T', username: 't', email: 't@t.c', password: 'h', roles: ['PROFESOR'], title: 'Docente', yearsOfExperience: 5, bio: 'Bio', photoUrl: 'p.jpg', cvUrl: 'cv.pdf', signatureUrl: 's.png' } as any);
       await repository.createUser({ firstName: 'A', lastName: 'A', username: 'a', email: 'a@t.c', password: 'h', roles: ['ALUMNO'] } as any);
       
       const teachers = await repository.getTeachers();
@@ -233,7 +233,7 @@ describe('UserRepository (with mongodb-memory-server)', () => {
     it('should return valid counts and monthly stats', async () => {
       await repository.createUser({ firstName: 'c', lastName: '1', username: 'c1', email: 'c1@t.c', password: 'h', roles: ['ALUMNO'] } as any);
       await repository.createUser({ firstName: 'c', lastName: '2', username: 'c2', email: 'c2@t.c', password: 'h', roles: ['ALUMNO'] } as any);
-      await repository.createUser({ firstName: 'c', lastName: '3', username: 'c3', email: 'c3@t.c', password: 'h', roles: ['PROFESOR'] } as any);
+      await repository.createUser({ firstName: 'c', lastName: '3', username: 'c3', email: 'c3@t.c', password: 'h', roles: ['PROFESOR'], title: 'Docente', yearsOfExperience: 5, bio: 'Bio', photoUrl: 'p.jpg', cvUrl: 'cv.pdf', signatureUrl: 's.png' } as any);
       await repository.createUser({ firstName: 'c', lastName: '4', username: 'c4', email: 'c4@t.c', password: 'h', roles: ['ADMIN'] } as any);
 
       expect(await repository.countUsers()).toBe(4);

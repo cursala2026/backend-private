@@ -8,7 +8,9 @@ export const requireActiveTeacher = (req: Request, res: Response, next: NextFunc
         return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const isProfessor = user.roles === UserRoles.PROFESOR;
+    const isProfessor = Array.isArray(user.roles)
+        ? user.roles.includes(UserRoles.PROFESOR)
+        : user.roles === UserRoles.PROFESOR;
     const isTeacherActive = user.teacherStatus === TeacherStatus.ACTIVE;
 
     if(!(isProfessor && isTeacherActive)) {
