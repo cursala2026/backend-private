@@ -3,8 +3,13 @@ import { userController } from '../controllers';
 import TeacherController from '../controllers/teacher.controller';
 import { authorize } from '@/middlewares/auth.middleware';
 import { upload } from '../middlewares/upload.middleware';
-import { requireAdmin, requireAdminOrSelf, requireAdminOrVendedor } from '@/middlewares/adminSecurity.middleware';
-
+import { 
+  requireAdmin, 
+  requireAdminOrSelf, 
+  requireAdminOrVendedor,
+  requireAdminOrCourseOwner 
+} from '@/middlewares/adminSecurity.middleware';
+import { courseRepository } from '@/repositories';
 const router = Router();
 const teacherController = new TeacherController();
 
@@ -21,7 +26,7 @@ router.get('/interest-status/:userId', authorize, requireAdminOrSelf, userContro
 router.get('/getAllUsers', authorize, requireAdmin, userController.getAllUsers);
 router.get('/getTeachers', authorize, requireAdmin, userController.getTeachers);
 router.get('/', authorize, requireAdminOrVendedor, userController.getUsersPaginated);
-router.get('/getUsersByAssignedCourses/:courseId', authorize, requireAdmin, userController.getUsersByAssignedCourses);
+router.get('/getUsersByAssignedCourses/:courseId', authorize, requireAdminOrCourseOwner(courseRepository), userController.getUsersByAssignedCourses);
 router.get('/getStudentsByTeacherCourses/:teacherId', authorize, userController.getStudentsByTeacherCourses);
 router.get('/getAllStudentsFromAllCourses', authorize, requireAdmin, userController.getAllStudentsFromAllCourses);
 

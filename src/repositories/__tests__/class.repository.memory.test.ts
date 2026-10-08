@@ -5,6 +5,7 @@ import { ClassSchema } from '@/models/mongo/class.model';
 import { CourseSchema } from '@/models/mongo/course.model';
 
 describe('ClassRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: ClassRepository;
 
@@ -22,7 +23,9 @@ describe('ClassRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {

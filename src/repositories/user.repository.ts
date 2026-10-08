@@ -522,7 +522,6 @@ class UserRepository {
       throw new Error('El userId proporcionado no es válido.');
     }
 
-    // roleId is actually a role code after refactor
     const updatedUser = await this.model
       .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $pull: { roles: roleId } }, { new: true })
       .exec();
@@ -541,7 +540,6 @@ class UserRepository {
       throw new Error('El userId proporcionado no es válido.');
     }
 
-    // roleId is actually a role code after refactor
     const updatedUser = await this.model
       .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $addToSet: { roles: roleId } }, { new: true })
       .exec();

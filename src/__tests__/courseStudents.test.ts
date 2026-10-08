@@ -17,7 +17,6 @@ jest.mock('mongoose', () => {
   return actualMongoose;
 });
 
-
 const fakeId = new mongoose.Types.ObjectId();
 let server: Server;
 let app: any;
@@ -78,7 +77,7 @@ describe('GET /courses/:courseId/students', () => {
         } as IUser);
         jest.spyOn(Course, 'findById').mockResolvedValue({
             _id: 'fakeCourseId',
-            teacherId: fakeId.toHexString(),
+            teachers: [fakeId.toHexString()],
             students: ['student1']
         });
 
@@ -121,7 +120,7 @@ describe('GET /courses/:courseId/students', () => {
         } as IUser);
         jest.spyOn(Course, 'findById').mockResolvedValue({
             _id: 'fakeCourseId',
-            teacherId: fakeId.toHexString(),
+            teachers: [fakeId.toHexString()],
             students: ['student1']
         });
 
@@ -164,7 +163,7 @@ describe('GET /courses/:courseId/students', () => {
         } as IUser);
         jest.spyOn(Course, 'findById').mockResolvedValue({
             _id: 'fakeCourseId',
-            teacherId: 'otroProfesorId',
+            teachers: ['otroProfesorId'],
             students: ['student1']
         });
 
@@ -181,6 +180,7 @@ describe('GET /courses/:courseId/students', () => {
             config.JWT_SECRET, 
             { expiresIn: '1h' }
         );
+        
         jest.spyOn(userRepository, 'findById').mockResolvedValue({
             _id: fakeId,
             username: 'TestUser',
@@ -205,11 +205,18 @@ describe('GET /courses/:courseId/students', () => {
             agreementAccepted: true,
             agreementTimestamp: new Date(),
         } as IUser);
+
         jest.spyOn(Course, 'findById').mockResolvedValue({
             _id: 'fakeCourseId',
-            teacherId: fakeId.toHexString(),
+            teachers: [fakeId.toHexString()],
             students: ['student1']
         });
+
+        jest.spyOn(User, 'find').mockReturnValue({
+            select: jest.fn().mockResolvedValue([
+                { name: 'Juan', lastName: 'Pérez', education: 'Licenciatura' }
+            ])
+        } as any);
 
         const res = await request(app)
             .get(endpoint)

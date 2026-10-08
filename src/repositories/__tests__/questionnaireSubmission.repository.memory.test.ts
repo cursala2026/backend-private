@@ -2,10 +2,11 @@ import mongoose, { Types } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import QuestionnaireSubmissionRepository from '../questionnaireSubmission.repository';
 import { QuestionnaireSubmissionSchema } from '@/models/mongo/questionnaireSubmission.model';
-import { UserSchema } from '@/models/user.model';
+import { UserSchema, UserRoles } from '@/models';
 import { QuestionnaireSchema } from '@/models/mongo/questionnaire.model';
 
 describe('QuestionnaireSubmissionRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: QuestionnaireSubmissionRepository;
   let subModel: any;
@@ -25,7 +26,9 @@ describe('QuestionnaireSubmissionRepository (with mongodb-memory-server)', () =>
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {
@@ -56,7 +59,18 @@ describe('QuestionnaireSubmissionRepository (with mongodb-memory-server)', () =>
 
     it('should findByIdWithStudent and populate correctly', async () => {
       const user = await userModel.create({
-        firstName: 'John', lastName: 'Doe', email: 'john@test.com', username: 'john', password: 'h'
+        firstName: 'John', 
+        lastName: 'Doe', 
+        email: 'john@test.com', 
+        username: 'john', 
+        password: 'h',
+        roles: UserRoles.ALUMNO,
+        title: 'Estudiante',
+        yearsOfExperience: 0,
+        bio: 'Mi biografia',
+        photoUrl: 'https://cdn.test/photo.png',
+        cvUrl: 'https://cdn.test/cv.pdf',
+        signatureUrl: 'https://cdn.test/signature.png'
       });
       const sub = await createValidSubmission({ studentId: user._id });
 
@@ -114,7 +128,18 @@ describe('QuestionnaireSubmissionRepository (with mongodb-memory-server)', () =>
   describe('Complex Queries (Grade Report & Pending)', () => {
     it('should generate grade report with user populated names', async () => {
       const user = await userModel.create({
-        firstName: 'Jane', lastName: 'Smith', email: 'jane@test.com', username: 'jane', password: 'h'
+        firstName: 'Jane', 
+        lastName: 'Smith', 
+        email: 'jane@test.com', 
+        username: 'jane', 
+        password: 'h',
+        roles: UserRoles.ALUMNO,
+        title: 'Estudiante',
+        yearsOfExperience: 0,
+        bio: 'Mi biografia',
+        photoUrl: 'https://cdn.test/photo.png',
+        cvUrl: 'https://cdn.test/cv.pdf',
+        signatureUrl: 'https://cdn.test/signature.png'
       });
       const qId = new Types.ObjectId();
       await createValidSubmission({ studentId: user._id, questionnaireId: qId, status: 'GRADED', attemptNumber: 1 });
@@ -127,7 +152,20 @@ describe('QuestionnaireSubmissionRepository (with mongodb-memory-server)', () =>
     });
 
     it('should find pending submissions for a specific questionnaire', async () => {
-      const user = await userModel.create({ firstName: 'J', lastName: 'S', email: 'j@t.c', username: 'j', password: 'h' });
+      const user = await userModel.create({ 
+        firstName: 'J', 
+        lastName: 'S', 
+        email: 'j@t.c', 
+        username: 'j', 
+        password: 'h',
+        roles: UserRoles.ALUMNO,
+        title: 'Estudiante',
+        yearsOfExperience: 0,
+        bio: 'Mi biografia',
+        photoUrl: 'https://cdn.test/photo.png',
+        cvUrl: 'https://cdn.test/cv.pdf',
+        signatureUrl: 'https://cdn.test/signature.png'
+      });
       const qId = new Types.ObjectId();
       
       await createValidSubmission({ studentId: user._id, questionnaireId: qId, status: 'SUBMITTED', attemptNumber: 1 }); // Pending

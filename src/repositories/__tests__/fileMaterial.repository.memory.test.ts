@@ -2,10 +2,11 @@ import mongoose, { Types } from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import FileMaterialRepository from '../fileMaterial.repository';
 import { FileMaterialSchema, FileMaterialType, FileMaterialCategory } from '@/models/mongo/fileMaterial.model';
-import { UserSchema, UserStatus } from '@/models';
+import { UserSchema, UserStatus, UserRoles } from '@/models';
 import mongoosePaginate from 'mongoose-paginate-v2';
 
 describe('FileMaterialRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: FileMaterialRepository;
 
@@ -22,7 +23,9 @@ describe('FileMaterialRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {
@@ -40,7 +43,14 @@ describe('FileMaterialRepository (with mongodb-memory-server)', () => {
         lastName: 'Doc',
         username: 'docauthor',
         email: 'doc@test.com',
-        password: 'pass'
+        password: 'pass',
+        roles: UserRoles.ADMIN,
+        title: 'Admin',
+        yearsOfExperience: 0,
+        bio: 'Mi biografia',
+        photoUrl: 'https://cdn.test/photo.png',
+        cvUrl: 'https://cdn.test/cv.pdf',
+        signatureUrl: 'https://cdn.test/signature.png'
       });
 
       const data = {

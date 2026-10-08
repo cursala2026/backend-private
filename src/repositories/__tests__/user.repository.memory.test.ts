@@ -127,6 +127,7 @@ describe('UserRepository (with mongodb-memory-server)', () => {
         description: 'Desc',
         order: 1,
         status: 'ACTIVE',
+        modality: 'SYNC',
         students: []
       });
 
@@ -153,7 +154,7 @@ describe('UserRepository (with mongodb-memory-server)', () => {
       const user1 = await repository.createUser({ firstName: '1', lastName: '1', username: 'u1', email: '1@t.c', password: 'h' } as any); // Unassigned
       const user2 = await repository.createUser({ firstName: '2', lastName: '2', username: 'u2', email: '2@t.c', password: 'h', assignedCoursesEdit: [] } as any); // Specific assigned later
       
-      const course = await courseModel.create({ name: 'C1', description: 'D1', order: 1, status: 'ACTIVE', students: [{ userId: user2._id }] });
+      const course = await courseModel.create({ name: 'C1', description: 'D1', order: 1, status: 'ACTIVE', modality: 'SYNC', students: [{ userId: user2._id }] });
 
       // No courseId filter
       let res = await repository.getUsersPaginated({ page: 1, limit: 10, sort: 'createdAt', dir: -1 });
@@ -184,7 +185,7 @@ describe('UserRepository (with mongodb-memory-server)', () => {
     it('should aggregate students, classes, questionnaires, and progress for teacher courses', async () => {
       const u1 = await repository.createUser({ firstName: 'S1', lastName: 'S1', username: 's1', email: 's1@t.c', password: 'h' } as any);
       const c1 = await courseModel.create({
-        name: 'Teacher Course', description: 'Desc', order: 1, status: 'ACTIVE',
+        name: 'Teacher Course', description: 'Desc', order: 1, status: 'ACTIVE', modality: 'SYNC',
         students: [{ userId: u1._id }] // Enroll S1
       });
 

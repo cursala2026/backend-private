@@ -4,6 +4,7 @@ import MercadoPagoRepository from '../mercadoPago.repository';
 import { MercadoPagoPaymentSchema, MercadoPagoPaymentStatus } from '@/models/mongo/mercadoPago.model';
 
 describe('MercadoPagoRepository (with mongodb-memory-server)', () => {
+  jest.setTimeout(60000);
   let mongoServer: MongoMemoryServer;
   let repository: MercadoPagoRepository;
 
@@ -19,7 +20,9 @@ describe('MercadoPagoRepository (with mongodb-memory-server)', () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongoServer.stop();
+    if (mongoServer) {
+      await mongoServer.stop();
+    }
   });
 
   afterEach(async () => {
