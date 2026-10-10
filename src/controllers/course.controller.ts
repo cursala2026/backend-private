@@ -3,7 +3,6 @@ import { logger, prepareResponse } from '../utils';
 import CourseService from '@/services/course.service';
 import { categoryService, courseService } from '@/services';
 import { ICourse } from '@/models';
-import { courseUploadFiles } from '@/services/course-upload.service';
 import { ensureString } from '../utils/type-guards';
 import { UserStatus } from '@/models/enums/user.enum';
 
@@ -62,7 +61,7 @@ export default class CourseController {
       logger.info('Create course request received', { contentType: incomingContentType });
 
       // Helper para procesar la creación (comparte lógica entre multipart y JSON)
-      const processCreate = async (body: any, files: Record<string, Express.Multer.File[]> | undefined) => {
+            const processCreate = async (body: any, imageFile: Express.Multer.File | undefined) => {
         
         const {
           name,
@@ -134,8 +133,7 @@ export default class CourseController {
         };
         
 
-        // Obtener imagenes (si vienen)
-        const imageFile = files?.imageFile?.[0];
+
 
         // Crear curso con archivos usando el servicio
         const course = await this.courseService.createCourseWithFiles(courseData, imageFile);
@@ -150,52 +148,17 @@ export default class CourseController {
         return res.json(prepareResponse(201, 'Course created successfully', course));
       };
 
-      // Si la petición es multipart/form-data, usar multer para parsear archivos
-      const contentType = req.headers['content-type'] || '';
-      if (typeof contentType === 'string' && contentType.includes('multipart/form-data')) {
-        courseUploadFiles.fields([
-          { name: 'imageFile', maxCount: 1 },
-        ])(req, res, async (err: unknown) => {
-          if (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-            logger.error('Multer error parsing multipart request', { error: err });
-            return res.status(400).json({ message: errorMessage });
-          }
-          try {
-            await processCreate(req.body, req.files as Record<string, Express.Multer.File[]>);
-          } catch (error) {
-            logger.error('Error creating course (multipart)', { message: (error as Error).message, stack: (error as any)?.stack });
-            if (error && typeof error === 'object' && 'code' in error) {
-              if ((error as any).code === 11000) {
-                return res.status(400).json({ message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' });
-              }
-            }
-            if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ValidationError') {
-              logger.error('Mongoose validation error creating course (multipart)', { error });
-              return res.status(400).json({ message: 'Error de validación: ' + (error as Error).message });
-            }
-            logger.error('Unexpected error creating course (multipart)', { error });
-            return res.status(500).json({ message: 'Error inesperado al crear el curso', error: (error as Error).message });
-          }
-        });
-      } else {
-        // Petición JSON normal (sin archivos)
-        try {
-          await processCreate(req.body, undefined);
-        } catch (error) {
-          logger.error('Error creating course (json)', { message: (error as Error).message, stack: (error as any)?.stack });
-          if (error && typeof error === 'object' && 'code' in error) {
-            if ((error as any).code === 11000) {
-              return res.status(400).json({ message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' });
-            }
-          }
-          if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ValidationError') {
-            logger.error('Mongoose validation error creating course (json)', { error });
-            return res.status(400).json({ message: 'Error de validación: ' + (error as Error).message });
-          }
-          logger.error('Unexpected error creating course (json)', { error });
-          return res.status(500).json({ message: 'Error inesperado al crear el curso', error: (error as Error).message });
+      try {
+        await processCreate(req.body, req.file);
+      } catch (error) {
+        logger.error('Error creating course', { message: (error as Error).message, stack: (error as any)?.stack });
+        if (error && typeof error === 'object' && 'code' in error && (error as any).code === 11000) {
+          return res.status(400).json({ message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' });
         }
+        if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ValidationError') {
+          return res.status(400).json({ message: 'Error de validación: ' + (error as Error).message });
+        }
+        return res.status(500).json({ message: 'Error inesperado al crear el curso', error: (error as Error).message });
       }
     } catch (error) {
       return next(error);
@@ -204,186 +167,172 @@ export default class CourseController {
 
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      courseUploadFiles.fields([
-        { name: 'imageFile', maxCount: 1 },
-      ])(req, res, async (err: unknown) => {
-        if (err) {
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          return res.status(400).json({ message: errorMessage });
+      const id = ensureString(req.params.courseId);
+      const existingCourse = await this.courseService.findOneById(id);
+      if (!existingCourse) {
+        return res.status(404).json({ message: 'Course not found' });
+      }
+
+      const updateData: Partial<ICourse> = {};
+      const unsetFields: string[] = [];
+      const {
+        name,
+        description,
+        longDescription,
+        category,
+        days,
+        time,
+        startDate,
+        registrationOpenDate,
+        modality,
+        price,
+        maxInstallments,
+        interestFree,
+        numberOfClasses,
+        duration,
+        showOnHome,
+        deleteImage,
+        teachers,
+      } = req.body;
+
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (category !== undefined) {
+        if (category === '' || category === null) {
+          unsetFields.push('category');
+        } else {
+          updateData.category = typeof category === 'string' ? category : JSON.stringify({ id: category.id, name: category.name, description: category.description });
+        }
+      }
+      if (longDescription !== undefined) updateData.longDescription = longDescription;
+      if (days !== undefined) {
+        if (typeof days === 'string') {
+          updateData.days = days.split(',').map((day) => day.trim());
+        } else {
+          updateData.days = days;
+        }
+      }
+      if (time !== undefined) updateData.time = time;
+      if (startDate !== undefined) {
+        if (startDate === '' || startDate === null) {
+          unsetFields.push('startDate');
+        } else {
+          updateData.startDate = new Date(startDate);
+        }
+      } else {
+        unsetFields.push('startDate');
+      }
+      if (registrationOpenDate !== undefined) {
+        if (registrationOpenDate === '' || registrationOpenDate === null) {
+          unsetFields.push('registrationOpenDate');
+        } else {
+          updateData.registrationOpenDate = new Date(registrationOpenDate);
+        }
+      } else {
+        unsetFields.push('registrationOpenDate');
+      }
+      if (modality !== undefined) updateData.modality = modality;
+      if (price !== undefined) updateData.price = Number(price);
+      if (maxInstallments !== undefined) updateData.maxInstallments = Number(maxInstallments);
+      if (interestFree !== undefined) updateData.interestFree = interestFree === 'true' || interestFree === true;
+      if (showOnHome !== undefined) updateData.showOnHome = showOnHome === 'true' || showOnHome === true;
+
+      if (numberOfClasses !== undefined) {
+        const numValue = Number(numberOfClasses);
+        if (numValue > 0) {
+          updateData.numberOfClasses = numValue;
+        } else if (numberOfClasses === '' || numberOfClasses === null) {
+          unsetFields.push('numberOfClasses');
+        }
+      }
+
+      if (duration !== undefined) {
+        const durValue = Number(duration);
+        if (durValue >= 0.5) {
+          updateData.duration = durValue;
+        } else if (duration === '' || duration === null) {
+          unsetFields.push('duration');
+        }
+      }
+
+      if (teachers !== undefined) {
+        let teachersArray: string[] = [];
+        if (teachers) {
+          if (Array.isArray(teachers)) {
+            teachersArray = teachers.filter(t => t && t.trim() !== '');
+          } else if (typeof teachers === 'string') {
+            teachersArray = teachers.split(',').map(t => t.trim()).filter(t => t !== '');
+          }
         }
 
-        try {
-          const id = ensureString(req.params.courseId);
-          const existingCourse = await this.courseService.findOneById(id);
-          if (!existingCourse) {
-            return res.status(404).json({ message: 'Course not found' });
-          }
-
-          const updateData: Partial<ICourse> = {};
-          const unsetFields: string[] = [];
-          const {
-            name,
-            description,
-            longDescription,
-            category,
-            days,
-            time,
-            startDate,
-            registrationOpenDate,
-            modality,
-            price,
-            maxInstallments,
-            interestFree,
-            numberOfClasses,
-            duration,
-            showOnHome,
-            deleteImage,
-            teachers,
-          } = req.body;
-
-          if (name !== undefined) updateData.name = name;
-          if (description !== undefined) updateData.description = description;
-          if (category !== undefined) {
-            if (category === '' || category === null) {
-              unsetFields.push('category');
-            } else {
-              updateData.category = typeof category === 'string' ? category : JSON.stringify({ id: category.id, name: category.name, description: category.description });
-            }
-          }
-          if (longDescription !== undefined) updateData.longDescription = longDescription;
-          if (days !== undefined) {
-            if (typeof days === 'string') {
-              updateData.days = days.split(',').map((day) => day.trim());
-            } else {
-              updateData.days = days;
-            }
-          }
-          if (time !== undefined) updateData.time = time;
-          if (startDate !== undefined) {
-            if (startDate === '' || startDate === null) {
-              unsetFields.push('startDate');
-            } else {
-              updateData.startDate = new Date(startDate);
-            }
-          } else {
-            unsetFields.push('startDate');
-          }
-          if (registrationOpenDate !== undefined) {
-            if (registrationOpenDate === '' || registrationOpenDate === null) {
-              unsetFields.push('registrationOpenDate');
-            } else {
-              updateData.registrationOpenDate = new Date(registrationOpenDate);
-            }
-          } else {
-            unsetFields.push('registrationOpenDate');
-          }
-          if (modality !== undefined) updateData.modality = modality;
-          if (price !== undefined) updateData.price = Number(price);
-          if (maxInstallments !== undefined) updateData.maxInstallments = Number(maxInstallments);
-          if (interestFree !== undefined) updateData.interestFree = interestFree === 'true' || interestFree === true;
-          if (showOnHome !== undefined) updateData.showOnHome = showOnHome === 'true' || showOnHome === true;
-          
-          if (numberOfClasses !== undefined) {
-            const numValue = Number(numberOfClasses);
-            if (numValue > 0) {
-              updateData.numberOfClasses = numValue;
-            } else if (numberOfClasses === '' || numberOfClasses === null) {
-              unsetFields.push('numberOfClasses');
-            }
-          }
-          
-          if (duration !== undefined) {
-            const durValue = Number(duration);
-            if (durValue >= 0.5) {
-              updateData.duration = durValue;
-            } else if (duration === '' || duration === null) {
-              unsetFields.push('duration');
-            }
-          }
-
-          if (teachers !== undefined) {
-            let teachersArray: string[] = [];
-            if (teachers) {
-              if (Array.isArray(teachers)) {
-                teachersArray = teachers.filter(t => t && t.trim() !== '');
-              } else if (typeof teachers === 'string') {
-                teachersArray = teachers.split(',').map(t => t.trim()).filter(t => t !== '');
-              }
-            }
-
-            if (teachersArray.length < 1 || teachersArray.length > 3) {
-              return res.status(400).json({ 
-                message: 'El curso debe tener entre 1 y 3 profesores asignados' 
-              });
-            }
-
-            const { Types } = require('mongoose');
-            const teachersObjectIds = teachersArray.map(id => {
-              if (!Types.ObjectId.isValid(id)) {
-                throw new Error(`ID de profesor inválido: ${id}`);
-              }
-              return new Types.ObjectId(id);
-            });
-
-            updateData.teachers = teachersObjectIds;
-          }
-
-          const files = req.files as Record<string, Express.Multer.File[]>;
-          const imageFile = files?.imageFile?.[0];
-          
-          if (deleteImage === 'true' || deleteImage === true) {
-            if (!imageFile && existingCourse.imageUrl) {
-              unsetFields.push('imageUrl');
-              const courseUploadService = require('@/services/courseUpload.service').default;
-              await courseUploadService.deleteCourseImage(existingCourse.imageUrl);
-            }
-          }
-          
-          const hasUpdates = Object.keys(updateData).length > 0 || unsetFields.length > 0 || imageFile;
-
-          if (!hasUpdates) {
-            return res.status(400).json({ message: 'At least one field must be provided for update' });
-          }
-
-          const updatedCourse = await this.courseService.updateCourseWithFiles(
-            id, 
-            updateData, 
-            unsetFields,
-            imageFile
-          );
-
-          try {
-            await this.courseService.rebuildOrderedContentForCourse(updatedCourse._id.toString());
-          } catch (error) {
-            console.error('Error rebuilding orderedContent after course update', (error as Error).message);
-          }
-          
-          return res.json(prepareResponse(200, 'Course updated successfully', updatedCourse));
-        } catch (error) {
-          logger.error(`Update course error: ${(error as Error).message}`);
-          
-          if (error && typeof error === 'object' && 'code' in error) {
-            if (error.code === 11000) {
-              return res.status(400).json({ 
-                message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.' 
-              });
-            }
-          }
-
-          if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
-            return res.status(400).json({ 
-              message: 'Error de validación: ' + (error as Error).message 
-            });
-          }
-
-          return res.status(500).json({ 
-            message: 'Error inesperado al actualizar el curso', 
-            error: (error as Error).message 
+        if (teachersArray.length < 1 || teachersArray.length > 3) {
+          return res.status(400).json({
+            message: 'El curso debe tener entre 1 y 3 profesores asignados'
           });
         }
-      });
+
+        const { Types } = require('mongoose');
+        const teachersObjectIds = teachersArray.map(id => {
+          if (!Types.ObjectId.isValid(id)) {
+            throw new Error(`ID de profesor inválido: ${id}`);
+          }
+          return new Types.ObjectId(id);
+        });
+
+        updateData.teachers = teachersObjectIds;
+      }
+
+      const imageFile = req.file;
+
+      if (deleteImage === 'true' || deleteImage === true) {
+        if (!imageFile && existingCourse.imageUrl) {
+          unsetFields.push('imageUrl');
+          const courseUploadService = require('@/services/courseUpload.service').default;
+          await courseUploadService.deleteCourseImage(existingCourse.imageUrl);
+        }
+      }
+
+      const hasUpdates = Object.keys(updateData).length > 0 || unsetFields.length > 0 || imageFile;
+
+      if (!hasUpdates) {
+        return res.status(400).json({ message: 'At least one field must be provided for update' });
+      }
+
+      const updatedCourse = await this.courseService.updateCourseWithFiles(
+        id,
+        updateData,
+        unsetFields,
+        imageFile
+      );
+
+      try {
+        await this.courseService.rebuildOrderedContentForCourse(updatedCourse._id.toString());
+      } catch (error) {
+        console.error('Error rebuilding orderedContent after course update', (error as Error).message);
+      }
+
+      return res.json(prepareResponse(200, 'Course updated successfully', updatedCourse));
     } catch (error) {
-      return next(error);
+      logger.error(`Update course error: ${(error as Error).message}`);
+
+      if (error && typeof error === 'object' && 'code' in error) {
+        if (error.code === 11000) {
+          return res.status(400).json({
+            message: 'Ya existe un curso con ese nombre. Por favor, usa un nombre diferente.'
+          });
+        }
+      }
+
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
+        return res.status(400).json({
+          message: 'Error de validación: ' + (error as Error).message
+        });
+      }
+
+      return res.status(500).json({
+        message: 'Error inesperado al actualizar el curso',
+        error: (error as Error).message
+      });
     }
   };
 

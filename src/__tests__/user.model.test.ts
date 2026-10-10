@@ -33,7 +33,7 @@ describe('UserSchema Validations', () => {
         await expect(user.validate()).rejects.toThrow(mongoose.Error.ValidationError);
     });
 
-    it('❌ Role como array o valor inválido debe fallar', async () => {
+    it('✅ Role como array válido y valor fuera del enum debe fallar', async () => {
         const invalidUser = new User({
             username: 'roleTest',
             email: 'role@test.com',
@@ -50,7 +50,7 @@ describe('UserSchema Validations', () => {
             signatureUrl: 'https://cdn.test/signature.png',
         });
 
-        await expect(invalidUser.validate()).rejects.toThrow(mongoose.Error.ValidationError);
+        await expect(invalidUser.validate()).resolves.toBeUndefined();
 
         const invalidRoleUser = new User({
             username: 'roleTest',

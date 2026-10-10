@@ -148,11 +148,14 @@ describe('FileMaterialService', () => {
   });
   describe('getUserMaterials', () => {
     test('retrieves user materials successfully', async () => {
-      const materials = [{ name: 'Doc1', type: 'PDF' }, { name: 'Doc2', type: 'VIDEO' }];
+      const materials = [{ _id: new mongoose.Types.ObjectId(), name: 'Test' }];
       mockFileMaterialRepository.findWithPagination.mockResolvedValue(materials);
       const result = await fileMaterialService.getUserMaterials('507f1f77bcf86cd799439011');
       expect(result).toEqual(materials);
-      expect(mockFileMaterialRepository.findWithPagination).toHaveBeenCalledWith({ uploadedBy: '507f1f77bcf86cd799439011', status: UserStatus.ACTIVE }, { page: 1, limit: 10, sort: '-createdAt' });
+      expect(mockFileMaterialRepository.findWithPagination).toHaveBeenCalledWith(
+        { uploadedBy: '507f1f77bcf86cd799439011', status: UserStatus.ACTIVE },
+        { page: 1, limit: 10, sort: '-createdAt' }
+      );
     });
     test('throws error for invalid user ID', async () => {
       await expect(fileMaterialService.getUserMaterials('invalid')).rejects.toThrow('ID de usuario inválido');

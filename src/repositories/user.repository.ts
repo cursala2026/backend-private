@@ -522,9 +522,8 @@ class UserRepository {
       throw new Error('El userId proporcionado no es válido.');
     }
 
-    // roleId is actually a role code after refactor
     const updatedUser = await this.model
-      .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $set: { roles: roleId } }, { new: true })
+      .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $pull: { roles: roleId } }, { new: true })
       .exec();
 
     return updatedUser as unknown as IUser | null;
@@ -541,9 +540,8 @@ class UserRepository {
       throw new Error('El userId proporcionado no es válido.');
     }
 
-    // roleId is actually a role code after refactor
     const updatedUser = await this.model
-      .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $set: { roles: roleId } }, { new: true })
+      .findOneAndUpdate({ _id: new Types.ObjectId(userId) }, { $addToSet: { roles: roleId } }, { new: true })
       .exec();
 
     return updatedUser as unknown as IUser | null;
@@ -1323,23 +1321,45 @@ class UserRepository {
       throw new Error('El courseId proporcionado no es válido.');
     }
 
-    // 1. Verificar en el curso (fuente de verdad principal en el sistema actual)
+    const uId = new Types.ObjectId(userId);
+    const cId = new Types.ObjectId(courseId);
+
+    // Control 1: Verificación formal en courses.students
     const enrollment = await this.courseModel.findOne({
-      _id: new Types.ObjectId(courseId),
-      'students.userId': new Types.ObjectId(userId),
+      _id: cId,
+      'students.userId': uId,
     }).lean();
 
     if (enrollment) {
       return true;
     }
 
-    // 2. Por compatibilidad, verificar en assignedCoursesEdit del usuario
+    // Control 2: Verificación de compatibilidad en users.assignedCoursesEdit
     const user = await this.model.findOne({
-      _id: new Types.ObjectId(userId),
-      'assignedCoursesEdit.courseId': new Types.ObjectId(courseId),
+      _id: uId,
+      'assignedCoursesEdit.courseId': cId,
     }).lean();
 
-    return !!user;
+    if (user) {
+      return true;
+    }
+
+    // Control 3 (Fallback de Auditoría): Si registra progreso pedagógico, convalida
+    try {
+      const progressModel =
+        this.connection.models['CourseProgress'] ||
+        this.connection.models['courseprogresses'] ||
+        this.connection.model('CourseProgress');
+
+      const hasProgress = await progressModel.exists({
+        userId: uId,
+        courseId: cId,
+      });
+
+      return !!hasProgress;
+    } catch {
+      return false;
+    }
   }
 
   /**

@@ -1,13 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import CourseController from '../course.controller';
 import CourseService from '@/services/course.service';
-import { courseUploadFiles, courseUploadService } from '@/services/course-upload.service';
 
 jest.mock('@/services/course.service');
 jest.mock('@/services/course-upload.service', () => ({
-    courseUploadFiles: {
-        fields: jest.fn(),
-    },
     courseUploadService: {
         deleteImageFile: jest.fn(),
         deleteProgramFile: jest.fn(),
@@ -41,7 +37,7 @@ describe('CourseController', () => {
         courseController = new CourseController(mockCourseService);
         req = {
             body: {},
-            files: {},
+            file: undefined,
             params: {},
             headers: { 'content-type': 'multipart/form-data' },
         };
@@ -59,37 +55,20 @@ describe('CourseController', () => {
                 description: 'Description',
                 price: '100',
             };
-            req.files = {
-                imageFile: [{ filename: 'image.jpg' } as Express.Multer.File],
-            };
-            (courseUploadFiles.fields as jest.Mock).mockReturnValue((req: Request, res: Response, cb: (err?: any) => void) => {
-                cb(null);
-            });
+            req.file = { filename: 'image.jpg' } as Express.Multer.File;
             const mockCourse = { _id: 'course-123', ...req.body, imageUrl: 'image.jpg' };
             (mockCourseService as any).createCourseWithFiles = jest.fn().mockResolvedValue(mockCourse);
+            (mockCourseService as any).rebuildOrderedContentForCourse = jest.fn().mockResolvedValue(undefined);
 
             await courseController.create(req as Request, res as Response, next);
-            await new Promise(resolve => setImmediate(resolve));
 
-            expect(courseUploadFiles.fields).toHaveBeenCalled();
-            expect((mockCourseService as any).createCourseWithFiles).toHaveBeenCalled();
+            expect((mockCourseService as any).createCourseWithFiles).toHaveBeenCalledWith(
+                expect.objectContaining({ name: 'Test Course' }),
+                req.file
+            );
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 status: 201,
                 data: mockCourse,
-            }));
-        });
-
-        it('should return 400 if multer error occurs', async () => {
-            (courseUploadFiles.fields as jest.Mock).mockReturnValue((req: Request, res: Response, cb: (err?: any) => void) => {
-                cb(new Error('Multer error'));
-            });
-
-            await courseController.create(req as Request, res as Response, next);
-            await new Promise(resolve => setImmediate(resolve));
-
-            expect(res.status).toHaveBeenCalledWith(400);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                message: 'Multer error',
             }));
         });
     });
@@ -98,20 +77,14 @@ describe('CourseController', () => {
         it('should update a course successfully', async () => {
             req.params = { courseId: 'course-123' };
             req.body = { name: 'Updated Course' };
-            req.files = {
-                imageFile: [{ filename: 'new-image.jpg' } as Express.Multer.File],
-            };
+            req.file = { filename: 'new-image.jpg' } as Express.Multer.File;
             const existingCourse = { _id: 'course-123', imageUrl: 'old-image.jpg' };
             mockCourseService.findOneById.mockResolvedValue(existingCourse as any);
             (mockCourseService as any).updateCourseWithFiles = jest.fn().mockResolvedValue({
                 ...existingCourse, name: 'Updated Course', imageUrl: 'new-image.jpg'
             });
-            (courseUploadFiles.fields as jest.Mock).mockReturnValue((req: Request, res: Response, cb: (err?: any) => void) => {
-                cb(null);
-            });
 
             await courseController.update(req as Request, res as Response, next);
-            await new Promise(resolve => setImmediate(resolve));
 
             expect(mockCourseService.findOneById).toHaveBeenCalledWith('course-123');
             expect((mockCourseService as any).updateCourseWithFiles).toHaveBeenCalled();
@@ -123,9 +96,6 @@ describe('CourseController', () => {
 
         it('should return 404 if course not found', async () => {
             req.params = { courseId: 'course-123' };
-            (courseUploadFiles.fields as jest.Mock).mockReturnValue((req: Request, res: Response, cb: (err?: any) => void) => {
-                cb(null);
-            });
             mockCourseService.findOneById.mockResolvedValue(null);
 
             await courseController.update(req as Request, res as Response, next);

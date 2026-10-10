@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { userController } from '../controllers';
+import TeacherController from '../controllers/teacher.controller';
 import { authorize } from '@/middlewares/auth.middleware';
 import { upload } from '../middlewares/upload.middleware';
 import { 
@@ -10,6 +11,8 @@ import {
 } from '@/middlewares/adminSecurity.middleware';
 import { courseRepository } from '@/repositories';
 const router = Router();
+const teacherController = new TeacherController();
+
 
 // 🟠 ALTO: Consultas administrativas de usuarios
 // Esta ruta DEBE estar aquí arriba para evitar el error 404 durante el login
@@ -67,5 +70,8 @@ router.patch('/:userId/interests', authorize, requireAdminOrSelf, userController
 // DELETE routes
 router.delete('/deleteUser/:userId', authorize, requireAdmin, userController.deleteUser);
 router.delete('/delete-self', authorize, userController.deleteSelfProfile);
+
+// teacher upload routes
+router.post('/teacher/apply/upload', upload.fields([{ name: 'photo' }, { name: 'cv' }, { name: 'signature' }]), teacherController.uploadDocuments);
 
 export default router;

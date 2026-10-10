@@ -20,7 +20,7 @@ export default class CourseAttachmentController {
             const course = await courseService.findOneById(courseId);
             if (!course) return res.status(404).json({ message: 'Curso no encontrado' });
 
-            const isAdmin = req.user?.roles === UserRoles.ADMIN;
+            const isAdmin = req.user?.roles?.includes(UserRoles.ADMIN);
             const isTeacher = course.teachers?.some(
                 (teacherId: any) => teacherId.toString() === req.user?._id.toString()
             );
@@ -66,7 +66,7 @@ export default class CourseAttachmentController {
             const course = await courseService.findOneById(courseId);
             if (!course) return res.status(404).json({ message: 'Curso no encontrado' });
             
-            const isAdmin = req.user?.roles === UserRoles.ADMIN;
+            const isAdmin = req.user?.roles?.includes(UserRoles.ADMIN);
             const isTeacher = course.teachers?.some(
                 (teacherId: any) => teacherId.toString() === req.user?._id.toString()
             );

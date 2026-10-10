@@ -2,21 +2,12 @@
 import path from 'path';
 import fs from 'fs';
 import UserService from '@/services/user.service';
-import { User, FileMaterialMongo } from '@/models';
-
-jest.setTimeout(30000);
-jest.mock('@/models/user.model', () => ({
-  User: {
-    findOne: jest.fn(),
-    findById: jest.fn(),
-  },
-}));
+import { FileMaterialMongo } from '@/models/mongo/fileMaterial.model';
 
 jest.mock('@/models/mongo/fileMaterial.model', () => ({
-  FileMaterialMongo: {
-    findOne: jest.fn(),
-  },
-}))
+  ...jest.requireActual('@/models/mongo/fileMaterial.model'),
+  FileMaterialMongo: { findOne: jest.fn() },
+}));
 
 // Mocks para repositorios
 const mockUserRepository: any = {
@@ -95,45 +86,25 @@ describe('UserService - getUserProfileImage Security Tests', () => {
   });
   describe('UserService - getSignedContract', () => {
     test('should return signedContractUrl from user when available', async () => {
-      (User.findById as jest.Mock).mockReturnValue({ 
-        lean: () => ({
-          _id: '507f1f77bcf86cd799439011',
-          signedContractUrl: 'http://cdn/contracts/abc.pdf'
-        }),
-      });
-
-      (FileMaterialMongo.findOne as jest.Mock).mockReturnValue({ lean: () => ({ fileUrl: 'http://cdn/contracts/abc.pdf'}) });
-
+      const mockUser = { _id: '507f1f77bcf86cd799439011', signedContractUrl: 'http://cdn/contracts/abc.pdf' };
+      (mockUserRepository.getUserById as jest.Mock).mockResolvedValue(mockUser);
       const result = await userService.getSignedContract('507f1f77bcf86cd799439011');
       expect(result).toEqual({ url: 'http://cdn/contracts/abc.pdf' });
     });
 
     test('should return contract from FileMaterial when signedContractUrl is missing', async () => {
-      (User.findById as jest.Mock).mockReturnValue({ 
-        lean: () => ({
-          _id: '507f1f77bcf86cd799439011',
-          signedContractUrl: null,
-        }),
-      });
-
-      (FileMaterialMongo.findOne as jest.Mock).mockReturnValue({
-        lean: () => ({ fileUrl: 'http://cdn/contracts/fileMaterial.pdf' }),
-      });
-
+      const mockUser = { _id: '507f1f77bcf86cd799439011', signedContractUrl: null };
+      (mockUserRepository.getUserById as jest.Mock).mockResolvedValue(mockUser);
+      const mockFile = { fileUrl: 'http://cdn/contracts/fileMaterial.pdf' };
+      (FileMaterialMongo.findOne as jest.Mock).mockReturnValue({ lean: jest.fn().mockResolvedValue(mockFile) });
       const result = await userService.getSignedContract('507f1f77bcf86cd799439011');
       expect(result).toEqual({ url: 'http://cdn/contracts/fileMaterial.pdf' });
     });
 
     test('should throw error when no signed contract exists', async () => {
-      (User.findById as jest.Mock).mockReturnValue({ 
-        lean: () => ({
-          _id: '507f1f77bcf86cd799439011',
-          signedContractUrl: null,
-        }),
-      });
-
-      (FileMaterialMongo.findOne as jest.Mock).mockReturnValue({ lean: () => null });
-
+      const mockUser = { _id: '507f1f77bcf86cd799439011', signedContractUrl: null };
+      (mockUserRepository.getUserById as jest.Mock).mockResolvedValue(mockUser);
+      (FileMaterialMongo.findOne as jest.Mock).mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
       await expect(userService.getSignedContract('507f1f77bcf86cd799439011')).rejects.toThrow('Contrato no disponible')
     });
   });

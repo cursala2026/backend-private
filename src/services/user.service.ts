@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import bcrypt from 'bcryptjs';
-import { IUser, User } from '../models/user.model';
+import { IUser } from '../models/user.model';
 import { sendEmail } from '../utils/emailer';
 import config from '@/config';
 import { IUserExtended } from '@/types/user.types';
@@ -68,14 +68,14 @@ export default class UserService {
   }
 
   async getSignedContract(userId: string) {
-    const user = await User.findById(userId).lean();
+    const user = await this.userRepository.getUserById(userId);
     if (!user) {
       throw new Error('Usuario no encontrado');
     }
 
     // Caso 1: contrato guardado en el modelo de usuario
-    if (user.signedContracturl) {
-      return { url: user.signedContracturl };
+    if (user.signedContractUrl) {
+      return { url: user.signedContractUrl };
     }
 
     // Caso 2: contrato guardado como FileMaterial
