@@ -1,0 +1,33 @@
+# Cursala Source Code License (All Rights Reserved)
+
+Copyright (c) 2026 Cursala. All rights reserved.
+
+1. SCOPE AND NATURE OF THIS REPOSITORY
+This repository contains proprietary and confidential source code, architecture, 
+and documentation belonging to Cursala. The presence of this source code in a 
+publicly accessible repository on GitHub is strictly for educational inspection, 
+portfolio demonstration, and architectural auditing purposes.
+
+2. PROHIBITION OF USE, COPYING, AND DISTRIBUTION
+Except as expressly permitted by Cursala in writing:
+- You MAY NOT copy, reproduce, fork for commercial use, modify, adapt, or create 
+  derivative works from any part of this software.
+- You MAY NOT compile, execute, deploy, host, or integrate this code into any 
+  application, SaaS platform, internal tool, or commercial endeavor.
+- You MAY NOT distribute, publish, sublicense, sell, rent, or lease this software 
+  or any portion thereof to third parties.
+
+3. PERMITTED RIGHTS
+The only right granted by this notice is the limited, revocable, non-exclusive 
+right to read and inspect the code solely for review, evaluation of architectural 
+seniority, and peer assessment.
+
+4. COMMERCIAL AND ACADEMIC INQUIRIES
+Any request to use, adapt, license, or reference specific modules of this project 
+must be requested and formally authorized in writing by Cursala:
+Contact: info@cursala.com.ar / luis.varela@cursala.com.ar
+
+5. ENFORCEMENT
+Any unauthorized use, deployment, or unauthorized extraction of this source code 
+constitutes a direct violation of international copyright laws and will be subject 
+to immediate legal action, DMCA takedown requests, and claims for statutory damages.
