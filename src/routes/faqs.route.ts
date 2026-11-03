@@ -9,5 +9,8 @@ router.post('/', authorize, faqController.createFAQ);
 router.patch('/:id', authorize, faqController.updateFAQ);
 router.delete('/:id', authorize, faqController.deleteFAQ);
 router.patch('/order/update', authorize, faqController.updateFAQOrder);
+// Ruta pública para leer las FAQs en la landing page
+// Ruta pública para leer las FAQs en la landing page
+router.get('/', faqController.getAllFAQs);
 
 export default router;

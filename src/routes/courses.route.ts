@@ -12,6 +12,8 @@ const router = Router();
 
 // 🟢 PÚBLICO: Imágenes de cursos (sin autenticación para permitir carga en navegador)
 router.get('/:imageFileName/image', courseController.getCourseImage);
+// 🟢 PÚBLICO: Cursos para la home (sin autenticación)
+router.get('/home', courseController.findForHome);
 
 // 🟡 AUTENTICADO: Listar y ver cursos
 router.get('/published', authorize, courseController.findPublishedCourses); // Cursos publicados para estudiantes

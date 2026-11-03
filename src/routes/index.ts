@@ -95,6 +95,10 @@ export default async function registerRoutes() {
           const altRouter = Router();
           altRouter.use('/file-materials', router);
           routers.push(altRouter);
+        } else if (prefix === 'faq') {
+          const altRouter = Router();
+          altRouter.use('/faqs', router);
+          routers.push(altRouter);
         }
       } else {
         routers.push(router);
