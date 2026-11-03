@@ -215,10 +215,6 @@ export default class UserController {
         
         const regionPrefix = process.env.BUNNY_STORAGE_REGION ? `${process.env.BUNNY_STORAGE_REGION}.` : "";
         const url = `https://${regionPrefix}storage.bunnycdn.com/${process.env.BUNNY_STORAGE_ZONE_NAME}/${filename}`;
-        
-        console.log("Bunny URL final:", url);
-        console.log("Bunny AccessKey length:", process.env.BUNNY_STORAGE_ACCESS_KEY?.length ?? 0);
-        console.log("Bunny AccessKey preview:", process.env.BUNNY_STORAGE_ACCESS_KEY ? `${process.env.BUNNY_STORAGE_ACCESS_KEY.slice(0, 4)}...` : "NO DEFINIDA");
 
         await axios.put(url, file.buffer, {
           headers: {
